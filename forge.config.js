@@ -28,7 +28,10 @@ function getWindowsKitVersion() {
 let packagerConfig = {
   icon: 'build/icon',
   protocols: [{ name: appName, schemes: [pkg.name] }],
-  derefSymlinks: true
+  derefSymlinks: true,
+  // The mobile workspace (sources, Pods, native builds) is not part of the
+  // desktop app; without this it is copied into every package (~470 MB).
+  ignore: [/^\/apps(\/|$)/]
 }
 
 if (process.env.MAC_CODESIGN_IDENTITY) {

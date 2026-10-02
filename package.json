@@ -1,7 +1,7 @@
 {
   "name": "opencollab-electron",
   "productName": "OpenCollab",
-  "version": "1.0.0",
+  "version": "1.0.4",
   "upgrade": "pear://nzi3suuxyzwj6oosortonj5pxd9s7ckgd8cr87szddaamxi77kny",
   "description": "Private peer-to-peer collaboration boards",
   "license": "",
@@ -19,6 +19,7 @@
   },
   "workspaces": [
     "apps/mobile",
+    "apps/cli",
     "packages/*"
   ],
   "scripts": {
@@ -38,12 +39,15 @@
     "postinstall:mac": "npm run postinstall:all && npm run install:macos-alias && npm run install:fs-xattr",
     "install:electron": "node node_modules/electron/install.js",
     "install:macos-alias": "cd node_modules/macos-alias && node-gyp rebuild",
-    "install:fs-xattr": "cd node_modules/fs-xattr && node-gyp rebuild"
+    "install:fs-xattr": "cd node_modules/fs-xattr && node-gyp rebuild",
+    "cli": "node apps/cli/bin.js"
   },
   "dependencies": {
+    "@opencollab/board-protocol": "file:packages/board-protocol",
     "autobee": "^2.12.1",
     "framed-stream": "^1.0.1",
     "hello-pear-worker": "^1.0.0",
+    "hyperblobs": "^2.12.1",
     "hypercore-crypto": "^3.7.0",
     "keet-identity-key": "^3.2.0",
     "keytar": "^7.9.0",
