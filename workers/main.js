@@ -625,7 +625,7 @@ async function startRoom(invite, name) {
       'This invitation uses the old single-writer format. Create a new board and share its new invitation.'
     )
   }
-  if (roomSyncTimer) clearInterval(roomSyncTimer)
+  if (boardDb) await closeRoom()
   boardName = typeof name === 'string' ? name.trim() : ''
   boardStore = new Corestore(path.join(updaterConfig.dir, 'board-store'))
   boardDb = new Autobee(boardStore, decoded.key, {
@@ -682,7 +682,10 @@ async function startRoom(invite, name) {
   }, 1000)
 }
 
-async function leaveRoom() {
+// Tears down the open board without notifying the UI. startRoom calls this
+// when a board is already open (e.g. after a renderer reload), otherwise the
+// new Corestore fails to lock the storage the old one still holds.
+async function closeRoom() {
   if (roomSyncTimer) {
     clearInterval(roomSyncTimer)
     roomSyncTimer = null
@@ -704,6 +707,10 @@ async function leaveRoom() {
   profiles.clear()
   operationIds.clear()
   boardName = ''
+}
+
+async function leaveRoom() {
+  await closeRoom()
   pipe.write(JSON.stringify({ type: 'board-state', objects: [], profiles: {} }))
   pipe.write(JSON.stringify({ type: 'room-status', status: 'none' }))
 }
