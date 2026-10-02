@@ -1,0 +1,19 @@
+{
+  "expo": {
+    "name": "OpenCollab",
+    "slug": "opencollab",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "opencollab",
+    "ios": {
+      "bundleIdentifier": "com.opencollab.mobile",
+      "buildReactNativeFromSource": true,
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSLocalNetworkUsageDescription": "OpenCollab uses the local network to discover and sync private boards with invited devices."
+      }
+    },
+    "android": { "package": "com.opencollab.mobile" },
+    "plugins": ["pear-runtime-react-native", "expo-secure-store"]
+  }
+}

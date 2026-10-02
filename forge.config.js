@@ -88,7 +88,7 @@ module.exports = {
       name: 'pear-electron-forge-maker-flatpak',
       platforms: ['linux'],
       config: {
-        appId: 'com.pears.HelloPear',
+        appId: 'com.opencollab.desktop',
         icon: `${packagerConfig.icon}.png`,
         comment: 'Integrating Pear into a hello world electron desktop app',
         categories: ['Development']

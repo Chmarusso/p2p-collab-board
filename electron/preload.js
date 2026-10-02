@@ -34,5 +34,13 @@ contextBridge.exposeInMainWorld('bridge', {
   },
   writeWorkerIPC: (specifier, data) => {
     return ipcRenderer.invoke('pear:worker:writeIPC:' + specifier, data)
-  }
+  },
+  identityKeychainStatus: () => ipcRenderer.invoke('identity:keychain:status'),
+  identityKeychainLoad: () => ipcRenderer.invoke('identity:keychain:load'),
+  identityKeychainCreate: () => ipcRenderer.invoke('identity:keychain:create'),
+  identityKeychainImport: (mnemonic) => ipcRenderer.invoke('identity:keychain:import', mnemonic),
+  identityLegacyUnlock: (password) => ipcRenderer.invoke('identity:legacy:unlock', password),
+  recentBoardsList: () => ipcRenderer.invoke('boards:recent:list'),
+  recentBoardsSave: (board) => ipcRenderer.invoke('boards:recent:save', board),
+  recentBoardsRemove: (invite) => ipcRenderer.invoke('boards:recent:remove', invite)
 })

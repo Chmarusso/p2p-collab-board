@@ -1,0 +1,33 @@
+{
+  "name": "@opencollab/mobile",
+  "version": "1.0.0",
+  "private": true,
+  "main": "index.js",
+  "scripts": {
+    "start": "expo start",
+    "ios": "expo run:ios",
+    "android": "expo run:android",
+    "bundle:bare": "bare-pack --host ios-arm64 --host ios-arm64-simulator --host ios-x64-simulator --host android-arm64 --linked --imports ./bare-pack.imports.json --out ./src/worker.bundle.js ./../../workers/main.js"
+  },
+  "dependencies": {
+    "@opencollab/board-protocol": "file:../../packages/board-protocol",
+    "expo": "^55.0.8",
+    "expo-clipboard": "^55.0.17",
+    "expo-secure-store": "^15.0.0",
+    "framed-stream": "^1.0.1",
+    "pear-mobile": "^4.3.0",
+    "pear-runtime-react-native": "^3.0.0",
+    "react": "19.2.0",
+    "react-native": "0.83.2",
+    "react-native-bare-kit": "^0.12.0"
+  },
+  "overrides": {
+    "bare-type": "1.4.0"
+  },
+  "devDependencies": {
+    "@react-native/metro-config": "^0.84.0",
+    "@types/react": "~19.2.10",
+    "bare-pack": "latest",
+    "typescript": "^5.8.0"
+  }
+}
