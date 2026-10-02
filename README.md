@@ -18,7 +18,9 @@ End-to-end boilerplate for embedding [pear-runtime][pear-runtime] into [Electron
   - [Install](#install)
   - [Start](#start)
 - [Architecture](#architecture)
+  - [How the apps talk to each other](#apps-overview)
   - [Updates](#updates)
+    - [OTA update diagrams](#ota-diagrams)
   - [Storage](#storage)
   - [Workers](#workers)
 - [Peer-to-Peer Deployments](#deployments)
@@ -92,6 +94,99 @@ npm start -- --updates
 
 The application architecture is tightly scoped to handling P2P OTA Updates, running embedded [Bare][bare] workers and facilitating [Peer-to-Peer Deployment](#deployments) flows.
 
+### How the apps talk to each other <a name="apps-overview"></a>
+
+OpenCollab ships three clients — the Electron desktop app, the iOS app and the
+`opencollab` CLI — and none of them talks to a server. Each runs the **same Bare
+backend** (`workers/main.js`); the UI only sends commands to it and renders what it
+reports. The backends find each other on Hyperswarm and replicate the board directly.
+
+```mermaid
+flowchart TB
+  subgraph Desktop["Desktop · Electron"]
+    R["Renderer · renderer/<br/>UI only"] -->|"window.bridge IPC"| M["Main process · electron/main.js<br/>broker + OS keychain"]
+    M -->|"FramedStream pipe"| W1["Bare worker<br/>workers/main.js"]
+  end
+  subgraph Phone["iOS · React Native"]
+    RN["apps/mobile/src/App.tsx<br/>UI only"] -->|"BareKit IPC"| W2["Bare worklet<br/>workers/main.js, bundled"]
+  end
+  subgraph Terminal["Terminal · CLI"]
+    CLI["opencollab · apps/cli<br/>Node"] -->|"FramedStream pipe"| W3["Bare worker<br/>workers/main.js"]
+  end
+  NET(("Hyperswarm / HyperDHT<br/>direct, encrypted P2P<br/>no server"))
+  W1 <==> NET
+  W2 <==> NET
+  W3 <==> NET
+```
+
+All three pipes carry the same JSON messages (`room:start`, `board:create`,
+`board:comment`, `board-state`, `peer-count`, …; names in
+`packages/board-protocol`), plus the plain strings `updating` / `updated` for OTA.
+
+**Inside every worker** a board is one Corestore with an Autobee and one image store per
+member:
+
+```mermaid
+flowchart LR
+  subgraph Worker["Bare worker · same in every app"]
+    direction TB
+    SW["Hyperswarm<br/>topic = board discovery key"] --> CS["Corestore"]
+    CS --> AB["Autobee board<br/>one log per member → one shared view"]
+    CS --> HB["Hyperblobs per member<br/>block-encrypted images"]
+    AB --> V["posts · comments · votes · profiles<br/>signed by identity, encrypted with invite secret"]
+    V -.->|"image references"| HB
+  end
+```
+
+**A comment from the iPhone** reaches the other apps like this:
+
+```mermaid
+sequenceDiagram
+  participant P as iPhone UI
+  participant PW as iPhone worker
+  participant EW as Electron worker
+  participant E as Electron UI
+  participant CW as CLI worker (watch)
+  P->>PW: board:comment (objectId, text)
+  PW->>PW: sign with identity, encrypt, append to own log
+  PW-->>EW: replicate over Hyperswarm
+  PW-->>CW: replicate over Hyperswarm
+  EW->>EW: Autobee apply, rebuild board
+  EW->>E: board-state (objects, profiles)
+  CW->>CW: print new comment
+```
+
+**Joining a board** needs any existing member online once; until then the newcomer
+waits and cannot write:
+
+```mermaid
+sequenceDiagram
+  participant N as New member
+  participant M as Any existing member
+  N->>N: open invite (board key + secret)
+  N->>N: queue writer-request in memory
+  Note over N: after 6 s the apps show Waiting for a board member
+  M-->>N: connect over Hyperswarm and replicate the board
+  M->>M: apply writer-request, add N as writer
+  N->>N: board-synced, writable, posting enabled
+```
+
+**Releases** travel the same way. Each client follows its own `upgrade` link, and an
+always-on `pear seed` serves them:
+
+```mermaid
+flowchart LR
+  Dev["Developer<br/>pear build + pear stage"] --> L1[("desktop link")]
+  Dev --> L2[("CLI link")]
+  Dev --> L3[("mobile link")]
+  Seed["pear seed<br/>always-on"] -.-> L1
+  Seed -.-> L2
+  Seed -.-> L3
+  L1 -->|"new .app · Restart to update"| E["Electron"]
+  L2 -->|"new bundle folder · next run"| C["CLI"]
+  L3 -->|"new JS bundle · next launch"| I["iOS"]
+```
+
 ### Updates <a name="updates"></a>
 
 An update occurs when a seeded application drive is written to.
@@ -128,8 +223,115 @@ To disable updates as an application default, ensure that the package.json is sp
 
 A running application checks for updates on startup and when its application drive receives new data. After the first 60 seconds of startup, detected updates are scheduled with a randomized delay of up to 1 hour by default to spread update traffic across peers. This can be configured with the updater's `delay` option.
 
-A running application will receive `updating` and `updated` events, which are sent to the electron renderer
-process via `bridge.onPearEvent()`. After receiving the `updated` event, the `bridge.applyUpdate()` method is called. This swaps the current application path with a path to the updated application build and then removes the old application from disk. So once the application is restarted, the application path contains the new build therefore the updated application is executed on restart.
+A running application will receive `updating` and `updated` events from the updater in
+the Bare worker, which forwards them as plain strings over the worker IPC pipe. The
+renderer (`renderer/app.js`) shows an update banner; **Restart to update** calls
+`bridge.applyUpdate()`, which swaps the current application path with the updated build
+and removes the old one, then `bridge.appAfterUpdate()` relaunches into the new version.
+
+#### OTA update diagrams <a name="ota-diagrams"></a>
+
+All three OpenCollab clients update peer-to-peer from their own `upgrade` link, and in
+every one the updater runs **inside the Bare worker** (`pear-runtime` on desktop and the
+CLI, `pear-mobile` on iOS). Releasing is the same for all of them:
+
+```mermaid
+flowchart TD
+  Code["Code change"] --> Ver["Bump version<br/>strictly higher"]
+  Ver --> Build["Build payload<br/>npm run package · apps/cli dist · npm run ota"]
+  Build --> PB["pear build<br/>by-arch/host/app/name"]
+  PB --> Stage["pear stage upgrade-link"]
+  Stage --> Drive[("Hyperdrive<br/>package.json + by-arch/…")]
+  Seed["pear seed<br/>always-on peer"] -.->|"serves"| Drive
+  Drive ==>|"P2P download"| Apps["Installed apps<br/>Electron · CLI · iOS"]
+```
+
+**When does a running app notice a release?**
+
+```mermaid
+flowchart TD
+  A["App starts"] --> B["Updater joins the upgrade link<br/>and checks immediately"]
+  B --> C{"Remote version<br/>higher than mine?"}
+  C -->|"no"| D["Keep running, watch the drive"]
+  C -->|"yes"| G["Download update"]
+  D --> E["Developer stages a new version<br/>(drive append)"]
+  E --> F{"Within 60 s<br/>of app start?"}
+  F -->|"yes"| G
+  F -->|"no"| H["Wait a random delay ≤ 1 h<br/>(spreads load across peers)"]
+  H --> G
+  G --> I["Apply: swap in the new build"]
+  I --> J["New version runs after restart"]
+```
+
+**Desktop (Electron)** swaps the whole `.app` / AppImage / MSIX:
+
+```mermaid
+sequenceDiagram
+  participant Dev as Developer
+  participant Seed as pear seed
+  participant W as Bare worker (pear-runtime updater)
+  participant UI as Renderer
+  participant Main as Electron main
+  Dev->>Seed: pear stage (version 1.0.5)
+  W->>Seed: check upgrade link, find 1.0.5 > 1.0.4
+  W->>UI: updating
+  Seed-->>W: download by-arch/darwin-arm64/app/OpenCollab.app into pear-runtime/next
+  W->>UI: updated
+  UI->>UI: banner with Restart to update
+  UI->>Main: applyUpdate()
+  Main->>W: pear:applyUpdate
+  W->>W: fsx.swap(next app, installed app)
+  W->>Main: pear:updateApplied
+  UI->>Main: appAfterUpdate()
+  Main->>Main: relaunch, now running 1.0.5
+```
+
+**iOS** can only replace JavaScript (UI + the embedded worker); native code needs a new
+binary. The downloaded bundle is booted on the next launch by `pear-runtime-react-native`
+boot control in `AppDelegate.swift`:
+
+```mermaid
+sequenceDiagram
+  participant Seed as pear seed (mobile link)
+  participant W as Bare worklet (pear-mobile updater)
+  participant JS as App.tsx
+  participant iOS as AppDelegate boot control
+  W->>Seed: check link, pear.json minver allows this binary
+  Seed-->>W: download by-arch/ios-arm64/app/OpenCollab (app.bundle + assets)
+  W->>W: write the update's package.json next to app.bundle
+  W->>JS: updated
+  JS->>W: pear:applyUpdate (after 3 s)
+  W->>W: swap into Application Support/pear-runtime/ota
+  W->>JS: pear:updateApplied
+  JS->>JS: banner Update installed, close and reopen
+  Note over iOS: next launch
+  iOS->>iOS: ota/package.json version > CFBundleShortVersionString?
+  iOS-->>JS: yes, boot ota/app.bundle (else the bundle in the binary)
+```
+
+**CLI** swaps its install folder and runs the new version on the next command:
+
+```mermaid
+sequenceDiagram
+  participant U as User
+  participant CLI as opencollab (installed bundle)
+  participant W as Bare worker (pear-runtime updater)
+  participant Seed as pear seed (CLI link)
+  U->>CLI: any command, or opencollab update
+  CLI->>W: spawn with updates on, app = install folder
+  W->>Seed: check link, find a higher version
+  Seed-->>W: download by-arch/darwin-arm64/app/opencollab
+  W->>CLI: updated
+  CLI->>W: pear:applyUpdate
+  W->>W: swap the install folder
+  CLI->>U: opencollab updated to vX, runs next time
+```
+
+| Client   | Upgrade link | Payload                               | Takes effect                   |
+| -------- | ------------ | ------------------------------------- | ------------------------------ |
+| Electron | desktop      | whole app (`.app`, AppImage, MSIX)    | after **Restart to update**    |
+| CLI      | CLI          | bundle folder (code + worker + deps)  | next command                   |
+| iOS      | mobile       | Hermes JS bundle + assets (no native) | next launch (close and reopen) |
 
 ### Storage <a name="storage"></a>
 
