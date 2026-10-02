@@ -603,7 +603,12 @@ export default function App() {
                     score={score(item)}
                     myVote={myVote}
                     onVote={(value) =>
-                      send({ type: messageTypes.boardVote, objectId: item.id, value })
+                      // Step by one: with a vote cast, either arrow first clears it.
+                      send({
+                        type: messageTypes.boardVote,
+                        objectId: item.id,
+                        value: myVote ? 0 : value
+                      })
                     }
                   />
                   <View style={styles.cardBody}>

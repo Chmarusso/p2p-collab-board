@@ -447,8 +447,10 @@ function applyBoardMessage(message) {
     profiles.set(message.identity, payload.displayName.trim())
   } else if (payload.type === 'vote') {
     const object = board.get(payload.objectId)
-    if (!object || ![1, -1].includes(payload.value)) return false
-    object.votes[message.identity] = payload.value
+    // 0 clears the voter's vote, so votes move the score one step at a time.
+    if (!object || ![1, -1, 0].includes(payload.value)) return false
+    if (payload.value === 0) delete object.votes[message.identity]
+    else object.votes[message.identity] = payload.value
   } else if (payload.type === 'comment') {
     const object = board.get(payload.objectId)
     if (!object || !payload.text?.trim()) return false

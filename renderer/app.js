@@ -276,10 +276,11 @@ function renderObject(object) {
   const commentList = card.querySelector('.comments')
   for (const comment of comments) commentList.appendChild(renderComment(comment))
 
-  card.querySelector('[data-vote="1"]').onclick = () =>
-    send({ type: 'board:vote', objectId: object.id, value: 1 })
-  card.querySelector('[data-vote="-1"]').onclick = () =>
-    send({ type: 'board:vote', objectId: object.id, value: -1 })
+  // Step by one: with a vote cast, either arrow first clears it.
+  const vote = (value) =>
+    send({ type: 'board:vote', objectId: object.id, value: ownVote ? 0 : value })
+  card.querySelector('[data-vote="1"]').onclick = () => vote(1)
+  card.querySelector('[data-vote="-1"]').onclick = () => vote(-1)
 
   const toggle = card.querySelector('.comments-toggle')
   const panel = card.querySelector('.comments-panel')
