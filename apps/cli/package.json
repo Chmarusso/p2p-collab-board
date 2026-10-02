@@ -1,6 +1,6 @@
 {
   "name": "@opencollab/cli",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "private": true,
   "description": "Command-line client for OpenCollab boards, driving the shared Bare backend",
   "bin": {
