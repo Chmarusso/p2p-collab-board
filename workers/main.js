@@ -289,6 +289,10 @@ async function loadBoard() {
   operationIds.clear()
   if (!boardDb) return
   await boardDb.ready()
+  // The view is sorted by `op:<writer>:<length>`, not causal order, so a
+  // comment/vote from one writer can precede the create from another writer.
+  // Apply creates and profiles first, then the operations that reference them.
+  const dependent = []
   for await (const entry of boardDb.view.createReadStream()) {
     try {
       const stored = JSON.parse(entry.value.toString())
@@ -299,13 +303,15 @@ async function loadBoard() {
         const message = decryptBoardMessage(stored)
         if (message?.id && !operationIds.has(message.id)) {
           operationIds.add(message.id)
-          applyBoardMessage(message)
+          if (['vote', 'comment'].includes(message.payload?.type)) dependent.push(message)
+          else applyBoardMessage(message)
         }
       }
     } catch {
       console.error('Invalid persisted board operation')
     }
   }
+  for (const message of dependent) applyBoardMessage(message)
 }
 
 async function applyBoardNodes(nodes, view, host) {
