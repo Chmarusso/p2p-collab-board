@@ -1,13 +1,16 @@
 {
   "name": "@opencollab/mobile",
-  "version": "1.0.0",
+  "productName": "OpenCollab",
+  "version": "1.0.4",
+  "upgrade": "pear://abz7hn9ppb7stzgey3xjz4pohcyfqsjf5o8efjb8jitioe8powao",
   "private": true,
   "main": "index.js",
   "scripts": {
     "start": "expo start",
     "ios": "expo run:ios",
     "android": "expo run:android",
-    "bundle:bare": "bare-pack --host ios-arm64 --host ios-arm64-simulator --host ios-x64-simulator --host android-arm64 --linked --imports ./bare-pack.imports.json --out ./src/worker.bundle.js ./../../workers/main.js"
+    "bundle:bare": "bare-pack --host ios-arm64 --host ios-arm64-simulator --host ios-x64-simulator --host android-arm64 --linked --imports ./bare-pack.imports.json --out ./src/worker.bundle.js ./../../workers/main.js",
+    "ota": "node scripts/ota.js"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.1.1",

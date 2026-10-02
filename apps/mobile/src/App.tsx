@@ -39,8 +39,23 @@ const normalizeInvite = (value: string) => {
 const inviteLink = (invite: string) =>
   `opencollab://board/${encodeURIComponent(normalizeInvite(invite))}`
 
-const version = '1.0.0'
-const upgrade = 'pear://nzi3suuxyzwj6oosortonj5pxd9s7ckgd8cr87szddaamxi77kny'
+// package.json is the single source of truth for the OTA version and link;
+// keep `version` in sync with app.json / CFBundleShortVersionString for binaries.
+const { version, upgrade, productName } = require('../package.json') as {
+  version: string
+  upgrade: string
+  productName: string
+}
+
+// OTA status, shared by every screen's banner. The worker sends the plain
+// strings 'updating' / 'updated' (pear-mobile updater) and 'pear:updateApplied'.
+type UpdateStatus = '' | 'downloading' | 'installed'
+let updateStatus: UpdateStatus = ''
+const updateListeners = new Set<(status: UpdateStatus) => void>()
+function setUpdateStatus(status: UpdateStatus) {
+  updateStatus = status
+  for (const listener of updateListeners) listener(status)
+}
 
 const colors = {
   bg: '#0A0E14',
@@ -148,6 +163,7 @@ export default function App() {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [networkStatus, setNetworkStatus] = useState('Not connected')
   const [peerCount, setPeerCount] = useState(0)
+  const [waitedForMembers, setWaitedForMembers] = useState(false)
   const identityKeyRef = useRef('')
   const savedPhraseRef = useRef('')
 
@@ -161,13 +177,22 @@ export default function App() {
       String(!__DEV__),
       version,
       upgrade,
-      'OpenCollab'
+      productName
     ])
     const framed = new FramedStream(ipc)
     framed.on('data', (data: Uint8Array) => {
+      const text = new TextDecoder().decode(data)
+      if (text === 'updating') return setUpdateStatus('downloading')
+      if (text === 'updated') {
+        // pear-mobile writes the update's package.json into the downloaded folder
+        // right after 'updated'; applying swaps that folder in, so give it a moment.
+        setTimeout(() => framed.write('pear:applyUpdate'), 3000)
+        return
+      }
+      if (text === 'pear:updateApplied') return setUpdateStatus('installed')
       let message: WorkerMessage
       try {
-        message = JSON.parse(new TextDecoder().decode(data))
+        message = JSON.parse(text)
       } catch {
         return
       }
@@ -187,7 +212,9 @@ export default function App() {
       }
       if (message.type === messageTypes.roomStatus && message.status === 'ready') {
         setRoomReady(true)
-        setSynced(false)
+        // Writers already hold the board; a joiner waits for its first sync
+        // (board-synced) before it can post — its earlier writes would be lost.
+        setSynced(!!message.writable)
         setEntryError('')
         setBoardName(message.boardName || 'OpenCollab')
         setInvitationLink(message.invite || '')
@@ -195,7 +222,6 @@ export default function App() {
         if (message.displayName) {
           setDisplayName(message.displayName)
           setDisplayNameDraft(message.displayName)
-          setSynced(true)
         }
       }
       if (message.type === messageTypes.roomStatus && message.status === 'none') {
@@ -231,7 +257,6 @@ export default function App() {
       if (message.type === messageTypes.profileStatus) {
         setDisplayName(message.displayName)
         setDisplayNameDraft(message.displayName)
-        setSynced(true)
       }
       if (message.type === messageTypes.boardSynced) setSynced(true)
       if (message.type === 'room-status' && message.status === 'error')
@@ -250,6 +275,15 @@ export default function App() {
       framed.destroy()
     }
   }, [])
+
+  // A joiner whose board has never synced only gets data once another member is
+  // online; after a short wait, say so instead of showing placeholders forever.
+  useEffect(() => {
+    setWaitedForMembers(false)
+    if (!roomReady || synced) return
+    const timer = setTimeout(() => setWaitedForMembers(true), 6000)
+    return () => clearTimeout(timer)
+  }, [roomReady, synced])
 
   const send = (message: object) => pipe?.write(JSON.stringify(message))
   const nameFor = (identity: string) => profiles[identity] || shortKey(identity)
@@ -682,7 +716,22 @@ export default function App() {
                 <Text style={styles.muted}>Nothing here yet. Tap + to add the first object.</Text>
               </View>
             ) : (
-              <SkeletonCards />
+              <View style={styles.skeletons}>
+                {/* Not the peer count: other joiners connect too but hold no data. */}
+                {waitedForMembers ? (
+                  <View style={styles.waiting} accessibilityRole='alert'>
+                    <View style={styles.meta}>
+                      <Feather name='users' size={16} color={colors.info} />
+                      <Text style={styles.heading}>Waiting for a board member…</Text>
+                    </View>
+                    <Text style={styles.muted}>
+                      Boards live only on members' devices. This one fills in automatically as soon
+                      as another member opens it — keep OpenCollab open until then.
+                    </Text>
+                  </View>
+                ) : null}
+                <SkeletonCards />
+              </View>
             )
           }
           renderItem={({ item }) => {
@@ -790,6 +839,7 @@ export default function App() {
           }}
         />
       </KeyboardAvoidingView>
+      <UpdateBanner />
       {synced ? (
         <Pressable
           style={({ pressed }) => [styles.fab, pressed && styles.pressed]}
@@ -904,6 +954,7 @@ export default function App() {
             </View>
             <StatusChip peers={peerCount} synced={synced} />
             <Text style={styles.metaMono}>{networkStatus}</Text>
+            <Text style={styles.metaMono}>OpenCollab v{version}</Text>
             <Button title='Share invitation' icon='share-2' onPress={shareInvitation} />
             <Button
               title='Switch board'
@@ -951,8 +1002,36 @@ function Screen({
             {headerRight}
           </View>
           {children}
+          <Text style={styles.versionLabel}>v{version}</Text>
         </ScrollView>
       </KeyboardAvoidingView>
+      {/* Rendered last so it stays above the content. */}
+      <UpdateBanner />
+    </View>
+  )
+}
+
+function UpdateBanner() {
+  const [status, setStatus] = useState<UpdateStatus>(updateStatus)
+  useEffect(() => {
+    updateListeners.add(setStatus)
+    return () => {
+      updateListeners.delete(setStatus)
+    }
+  }, [])
+  if (!status) return null
+  return (
+    <View style={styles.updateBanner} accessibilityRole='alert'>
+      <Feather
+        name={status === 'installed' ? 'check-circle' : 'download-cloud'}
+        size={16}
+        color={colors.accent}
+      />
+      <Text style={styles.updateText}>
+        {status === 'installed'
+          ? 'Update installed. Close and reopen OpenCollab to use it.'
+          : 'Downloading an update…'}
+      </Text>
     </View>
   )
 }
@@ -1546,6 +1625,39 @@ const styles = StyleSheet.create({
     gap: 12
   },
   previewRow: { gap: 8 },
+  waiting: {
+    gap: 8,
+    backgroundColor: colors.surface,
+    borderColor: colors.info,
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 16
+  },
+  versionLabel: {
+    color: colors.muted,
+    fontFamily: mono,
+    fontSize: 11,
+    textAlign: 'center',
+    marginTop: 24
+  },
+  updateBanner: {
+    position: 'absolute',
+    // Above the board's + button, clear of the header.
+    bottom: 108,
+    left: 16,
+    right: 16,
+    zIndex: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: colors.surfaceRaised,
+    borderColor: colors.accent,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10
+  },
+  updateText: { color: colors.text, flex: 1, fontSize: 13 },
   preview: { width: 72, height: 72, borderRadius: 8, overflow: 'hidden' },
   previewImage: { width: '100%', height: '100%' },
   previewRemove: {
