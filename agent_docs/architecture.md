@@ -23,6 +23,10 @@ The code is small — read it for the wiring; below are only the non-obvious fac
 - The worker is a module for cross-platform reuse (desktop + mobile). For a
   single-platform project, copy `hello-pear-worker/index.js` into
   `workers/main.js` and develop it in-project (per that package's README).
+- `workers/main.js` has three hosts that speak the same pipe protocol: Electron
+  main, the mobile app (bundled into `apps/mobile/src/worker.bundle.js`, rebuild with
+  `bundle:bare` after any worker change) and the CLI (`apps/cli`, spawns it from plain
+  Node via `PearRuntime.run` with the same six positional args).
 - Once the worker is in-project it resolves against **this** `package.json`, not the
   package's — so Node builtins it uses need an `imports` entry (see AGENTS.md
   contracts). A missing entry only fails in a packaged build.

@@ -4,6 +4,14 @@
 > rebranding or changing signing. Only non-obvious, code-verified facts — the
 > code is the reference for everything else. Index: [AGENTS.md](../AGENTS.md).
 
+- `packagerConfig.ignore` excludes `apps/` (mobile + CLI workspaces). Without it the
+  mobile sources, Pods and native builds were copied into every desktop package
+  (~470 MB). Anything the desktop app or its worker needs must live outside `apps/`.
+- Verify packaged builds from a copy **outside the repo**. Run from `out/`, Bare's
+  module lookup walks up into the repo's `node_modules`, so a package the packager
+  pruned still resolves and the worker looks healthy; installed copies then die with
+  `MODULE_NOT_FOUND`. Workspace packages the worker imports (e.g.
+  `@opencollab/board-protocol`) must be root `dependencies` or they are pruned.
 - **asar must stay off**: workers are spawned by an external Bare binary from real
   file paths; asar breaks every spawn.
 - The `readPackageJson` hook validates the upgrade key and runs for `start` too

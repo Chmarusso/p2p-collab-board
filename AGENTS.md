@@ -35,7 +35,8 @@ well-formed key committed.
 
 ## Contracts: editing one side breaks the other, often silently
 
-- Six-arg spawn argv order: `getWorker()` in `electron/main.js` ↔ the worker's positional reads
+- Six-arg spawn argv order: `getWorker()` in `electron/main.js` and `Session` in
+  `apps/cli/lib/session.js` ↔ the worker's positional reads
 - Specifier `'/workers/main.js'`: renderer ↔ IPC channel names
 - Pipe strings `updating`/`updated`/`pear:applyUpdate`/`pear:updateApplied`; FramedStream on both ends
 - Node builtins used under `workers/` ↔ `package.json#imports`: Bare has no `events`,

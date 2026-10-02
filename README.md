@@ -27,6 +27,7 @@ End-to-end boilerplate for embedding [pear-runtime][pear-runtime] into [Electron
   - [Flathub](#flathub)
   - [Snap](#snap)
 - [Scripts](#scripts)
+- [Developer FAQ](#faq)
 - [Troubleshooting](#troubleshooting)
 
 ## OS Support <a name="os-support"></a>
@@ -501,6 +502,98 @@ npm run make
 Runs: `electron-forge make`
 
 ---
+
+## Developer FAQ <a name="faq"></a>
+
+Ten questions developers most often ask when they meet this stack, answered for this
+repo.
+
+### 1. What are Holepunch, Pear, Bare and Hyperswarm, and how do they fit together?
+
+Holepunch builds the peer-to-peer stack; the pieces are layers:
+
+- **Bare** — a small, embeddable JavaScript runtime (think minimal Node.js) that also
+  runs inside iOS/Android apps via BareKit.
+- **Hyperswarm / HyperDHT** — finds peers for a topic and opens encrypted connections
+  between them, hole-punching through NATs.
+- **Hypercore, Corestore, Hyperbee, Hyperdrive, Hyperblobs, Autobase/Autobee** — data
+  structures: signed append-only logs, a store of many logs, a key-value B-tree, a file
+  system, a blob store and a multi-writer database built on top.
+- **Pear** — the application layer: the `pear` CLI (touch, stage, seed, provision,
+  multisig, install) and `pear-runtime` / `pear-mobile`, which embed P2P OTA updates
+  into Electron and React Native apps.
+
+### 2. Why does the backend run in a Bare worker instead of Electron's main process?
+
+So the same code runs everywhere. `workers/main.js` is the whole P2P backend (swarm,
+storage, encryption, updates). Electron's main process only spawns it and relays
+messages; the mobile app runs the same file bundled with `bare-pack`; the CLI
+(`apps/cli`) spawns it from plain Node. The UI never touches the network directly.
+
+### 3. How do peers find each other without a server?
+
+Every board has a 32-byte key; peers join Hyperswarm on its **discovery key** (a hash of
+the key) and the DHT introduces them. Connections are direct and Noise-encrypted. When
+both sides are behind restrictive NATs (`natType: "Random"`, common on some mobile
+carriers) hole-punching fails; a relay or an always-on peer with a public address
+solves it (`pear blind-relay`, `pear seed`, `opencollab watch` on a server).
+
+### 4. Where does the data live, and how do several writers stay in sync?
+
+On each device. A Corestore in the app's storage directory holds Hypercores; the board
+is an **Autobee**: every member appends to their own log and a deterministic `apply`
+function merges all logs into one shared Hyperbee view. Readers only download what they
+need (sparse replication), which is how images load on demand.
+
+### 5. Is the data private?
+
+Connections are encrypted, and a core can only be replicated by someone who knows its
+key. On top of that this app encrypts board operations with the invite secret and image
+blobs with a key derived from it, so even a peer that stores the data cannot read it.
+Anyone who ever held an invite can read the board, and append-only logs cannot take
+data back from peers that already have it.
+
+### 6. What happens when nobody is online?
+
+Nothing syncs. There is no server holding a copy: data and app updates are served by
+peers. Keep at least one always-on peer — `pear seed <link>` for app releases, or a
+long-running board member such as `opencollab watch` — and changes made offline sync
+the next time two peers meet.
+
+### 7. What is a `pear://` link and how do users install the app?
+
+It addresses a Hyperdrive. `pear touch` creates one, `pear stage` writes a
+`pear build` deployment folder to it, `pear seed` serves it, and users run
+`pear install pear://<key>`. A versioned link (`pear://<fork>.<length>.<key>`) pins an
+exact state. Production releases go through `pear provision` and `pear multisig` (see
+[Peer-to-Peer Deployments](#deployments)).
+
+### 8. How do OTA updates work, and why didn't my app update?
+
+The updater in the worker watches the `upgrade` link. Every launch checks immediately;
+releases staged within 60 s of launch are picked up at once, later ones after a random
+delay of up to an hour. Only a strictly higher `version` updates — there is no
+downgrade, so a rollback is re-staged under a higher version. The usual reasons nothing
+arrives: the version was not bumped, nothing is seeding, the seeder is unreachable, or
+the worker never started (see question 10).
+
+### 9. Can mobile apps update without an App Store release?
+
+Partly. `pear-mobile` downloads a newer JavaScript bundle (UI and worker) and
+`pear-runtime-react-native` boots it in Release builds when its version is newer than
+the binary's. Anything native — new modules, permissions, Pods, React Native upgrades —
+still needs a new binary. Debug builds always load from Metro.
+
+### 10. Why does the packaged app's worker crash with `MODULE_NOT_FOUND` when `npm start` works?
+
+Bare resolves modules differently from Node and from dev. Common causes:
+
+- Node builtins: Bare has none, so worker code needs an `imports` map
+  (e.g. `{"events": {"bare": "bare-events", "default": "events"}}`).
+- Packages the worker imports but `package.json` does not declare (e.g. workspace
+  packages) are pruned from the package.
+- Testing from `out/` inside the repo hides both problems, because Bare walks up into
+  the repo's `node_modules`. Verify a packaged build from a copy outside the repo.
 
 ## Troubleshooting <a name="troubleshooting"></a>
 
