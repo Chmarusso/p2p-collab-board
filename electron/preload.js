@@ -40,7 +40,8 @@ contextBridge.exposeInMainWorld('bridge', {
   identityKeychainCreate: () => ipcRenderer.invoke('identity:keychain:create'),
   identityKeychainImport: (mnemonic) => ipcRenderer.invoke('identity:keychain:import', mnemonic),
   identityLegacyUnlock: (password) => ipcRenderer.invoke('identity:legacy:unlock', password),
-  recentBoardsList: () => ipcRenderer.invoke('boards:recent:list'),
-  recentBoardsSave: (board) => ipcRenderer.invoke('boards:recent:save', board),
-  recentBoardsRemove: (invite) => ipcRenderer.invoke('boards:recent:remove', invite)
+  recentBoardsList: (identity) => ipcRenderer.invoke('boards:recent:list', identity),
+  recentBoardsSave: (identity, board) => ipcRenderer.invoke('boards:recent:save', identity, board),
+  recentBoardsRemove: (identity, invite) =>
+    ipcRenderer.invoke('boards:recent:remove', identity, invite)
 })

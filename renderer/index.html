@@ -5,13 +5,30 @@
     <title>OpenCollab</title>
     <style>
       :root {
+        --bg: #0a0e14;
+        --surface: #0f1620;
+        --surface-raised: #141d29;
+        --border: #1c2633;
+        --text: #c9d4e3;
+        --muted: #6b7a90;
+        --accent: #39ff88;
+        --accent-ink: #04110a;
+        --info: #22d3ee;
+        --magenta: #ff4fd8;
+        --error: #ff5c5c;
+        --mono: 'JetBrains Mono', 'SF Mono', ui-monospace, Menlo, monospace;
+        --radius: 10px;
+        color-scheme: dark;
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-        color: #172033;
-        background: #f4f7fb;
+        color: var(--text);
+        background: var(--bg);
       }
       body {
         margin: 0;
         min-height: 100vh;
+        background:
+          radial-gradient(circle at 15% -10%, rgba(57, 255, 136, 0.07), transparent 40%),
+          radial-gradient(circle at 110% 10%, rgba(34, 211, 238, 0.06), transparent 35%), var(--bg);
       }
       .container {
         width: min(920px, 92vw);
@@ -20,80 +37,169 @@
       }
       h1 {
         margin: 0;
-        font-size: 34px;
+        font-size: 30px;
+        letter-spacing: -0.02em;
       }
       h2 {
         margin: 0 0 8px;
+        font-size: 18px;
+      }
+      .mono {
+        font-family: var(--mono);
       }
       .muted {
-        color: #63708a;
+        color: var(--muted);
+      }
+      .prompt::before {
+        content: '> ';
+        color: var(--accent);
+        font-family: var(--mono);
       }
       .error {
-        color: #b42318;
+        color: var(--error);
         min-height: 20px;
+        font-size: 14px;
+      }
+      .icon {
+        width: 16px;
+        height: 16px;
+        flex: none;
       }
       button {
-        border: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        border: 1px solid transparent;
         border-radius: 8px;
-        padding: 10px 14px;
+        padding: 9px 14px;
         cursor: pointer;
-        background: #2563eb;
-        color: white;
-        font-weight: 600;
+        background: var(--accent);
+        color: var(--accent-ink);
+        font: inherit;
+        font-weight: 650;
+        transition:
+          transform 0.08s ease,
+          background-color 0.15s ease,
+          border-color 0.15s ease,
+          color 0.15s ease;
+      }
+      button:hover {
+        filter: brightness(1.08);
+      }
+      button:active {
+        transform: scale(0.97);
+      }
+      button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
       }
       button.secondary {
-        background: #e6ebf4;
-        color: #24314a;
+        background: var(--surface-raised);
+        border-color: var(--border);
+        color: var(--text);
+      }
+      button.secondary:hover {
+        border-color: #2b3a4d;
+      }
+      button.ghost {
+        background: transparent;
+        color: var(--muted);
+        padding: 6px 8px;
+      }
+      button.ghost:hover {
+        color: var(--text);
+      }
+      button.danger {
+        background: rgba(255, 92, 92, 0.12);
+        border-color: rgba(255, 92, 92, 0.4);
+        color: var(--error);
+      }
+      button.icon-only {
+        padding: 8px;
+      }
+      :focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
       }
       input,
       textarea {
         box-sizing: border-box;
         width: 100%;
-        border: 1px solid #d5ddea;
+        border: 1px solid var(--border);
         border-radius: 8px;
         padding: 10px;
         font: inherit;
-        background: white;
+        color: var(--text);
+        background: var(--bg);
+      }
+      input::placeholder,
+      textarea::placeholder {
+        color: var(--muted);
+      }
+      input:focus,
+      textarea:focus {
+        border-color: var(--accent);
+        outline: none;
+        box-shadow: 0 0 0 3px rgba(57, 255, 136, 0.15);
       }
       .card,
-      #identity-gate,
-      #room-gate {
-        background: white;
-        border: 1px solid #dfe5ef;
+      .gate {
+        background: var(--surface);
+        border: 1px solid var(--border);
         border-radius: 14px;
         padding: 20px;
-        box-shadow: 0 6px 20px rgba(35, 55, 90, 0.06);
       }
-      #identity-gate,
-      #room-gate {
+      .gate {
         max-width: 460px;
-        margin: 30px auto;
+        margin: 40px auto;
       }
-      #room-gate {
-        display: none;
+      .stack {
+        display: grid;
+        gap: 10px;
       }
-      #profile-gate {
+      .row {
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      .brand {
+        font-family: var(--mono);
+        color: var(--accent);
+        font-size: 13px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        margin-bottom: 10px;
+      }
+      #room-gate,
+      #profile-gate,
+      #chat {
         display: none;
-        max-width: 460px;
-        margin: 30px auto;
       }
       #room-create-form,
       #room-join-form {
         display: none;
         margin-top: 16px;
       }
-      .room-actions {
-        display: flex;
-        gap: 8px;
-        flex-wrap: wrap;
+      #room-choice button {
+        flex: 1;
       }
       #recent-boards {
         display: grid;
         gap: 8px;
         margin-top: 20px;
       }
-      #recent-boards button {
-        text-align: left;
+      #recent-boards:empty {
+        display: none;
+      }
+      .section-label {
+        font-family: var(--mono);
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+        margin: 0;
       }
       .recent-board {
         display: flex;
@@ -101,6 +207,25 @@
       }
       .recent-board button:first-child {
         flex: 1;
+        justify-content: flex-start;
+        text-align: left;
+      }
+      .gate-footer {
+        margin-top: 18px;
+        padding-top: 14px;
+        border-top: 1px solid var(--border);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 8px;
+      }
+      #room-invite {
+        font-family: var(--mono);
+        font-size: 13px;
+      }
+      #identity-choice button {
+        flex: 1;
+        min-width: 130px;
       }
       #connection-modal {
         display: none;
@@ -110,136 +235,216 @@
         align-items: center;
         justify-content: center;
         padding: 20px;
-        background: rgba(15, 23, 42, 0.45);
+        background: rgba(3, 6, 10, 0.7);
+        backdrop-filter: blur(4px);
       }
       #connection-modal.open {
         display: flex;
+        animation: fade-in 0.15s ease;
+      }
+      #connection-modal.open .modal-card {
+        animation: pop-in 0.18s ease;
       }
       .modal-card {
-        width: min(520px, 100%);
-        background: white;
+        width: min(480px, 100%);
+        background: var(--surface);
+        border: 1px solid var(--border);
         border-radius: 14px;
         padding: 22px;
-        box-shadow: 0 18px 60px rgba(15, 23, 42, 0.25);
+        box-shadow: 0 24px 80px rgba(0, 0, 0, 0.5);
       }
       .modal-row {
-        display: grid;
-        gap: 6px;
-        margin: 14px 0;
-      }
-      .modal-row code {
-        padding: 10px;
-        background: #f4f7fb;
-        border-radius: 8px;
-      }
-      #board-loading {
-        display: none;
+        display: flex;
+        justify-content: space-between;
         align-items: center;
-        gap: 10px;
-        color: #63708a;
-        margin: 24px 0;
+        gap: 12px;
+        padding: 10px 0;
+        border-bottom: 1px solid var(--border);
+        font-size: 14px;
       }
-      #board-loading.visible {
-        display: flex;
+      .modal-row strong {
+        color: var(--muted);
+        font-weight: 500;
       }
-      .spinner {
-        width: 18px;
-        height: 18px;
-        border: 3px solid #d5ddea;
-        border-top-color: #2563eb;
-        border-radius: 50%;
-        animation: spin 0.8s linear infinite;
-      }
-      @keyframes spin {
-        to {
-          transform: rotate(360deg);
-        }
-      }
-      #identity-choice {
-        display: flex;
-        flex-wrap: wrap;
+      .modal-actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
         gap: 8px;
+        margin-top: 16px;
       }
-      #identity-choice button {
-        flex: 1;
-        min-width: 130px;
+      .identity {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-family: var(--mono);
+        font-size: 12px;
+        color: var(--muted);
       }
-      #identity-password,
-      #identity-action,
-      #identity-import,
-      #identity-legacy {
-        display: none;
-        margin-top: 10px;
+      .identity .name {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text);
       }
-      #room-invite {
-        margin: 12px 0;
-        font-family: monospace;
-      }
-      #chat {
-        display: none;
+      .identicon {
+        width: 16px;
+        height: 16px;
+        border-radius: 4px;
+        flex: none;
+        background: var(--bg);
       }
       .topbar {
         display: flex;
         justify-content: space-between;
         gap: 12px;
-        align-items: start;
-        margin-bottom: 24px;
+        align-items: flex-start;
+        margin-bottom: 20px;
       }
-      .meta {
-        text-align: right;
-        color: #63708a;
-        font-size: 13px;
-      }
-      .meta .connection-status {
-        display: none;
-      }
-      code {
-        word-break: break-all;
-      }
-      .new-object {
-        display: grid;
+      .topbar-meta {
+        display: flex;
+        align-items: center;
         gap: 10px;
+      }
+      .status-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 10px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        background: var(--surface);
+        font-family: var(--mono);
+        font-size: 12px;
+        color: var(--muted);
+        white-space: nowrap;
+      }
+      .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--info);
+        animation: pulse 1.4s ease-in-out infinite;
+      }
+      .status-chip.online .status-dot {
+        background: var(--accent);
+        box-shadow: 0 0 8px rgba(57, 255, 136, 0.7);
+        animation: none;
+      }
+      #identity-label {
+        gap: 8px;
+      }
+      .new-object-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 14px;
+      }
+      #new-object-form {
+        display: none;
         margin-bottom: 18px;
+      }
+      #new-object-form.open {
+        display: grid;
+        animation: rise-in 0.18s ease;
       }
       #board-objects {
         display: grid;
+        gap: 12px;
+      }
+      .object-card {
+        display: grid;
+        grid-template-columns: 44px 1fr;
         gap: 14px;
       }
-      .object-header {
-        display: flex;
-        justify-content: space-between;
-        gap: 16px;
-      }
-      .object-title {
-        font-size: 19px;
-        font-weight: 700;
-      }
-      .object-body {
-        margin: 8px 0 14px;
-        white-space: pre-wrap;
+      .object-card.enter,
+      .comment.enter {
+        animation: rise-in 0.22s ease both;
       }
       .votes {
         display: flex;
+        flex-direction: column;
         align-items: center;
-        gap: 8px;
+        gap: 2px;
+      }
+      .votes button {
+        padding: 4px;
+        background: transparent;
+        color: var(--muted);
+        border-color: transparent;
+      }
+      .votes button:hover {
+        color: var(--text);
+        border-color: var(--border);
+      }
+      .votes button.voted-up {
+        background: var(--accent);
+        color: var(--accent-ink);
+      }
+      .votes button.voted-down {
+        background: var(--magenta);
+        color: #1a0315;
       }
       .score {
+        font-family: var(--mono);
+        font-weight: 700;
         min-width: 28px;
         text-align: center;
+      }
+      .score.bump {
+        animation: bump 0.3s ease;
+      }
+      .object-title {
+        font-size: 17px;
         font-weight: 700;
+        margin-bottom: 4px;
+      }
+      .object-body {
+        margin: 10px 0 12px;
+        white-space: pre-wrap;
+        line-height: 1.5;
+      }
+      .object-body:empty {
+        display: none;
+      }
+      .comments-toggle {
+        padding: 4px 6px;
+        margin-left: -6px;
+        font-size: 13px;
+      }
+      .comments-toggle .chevron {
+        transition: transform 0.15s ease;
+      }
+      .comments-toggle[aria-expanded='true'] .chevron {
+        transform: rotate(90deg);
+      }
+      .comments-panel {
+        display: none;
+        margin-top: 10px;
+      }
+      .comments-panel.open {
+        display: grid;
+        gap: 10px;
       }
       .comments {
-        margin: 16px 0 10px;
-        padding-left: 14px;
-        border-left: 3px solid #e6ebf4;
         display: grid;
-        gap: 7px;
+        gap: 8px;
+        padding-left: 12px;
+        border-left: 2px solid var(--border);
       }
       .comment {
         font-size: 14px;
+        display: grid;
+        gap: 2px;
       }
-      .comment small {
-        color: #63708a;
+      .comment-meta {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+      .time {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--muted);
       }
       .comment-form {
         display: flex;
@@ -248,87 +453,171 @@
       .comment-form input {
         flex: 1;
       }
-      @media (max-width: 600px) {
-        .topbar,
-        .object-header {
-          display: block;
+      #board-loading {
+        display: none;
+        gap: 12px;
+      }
+      #board-loading.visible {
+        display: grid;
+      }
+      .skeleton {
+        height: 92px;
+        border-radius: 14px;
+        border: 1px solid var(--border);
+        background: linear-gradient(
+          90deg,
+          var(--surface) 0%,
+          var(--surface-raised) 40%,
+          var(--surface) 80%
+        );
+        background-size: 200% 100%;
+        animation: shimmer 1.3s linear infinite;
+      }
+      @keyframes shimmer {
+        from {
+          background-position: 200% 0;
         }
-        .meta {
-          text-align: left;
-          margin-top: 10px;
+        to {
+          background-position: -200% 0;
+        }
+      }
+      @keyframes pulse {
+        50% {
+          opacity: 0.35;
+          transform: scale(0.8);
+        }
+      }
+      @keyframes rise-in {
+        from {
+          opacity: 0;
+          transform: translateY(8px);
+        }
+      }
+      @keyframes fade-in {
+        from {
+          opacity: 0;
+        }
+      }
+      @keyframes pop-in {
+        from {
+          opacity: 0;
+          transform: scale(0.96);
+        }
+      }
+      @keyframes bump {
+        40% {
+          transform: scale(1.35);
+          color: var(--accent);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          animation: none !important;
+          transition: none !important;
+        }
+      }
+      @media (max-width: 600px) {
+        .topbar {
+          flex-direction: column;
         }
       }
     </style>
   </head>
   <body>
     <main class="container">
-      <div id="identity-gate">
+      <div id="identity-gate" class="gate">
+        <div class="brand">OpenCollab // p2p</div>
         <h2 id="identity-title">Choose an identity</h2>
         <p id="identity-help" class="muted">Load a saved identity or create a new one.</p>
-        <div id="identity-choice">
+        <div id="identity-choice" class="row">
           <button id="identity-use-saved">Load identity</button
-          ><button id="identity-create-new">Create identity</button>
+          ><button id="identity-create-new" class="secondary">Create identity</button>
         </div>
         <p id="identity-error" class="error"></p>
       </div>
-      <div id="room-gate">
-        <h2>Private board</h2>
+      <div id="room-gate" class="gate">
+        <div class="brand">OpenCollab // p2p</div>
+        <h2>Private boards</h2>
         <p class="muted">What would you like to do?</p>
-        <div id="room-choice" class="room-actions">
-          <button id="room-create-choice">Create a board</button>
-          <button id="room-join-choice" class="secondary">Join a board</button>
+        <div id="room-choice" class="row">
+          <button id="room-create-choice" data-icon="plus">Create a board</button>
+          <button id="room-join-choice" class="secondary" data-icon="users">Join a board</button>
         </div>
         <div id="recent-boards" aria-label="Joined boards"></div>
-        <div id="room-create-form">
+        <div id="room-create-form" class="stack">
           <p class="muted">Choose a name for your new private board.</p>
           <input id="room-name" placeholder="Board name" />
-          <button id="room-create">Create board</button>
-          <button id="room-create-back" class="secondary">Back</button>
+          <div class="row">
+            <button id="room-create-back" class="secondary">Back</button>
+            <button id="room-create">Create board</button>
+          </div>
         </div>
-        <div id="room-join-form">
+        <div id="room-join-form" class="stack">
           <p class="muted">Paste the invite you received from a board participant.</p>
-          <input id="room-invite" placeholder="Paste board invite" />
-          <button id="room-invite-paste" class="secondary">Paste invitation</button>
-          <button id="room-join">Join board</button>
-          <button id="room-join-back" class="secondary">Back</button>
+          <input id="room-invite" placeholder="opencollab://board/…" />
+          <div class="row">
+            <button id="room-join-back" class="secondary">Back</button>
+            <button id="room-invite-paste" class="secondary" data-icon="copy">Paste</button>
+            <button id="room-join">Join board</button>
+          </div>
         </div>
-        <p id="room-error" class="error"></p>
+        <p id="room-error" class="error" role="alert"></p>
+        <div class="gate-footer">
+          <span id="gate-identity" class="identity"></span>
+          <button id="gate-logout" class="ghost" data-icon="logout">Log out</button>
+        </div>
       </div>
-      <div id="profile-gate" class="card">
+      <div id="profile-gate" class="gate">
         <h2>Choose your display name</h2>
         <p class="muted">
           This is the name other participants will see beside your objects and comments.
         </p>
-        <input id="display-name" maxlength="48" placeholder="Your name or nickname" />
-        <button id="display-name-save">Continue to board</button>
+        <div class="stack">
+          <input id="display-name" maxlength="48" placeholder="Your name or nickname" />
+          <button id="display-name-save">Continue to board</button>
+        </div>
         <p id="profile-error" class="error"></p>
       </div>
       <section id="chat">
         <div class="topbar">
           <div>
             <h1 id="board-name">OpenCollab</h1>
-            <p class="muted">Private, peer-to-peer collaboration board</p>
+            <p class="muted prompt">private peer-to-peer board</p>
           </div>
-          <div class="meta">
+          <div class="topbar-meta">
+            <span id="status-chip" class="status-chip" role="status" aria-live="polite">
+              <span class="status-dot" aria-hidden="true"></span>
+              <span id="peer-status">0 peers</span>
+              <span aria-hidden="true">·</span>
+              <span id="sync-status">syncing…</span>
+            </span>
             <button id="identity-label" class="secondary" aria-label="Open connection details">
               @DisplayName
             </button>
-            <div class="connection-status">Peers connected: <span id="peer-status">0</span></div>
-            <div class="connection-status" id="room-network">Network: waiting</div>
-            <code class="connection-status" id="active-invite"></code>
           </div>
         </div>
-        <div class="card new-object">
+        <div class="new-object-bar">
+          <span class="section-label">Board</span>
+          <button id="new-object-toggle" data-icon="plus" aria-expanded="false">New</button>
+        </div>
+        <form id="new-object-form" class="card stack">
           <h2>Add an object</h2>
           <input id="object-title" placeholder="Title" /><textarea
             id="object-body"
             rows="3"
             placeholder="Description or proposal"
-          ></textarea
-          ><button id="object-add">Add to board</button>
-        </div>
-        <div id="board-loading">
-          <span class="spinner" aria-hidden="true"></span><span>Syncing board…</span>
+          ></textarea>
+          <div class="row">
+            <button type="button" id="object-cancel" class="secondary">Cancel</button>
+            <button type="submit" id="object-add">Add to board</button>
+          </div>
+        </form>
+        <div id="board-loading" aria-label="Syncing board">
+          <div class="skeleton"></div>
+          <div class="skeleton"></div>
+          <div class="skeleton"></div>
         </div>
         <div id="board-objects"></div>
       </section>
@@ -341,15 +630,22 @@
     >
       <div class="modal-card">
         <h2 id="connection-modal-title">Connection details</h2>
-        <div class="modal-row"><strong>Identity</strong><code id="modal-identity"></code></div>
-        <div class="modal-row"><strong>Network</strong><span id="modal-network"></span></div>
-        <div class="modal-row"><strong>Peers connected</strong><span id="modal-peers"></span></div>
+        <div class="modal-row"><strong>Identity</strong><span id="modal-identity"></span></div>
         <div class="modal-row">
-          <strong>Invitation link</strong><code id="modal-invite"></code
-          ><button id="copy-invite">Copy invitation link</button>
+          <strong>Network</strong><span id="modal-network" class="mono"></span>
         </div>
-        <button id="switch-board" class="secondary">Switch board</button>
-        <button id="close-connection-modal" class="secondary">Close</button>
+        <div class="modal-row">
+          <strong>Peers connected</strong><span id="modal-peers" class="mono"></span>
+        </div>
+        <div class="modal-actions">
+          <button id="copy-invite" data-icon="copy">Copy invite</button>
+          <button id="share-invite" class="secondary" data-icon="share">Share invite</button>
+          <button id="switch-board" class="secondary" data-icon="users">Switch board</button>
+          <button id="modal-logout" class="secondary" data-icon="logout">Log out</button>
+        </div>
+        <div class="row" style="justify-content: flex-end; margin-top: 12px">
+          <button id="close-connection-modal" class="ghost">Close</button>
+        </div>
       </div>
     </div>
     <script type="module" src="app.js"></script>

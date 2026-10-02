@@ -93,6 +93,31 @@ function getKeychainAccount() {
   return `${name}:${suffix}`
 }
 
+// Board invites only work for the identity that joined them, so remembered
+// boards are stored per identity. The unscoped entry predates that and belongs
+// to the previously saved identity; it is dropped when a different one is set.
+function getBoardsKeychainAccount(identity) {
+  if (typeof identity !== 'string' || !/^[0-9a-f]{64}$/.test(identity)) {
+    throw new Error('Invalid identity')
+  }
+  return `${getKeychainAccount()}:${identity}`
+}
+
+async function readRecentBoards(account) {
+  const stored = await keytar.getPassword(getBoardsKeychainService(), account)
+  if (!stored) return null
+  try {
+    const boards = JSON.parse(stored)
+    return Array.isArray(boards) ? boards : []
+  } catch {
+    return []
+  }
+}
+
+async function dropLegacyRecentBoards() {
+  await keytar.deletePassword(getBoardsKeychainService(), getKeychainAccount())
+}
+
 async function saveKeychainMnemonic(mnemonic) {
   await keytar.setPassword(getKeychainService(), getKeychainAccount(), mnemonic)
   await fs.rm(getKeychainPath(), { force: true })
@@ -248,6 +273,7 @@ ipcMain.handle('identity:keychain:load', async () => {
 })
 ipcMain.handle('identity:keychain:create', async () => {
   const mnemonic = Identity.generateMnemonic()
+  await dropLegacyRecentBoards()
   await saveKeychainMnemonic(mnemonic)
   await sendIdentityToWorker(mnemonic)
   return true
@@ -258,6 +284,8 @@ ipcMain.handle('identity:keychain:import', async (evt, mnemonic) => {
   }
   const normalized = mnemonic.trim().replace(/\s+/g, ' ')
   await Identity.from({ mnemonic: normalized })
+  const current = await keytar.getPassword(getKeychainService(), getKeychainAccount())
+  if (current !== normalized) await dropLegacyRecentBoards()
   await saveKeychainMnemonic(normalized)
   await sendIdentityToWorker(normalized)
   return true
@@ -266,38 +294,30 @@ ipcMain.handle('identity:legacy:unlock', (evt, password) => {
   const pipe = getWorker(mainWorkerSpecifier)
   return pipe.write(JSON.stringify({ type: 'identity:unlock', password }))
 })
-ipcMain.handle('boards:recent:list', async () => {
-  const stored = await keytar.getPassword(getBoardsKeychainService(), getKeychainAccount())
-  if (!stored) return []
-  try {
-    const boards = JSON.parse(stored)
-    return Array.isArray(boards) ? boards : []
-  } catch {
-    return []
-  }
+ipcMain.handle('boards:recent:list', async (evt, identity) => {
+  const account = getBoardsKeychainAccount(identity)
+  const boards = await readRecentBoards(account)
+  if (boards) return boards
+  const legacy = await readRecentBoards(getKeychainAccount())
+  if (!legacy) return []
+  await keytar.setPassword(getBoardsKeychainService(), account, JSON.stringify(legacy))
+  await dropLegacyRecentBoards()
+  return legacy
 })
-ipcMain.handle('boards:recent:save', async (evt, board) => {
+ipcMain.handle('boards:recent:save', async (evt, identity, board) => {
+  const account = getBoardsKeychainAccount(identity)
   if (!board || typeof board.invite !== 'string' || !board.invite) throw new Error('Invalid board')
-  const stored = await keytar.getPassword(getBoardsKeychainService(), getKeychainAccount())
-  let boards = []
-  try {
-    const parsed = stored ? JSON.parse(stored) : []
-    if (Array.isArray(parsed)) boards = parsed
-  } catch {}
+  let boards = (await readRecentBoards(account)) || []
   boards = [board, ...boards.filter((entry) => entry.invite !== board.invite)].slice(0, 12)
-  await keytar.setPassword(getBoardsKeychainService(), getKeychainAccount(), JSON.stringify(boards))
+  await keytar.setPassword(getBoardsKeychainService(), account, JSON.stringify(boards))
   return boards
 })
-ipcMain.handle('boards:recent:remove', async (evt, invite) => {
+ipcMain.handle('boards:recent:remove', async (evt, identity, invite) => {
+  const account = getBoardsKeychainAccount(identity)
   if (typeof invite !== 'string' || !invite) throw new Error('Invalid board invite')
-  const stored = await keytar.getPassword(getBoardsKeychainService(), getKeychainAccount())
-  let boards = []
-  try {
-    const parsed = stored ? JSON.parse(stored) : []
-    if (Array.isArray(parsed)) boards = parsed
-  } catch {}
+  let boards = (await readRecentBoards(account)) || []
   boards = boards.filter((board) => board.invite !== invite)
-  await keytar.setPassword(getBoardsKeychainService(), getKeychainAccount(), JSON.stringify(boards))
+  await keytar.setPassword(getBoardsKeychainService(), account, JSON.stringify(boards))
   return boards
 })
 ipcMain.handle('app:afterUpdate', () => {
