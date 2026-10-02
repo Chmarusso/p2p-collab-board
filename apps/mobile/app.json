@@ -13,7 +13,20 @@
         "NSLocalNetworkUsageDescription": "OpenCollab uses the local network to discover and sync private boards with invited devices."
       }
     },
-    "android": { "package": "com.opencollab.mobile" },
-    "plugins": ["pear-runtime-react-native", "expo-secure-store"]
+    "android": {
+      "package": "com.opencollab.mobile"
+    },
+    "plugins": [
+      "pear-runtime-react-native",
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "OpenCollab uses your photo library so you can attach images to board posts.",
+          "cameraPermission": false,
+          "microphonePermission": false
+        }
+      ]
+    ]
   }
 }

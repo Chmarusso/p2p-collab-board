@@ -14,6 +14,8 @@
     "@opencollab/board-protocol": "file:../../packages/board-protocol",
     "expo": "^55.0.8",
     "expo-clipboard": "^55.0.17",
+    "expo-image-manipulator": "~55.0.21",
+    "expo-image-picker": "~55.0.24",
     "expo-secure-store": "^15.0.0",
     "framed-stream": "^1.0.1",
     "pear-mobile": "^4.3.0",

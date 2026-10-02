@@ -4,6 +4,7 @@ import {
   Alert,
   Animated,
   FlatList,
+  Image,
   KeyboardAvoidingView,
   Modal,
   PanResponder,
@@ -20,6 +21,8 @@ import {
 import { Feather } from '@expo/vector-icons'
 import * as SecureStore from 'expo-secure-store'
 import * as Clipboard from 'expo-clipboard'
+import * as ImagePicker from 'expo-image-picker'
+import { ImageManipulator, SaveFormat } from 'expo-image-manipulator'
 import PearRuntime from 'pear-mobile'
 import FramedStream from 'framed-stream'
 import workerBundle from './worker.bundle.js'
@@ -56,12 +59,30 @@ const mono = Platform.select({ ios: 'Menlo', default: 'monospace' })
 
 type FeatherName = React.ComponentProps<typeof Feather>['name']
 type BoardComment = { id: string; author: string; text: string; createdAt?: string }
+type ImageRef = {
+  core: string
+  id: { byteOffset: number; blockOffset: number; blockLength: number; byteLength: number }
+  type: string
+  width: number | null
+  height: number | null
+}
+type PendingImage = { uri: string; data: string; type: string; width: number; height: number }
+type CachedImage = { uri?: string; error?: string }
+
+// Image attachments: bytes live encrypted in each author's Hyperblobs core; the
+// worker fetches them on demand and they are cached here as data URIs.
+const MAX_IMAGES = 4
+const MAX_IMAGE_SIDE = 1600
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024
+const imageKey = (ref: ImageRef) => `${ref.core}:${ref.id.blockOffset}:${ref.id.blockLength}`
+
 type BoardObject = {
   id: string
   title: string
   body: string
   author: string
   createdAt?: string
+  images?: ImageRef[]
   votes: Record<string, number>
   comments: BoardComment[]
 }
@@ -113,6 +134,10 @@ export default function App() {
   const [invitationLink, setInvitationLink] = useState('')
   const [profileOpen, setProfileOpen] = useState(false)
   const [composerOpen, setComposerOpen] = useState(false)
+  const [pendingImages, setPendingImages] = useState<PendingImage[]>([])
+  const [imageCache, setImageCache] = useState<Record<string, CachedImage>>({})
+  const [viewerUri, setViewerUri] = useState('')
+  const imageRequests = useRef(new Set<string>())
   const [board, setBoard] = useState<BoardObject[]>([])
   const [profiles, setProfiles] = useState<Record<string, string>>({})
   const [roomReady, setRoomReady] = useState(false)
@@ -183,7 +208,18 @@ export default function App() {
         setDisplayName('')
         setDisplayNameDraft('')
         setExpanded({})
+        setImageCache({})
+        imageRequests.current.clear()
         setEntryMode('choose')
+      }
+      if (message.type === 'board-image') {
+        imageRequests.current.delete(message.key)
+        setImageCache((current) => ({
+          ...current,
+          [message.key]: message.data
+            ? { uri: `data:${message.mime};base64,${message.data}` }
+            : { error: message.error || 'unavailable' }
+        }))
       }
       if (message.type === messageTypes.boardState) {
         setBoard(message.objects || [])
@@ -302,10 +338,70 @@ export default function App() {
 
   function addObject() {
     if (!newTitle.trim()) return
-    send({ type: messageTypes.boardCreate, title: newTitle, body: newBody })
+    send({
+      type: messageTypes.boardCreate,
+      title: newTitle,
+      body: newBody,
+      images: pendingImages.map(({ data, type, width, height }) => ({ data, type, width, height }))
+    })
     setNewTitle('')
     setNewBody('')
+    setPendingImages([])
     setComposerOpen(false)
+  }
+
+  function requestImage(ref: ImageRef) {
+    const key = imageKey(ref)
+    if (imageCache[key]?.uri || imageRequests.current.has(key)) return
+    imageRequests.current.add(key)
+    send({ type: 'board:image', ref })
+  }
+
+  function retryImage(ref: ImageRef) {
+    setImageCache((current) => {
+      const next = { ...current }
+      delete next[imageKey(ref)]
+      return next
+    })
+    imageRequests.current.delete(imageKey(ref))
+    requestImage(ref)
+  }
+
+  // Downscale to MAX_IMAGE_SIDE and re-encode as JPEG to keep transfers small.
+  async function pickImages() {
+    const remaining = MAX_IMAGES - pendingImages.length
+    if (remaining <= 0) return Alert.alert('Image limit', `Up to ${MAX_IMAGES} images per post.`)
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsMultipleSelection: true,
+      selectionLimit: remaining,
+      quality: 1
+    })
+    if (result.canceled) return
+    const prepared: PendingImage[] = []
+    for (const asset of result.assets.slice(0, remaining)) {
+      const scale = Math.min(1, MAX_IMAGE_SIDE / Math.max(asset.width, asset.height))
+      const context = ImageManipulator.manipulate(asset.uri)
+      context.resize({
+        width: Math.round(asset.width * scale),
+        height: Math.round(asset.height * scale)
+      })
+      const rendered = await context.renderAsync()
+      const saved = await rendered.saveAsync({
+        compress: 0.8,
+        format: SaveFormat.JPEG,
+        base64: true
+      })
+      if (!saved.base64 || saved.base64.length * 0.75 > MAX_IMAGE_BYTES) continue
+      prepared.push({
+        uri: `data:image/jpeg;base64,${saved.base64}`,
+        data: saved.base64,
+        type: 'image/jpeg',
+        width: saved.width,
+        height: saved.height
+      })
+    }
+    setPendingImages((current) => [...current, ...prepared].slice(0, MAX_IMAGES))
   }
 
   if (!identityReady)
@@ -614,6 +710,15 @@ export default function App() {
                   <View style={styles.cardBody}>
                     <Text style={styles.cardTitle}>{item.title}</Text>
                     {item.body ? <Text style={styles.cardText}>{item.body}</Text> : null}
+                    {item.images?.length ? (
+                      <BoardImages
+                        images={item.images}
+                        cache={imageCache}
+                        onRequest={requestImage}
+                        onRetry={retryImage}
+                        onOpen={setViewerUri}
+                      />
+                    ) : null}
                     <View style={styles.meta}>
                       <Identicon hex={item.author} size={14} />
                       <Text style={styles.metaText}>{nameFor(item.author)}</Text>
@@ -726,12 +831,60 @@ export default function App() {
               placeholderTextColor={colors.muted}
               multiline
             />
+            {pendingImages.length ? (
+              <ScrollView horizontal contentContainerStyle={styles.previewRow}>
+                {pendingImages.map((image, index) => (
+                  <View key={index} style={styles.preview}>
+                    <Image source={{ uri: image.uri }} style={styles.previewImage} />
+                    <Pressable
+                      style={styles.previewRemove}
+                      onPress={() =>
+                        setPendingImages((current) => current.filter((_, i) => i !== index))
+                      }
+                      accessibilityRole='button'
+                      accessibilityLabel='Remove image'
+                      hitSlop={6}
+                    >
+                      <Feather name='x' size={14} color={colors.text} />
+                    </Pressable>
+                  </View>
+                ))}
+              </ScrollView>
+            ) : null}
+            <Button
+              title={
+                pendingImages.length
+                  ? `Images ${pendingImages.length}/${MAX_IMAGES}`
+                  : 'Attach images'
+              }
+              icon='image'
+              variant='secondary'
+              onPress={pickImages}
+            />
             <View style={styles.row}>
               <Button title='Cancel' variant='secondary' onPress={() => setComposerOpen(false)} />
               <Button title='Add to board' icon='plus' grow onPress={addObject} />
             </View>
           </View>
         </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal
+        visible={!!viewerUri}
+        transparent
+        animationType='fade'
+        onRequestClose={() => setViewerUri('')}
+      >
+        <Pressable
+          style={styles.viewer}
+          onPress={() => setViewerUri('')}
+          accessibilityRole='button'
+          accessibilityLabel='Close image'
+        >
+          {viewerUri ? (
+            <Image source={{ uri: viewerUri }} style={styles.viewerImage} resizeMode='contain' />
+          ) : null}
+        </Pressable>
       </Modal>
 
       <Modal
@@ -1070,6 +1223,58 @@ function SwipeToRemove({
   )
 }
 
+function BoardImages({
+  images,
+  cache,
+  onRequest,
+  onRetry,
+  onOpen
+}: {
+  images: ImageRef[]
+  cache: Record<string, CachedImage>
+  onRequest: (ref: ImageRef) => void
+  onRetry: (ref: ImageRef) => void
+  onOpen: (uri: string) => void
+}) {
+  useEffect(() => {
+    for (const ref of images) onRequest(ref)
+    // Requests are deduplicated in the parent; only re-run for new images.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [images.map(imageKey).join('|')])
+  return (
+    <View style={styles.imageGrid}>
+      {images.map((ref) => {
+        const cached = cache[imageKey(ref)]
+        const ratio = ref.width && ref.height ? ref.width / ref.height : 4 / 3
+        return (
+          <Pressable
+            key={imageKey(ref)}
+            style={[styles.imageSlot, { aspectRatio: images.length === 1 ? ratio : 1 }]}
+            onPress={() => (cached?.uri ? onOpen(cached.uri) : cached?.error ? onRetry(ref) : null)}
+            accessibilityRole='imagebutton'
+            accessibilityLabel={
+              cached?.error ? 'Image unavailable, tap to retry' : 'Attached image'
+            }
+          >
+            {cached?.uri ? (
+              <Image source={{ uri: cached.uri }} style={styles.slotImage} />
+            ) : cached?.error ? (
+              <View style={styles.slotState}>
+                <Feather name='refresh-cw' size={16} color={colors.muted} />
+                <Text style={styles.metaMono}>unavailable · retry</Text>
+              </View>
+            ) : (
+              <View style={styles.slotState}>
+                <Feather name='image' size={18} color={colors.border} />
+              </View>
+            )}
+          </Pressable>
+        )
+      })}
+    </View>
+  )
+}
+
 function IconButton({
   icon,
   label,
@@ -1339,5 +1544,38 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 20,
     gap: 12
-  }
+  },
+  previewRow: { gap: 8 },
+  preview: { width: 72, height: 72, borderRadius: 8, overflow: 'hidden' },
+  previewImage: { width: '100%', height: '100%' },
+  previewRemove: {
+    position: 'absolute',
+    top: 4,
+    right: 4,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  imageGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  imageSlot: {
+    flexGrow: 1,
+    flexBasis: '45%',
+    borderRadius: 10,
+    overflow: 'hidden',
+    backgroundColor: colors.surfaceRaised,
+    borderColor: colors.border,
+    borderWidth: 1
+  },
+  slotImage: { width: '100%', height: '100%' },
+  slotState: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 4 },
+  viewer: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.92)',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  viewerImage: { width: '100%', height: '100%' }
 })

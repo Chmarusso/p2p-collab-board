@@ -45,10 +45,12 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
-	<key>NSLocalNetworkUsageDescription</key>
-	<string>OpenCollab uses the local network to discover and sync private boards with invited devices.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Allow $(PRODUCT_NAME) to access your Face ID biometric data.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>OpenCollab uses the local network to discover and sync private boards with invited devices.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>OpenCollab uses your photo library so you can attach images to board posts.</string>
 	<key>RCTNewArchEnabled</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>
