@@ -39,6 +39,13 @@ const commentDrafts = new Map()
 const seenObjects = new Set()
 const seenComments = new Set()
 const lastScores = new Map()
+// Image attachments: bytes live encrypted in each author's Hyperblobs core;
+// the worker fetches them on demand and they are cached here as data URLs.
+const MAX_IMAGES = 4
+const MAX_IMAGE_SIDE = 1600
+const imageCache = new Map()
+const imageRequests = new Set()
+let pendingImages = []
 
 const icons = {
   plus: '<path d="M12 5v14M5 12h14"/>',
@@ -51,6 +58,8 @@ const icons = {
   up: '<path d="m18 15-6-6-6 6"/>',
   down: '<path d="m6 9 6 6 6-6"/>',
   right: '<path d="m9 18 6-6-6-6"/>',
+  image:
+    '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/>',
   message: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
   users:
     '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>'
@@ -240,6 +249,111 @@ function renderComment(comment) {
   return element
 }
 
+const imageKey = (ref) => `${ref.core}:${ref.id.blockOffset}:${ref.id.blockLength}`
+
+function requestImage(ref) {
+  const key = imageKey(ref)
+  if (imageCache.has(key) || imageRequests.has(key)) return
+  imageRequests.add(key)
+  send({ type: 'board:image', ref })
+}
+
+function fillImageSlot(slot, ref) {
+  const cached = imageCache.get(imageKey(ref))
+  slot.classList.toggle('loading', !cached)
+  if (cached?.url) {
+    slot.innerHTML = `<img src="${cached.url}" alt="Attached image" />`
+    slot.disabled = false
+  } else if (cached?.error) {
+    slot.textContent = 'Unavailable · retry'
+    slot.disabled = false
+  } else {
+    slot.textContent = ''
+    slot.disabled = true
+  }
+}
+
+function renderImages(card, object) {
+  const container = card.querySelector('.object-images')
+  if (!container) return
+  for (const ref of object.images) {
+    const slot = document.createElement('button')
+    slot.type = 'button'
+    slot.className = 'object-image'
+    slot.dataset.imageKey = imageKey(ref)
+    if (ref.width && ref.height) slot.style.aspectRatio = `${ref.width} / ${ref.height}`
+    slot.onclick = () => {
+      const cached = imageCache.get(imageKey(ref))
+      if (cached?.url) openImageViewer(cached.url)
+      else if (cached?.error) {
+        imageCache.delete(imageKey(ref))
+        fillImageSlot(slot, ref)
+        requestImage(ref)
+      }
+    }
+    fillImageSlot(slot, ref)
+    container.appendChild(slot)
+    requestImage(ref)
+  }
+}
+
+function openImageViewer(url) {
+  const viewer = document.getElementById('image-viewer')
+  viewer.querySelector('img').src = url
+  viewer.classList.add('open')
+}
+
+function closeImageViewer() {
+  document.getElementById('image-viewer').classList.remove('open')
+}
+
+// Downscale to MAX_IMAGE_SIDE and re-encode as JPEG to keep transfers small.
+// GIFs are kept as-is so animations survive.
+async function prepareImage(file) {
+  if (file.type === 'image/gif') {
+    const url = await readAsDataUrl(file)
+    const bitmap = await window.createImageBitmap(file)
+    return { url, type: file.type, width: bitmap.width, height: bitmap.height }
+  }
+  const bitmap = await window.createImageBitmap(file)
+  const scale = Math.min(1, MAX_IMAGE_SIDE / Math.max(bitmap.width, bitmap.height))
+  const canvas = document.createElement('canvas')
+  canvas.width = Math.round(bitmap.width * scale)
+  canvas.height = Math.round(bitmap.height * scale)
+  canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.82))
+  return {
+    url: await readAsDataUrl(blob),
+    type: 'image/jpeg',
+    width: canvas.width,
+    height: canvas.height
+  }
+}
+
+function readAsDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new window.FileReader()
+    reader.onload = () => resolve(reader.result)
+    reader.onerror = () => reject(reader.error)
+    reader.readAsDataURL(blob)
+  })
+}
+
+function renderPendingImages() {
+  const previews = document.getElementById('image-previews')
+  previews.innerHTML = ''
+  pendingImages.forEach((image, index) => {
+    const preview = document.createElement('div')
+    preview.className = 'image-preview'
+    preview.innerHTML = `<img src="${image.url}" alt="Image to attach" /><button type="button" class="secondary" aria-label="Remove image">✕</button>`
+    preview.querySelector('button').onclick = () => {
+      pendingImages.splice(index, 1)
+      renderPendingImages()
+    }
+    previews.appendChild(preview)
+  })
+}
+
 function renderObject(object) {
   const card = document.createElement('article')
   card.className = 'card object-card'
@@ -266,12 +380,15 @@ function renderObject(object) {
       <div class="object-title">${escape(object.title)}</div>
       <div class="comment-meta">${identityHtml(object.author)}<span class="time">${escape(relativeTime(object.createdAt))}</span></div>
       <div class="object-body">${escape(object.body)}</div>
+      ${object.images?.length ? '<div class="object-images"></div>' : ''}
       <button class="ghost comments-toggle" aria-expanded="${expanded}">${icon('message')}<span>${comments.length} ${comments.length === 1 ? 'comment' : 'comments'}</span>${icon('right', 'icon chevron')}</button>
       <div class="comments-panel${expanded ? ' open' : ''}">
         ${comments.length ? '<div class="comments"></div>' : ''}
         <form class="comment-form"><input placeholder="Add a comment" aria-label="Add a comment" /><button>Comment</button></form>
       </div>
     </div>`
+
+  if (object.images?.length) renderImages(card, object)
 
   const commentList = card.querySelector('.comments')
   for (const comment of comments) commentList.appendChild(renderComment(comment))
@@ -360,10 +477,42 @@ function logout() {
   if (wasInRoom) send({ type: 'room:leave' })
 }
 
+// OTA updates: the worker sends the plain strings 'updating' and 'updated'
+// (pear-runtime updater events); applying swaps in the new build and relaunches.
+function onUpdaterEvent(name) {
+  const banner = document.getElementById('update-banner')
+  const text = banner.querySelector('span')
+  const button = document.getElementById('update-apply')
+  banner.classList.add('visible')
+  if (name === 'updating') {
+    text.innerText = 'Downloading an update…'
+    button.hidden = true
+    return
+  }
+  text.innerText = 'A new version is ready.'
+  button.hidden = false
+  button.disabled = false
+  button.onclick = async () => {
+    button.disabled = true
+    text.innerText = 'Updating…'
+    try {
+      await bridge.applyUpdate()
+      await bridge.appAfterUpdate()
+    } catch (err) {
+      text.innerText = `Update failed: ${err.message}`
+    }
+  }
+}
+
 bridge.onWorkerIPC(workers.main, (data) => {
+  const text = decoder.decode(data)
+  if (text === 'updating' || text === 'updated') {
+    onUpdaterEvent(text)
+    return
+  }
   let message
   try {
-    message = JSON.parse(decoder.decode(data))
+    message = JSON.parse(text)
   } catch {
     return
   }
@@ -421,6 +570,22 @@ bridge.onWorkerIPC(workers.main, (data) => {
       document.getElementById('modal-peers').innerText = peerCount
     }
   }
+  if (message.type === 'board-image') {
+    imageRequests.delete(message.key)
+    imageCache.set(
+      message.key,
+      message.data
+        ? { url: `data:${message.mime};base64,${message.data}` }
+        : { error: message.error || 'unavailable' }
+    )
+    const object = objects.find((entry) =>
+      (entry.images || []).some((ref) => imageKey(ref) === message.key)
+    )
+    const ref = object?.images.find((entry) => imageKey(entry) === message.key)
+    for (const slot of document.querySelectorAll(`[data-image-key="${message.key}"]`)) {
+      if (ref) fillImageSlot(slot, ref)
+    }
+  }
   if (message.type === 'board-state') {
     profiles = message.profiles || {}
     renderBoard(message.objects)
@@ -445,6 +610,7 @@ bridge.onWorkerIPC(workers.main, (data) => {
     updateStatusChip()
   }
 })
+document.getElementById('app-version').innerText = `v${bridge.pkg().version}`
 bridge.startWorker(workers.main)
 
 for (const button of document.querySelectorAll('[data-icon]')) {
@@ -488,7 +654,8 @@ document.getElementById('share-invite').onclick = async () => {
 
 document.addEventListener('keydown', (event) => {
   if (event.key !== 'Escape') return
-  if (connectionModal.classList.contains('open')) closeConnectionModal()
+  if (document.getElementById('image-viewer').classList.contains('open')) closeImageViewer()
+  else if (connectionModal.classList.contains('open')) closeConnectionModal()
   else if (newObjectForm.classList.contains('open')) {
     closeNewObject()
     newObjectToggle.focus()
@@ -574,12 +741,47 @@ newObjectForm.onsubmit = (event) => {
   send({
     type: 'board:create',
     title: title.value,
-    body: document.getElementById('object-body').value
+    body: document.getElementById('object-body').value,
+    images: pendingImages.map(({ url, type, width, height }) => ({
+      data: url.slice(url.indexOf(',') + 1),
+      type,
+      width,
+      height
+    }))
   })
   title.value = ''
   document.getElementById('object-body').value = ''
+  pendingImages = []
+  renderPendingImages()
   closeNewObject()
 }
+document.getElementById('object-attach').onclick = () =>
+  document.getElementById('object-images').click()
+document.getElementById('object-images').onchange = async (event) => {
+  const imageError = document.getElementById('image-error')
+  imageError.innerText = ''
+  const files = [...event.target.files]
+  event.target.value = ''
+  for (const file of files) {
+    if (pendingImages.length >= MAX_IMAGES) {
+      imageError.innerText = `Up to ${MAX_IMAGES} images per post.`
+      break
+    }
+    try {
+      const image = await prepareImage(file)
+      // The worker rejects anything over 5 MB; base64 is ~4/3 of the bytes.
+      if (image.url.length * 0.75 > 5 * 1024 * 1024) {
+        imageError.innerText = `${file.name} is too large (max 5 MB).`
+        continue
+      }
+      pendingImages.push(image)
+    } catch {
+      imageError.innerText = `${file.name} could not be read as an image.`
+    }
+  }
+  renderPendingImages()
+}
+document.getElementById('image-viewer').onclick = closeImageViewer
 
 document.getElementById('identity-use-saved').onclick = () =>
   bridge.identityKeychainLoad().catch((error) => {
