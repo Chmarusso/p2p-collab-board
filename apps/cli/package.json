@@ -1,0 +1,22 @@
+{
+  "name": "@opencollab/cli",
+  "version": "1.0.3",
+  "private": true,
+  "description": "Command-line client for OpenCollab boards, driving the shared Bare backend",
+  "bin": {
+    "opencollab": "./bin.js"
+  },
+  "main": "index.js",
+  "dependencies": {
+    "@opencollab/board-protocol": "file:../../packages/board-protocol",
+    "framed-stream": "^1.0.1",
+    "keet-identity-key": "^3.2.0",
+    "paparam": "^1.10.0",
+    "pear-runtime": "^1.1.4",
+    "sodium-native": "^5.1.0"
+  },
+  "upgrade": "pear://q1huw5ozxk8j36pcb8sicfr4dtgf9154r5aj3yzqa14ngxxq1kmy",
+  "scripts": {
+    "dist": "node scripts/dist.js"
+  }
+}
