@@ -20,11 +20,14 @@ import { messageTypes } from '@opencollab/board-protocol'
 
 const normalizeInvite = (value: string) => {
   const invite = value.trim()
-  const match = invite.match(/^(?:opencollab:\/\/board\/|opencollab:\/\/|https?:\/\/[^/]+\/board\/)?(.+)$/i)
+  const match = invite.match(
+    /^(?:opencollab:\/\/board\/|opencollab:\/\/|https?:\/\/[^/]+\/board\/)?(.+)$/i
+  )
   return decodeURIComponent(match ? match[1] : invite).replace(/\/$/, '')
 }
 
-const inviteLink = (invite: string) => `opencollab://board/${encodeURIComponent(normalizeInvite(invite))}`
+const inviteLink = (invite: string) =>
+  `opencollab://board/${encodeURIComponent(normalizeInvite(invite))}`
 
 const version = '1.0.0'
 const upgrade = 'pear://nzi3suuxyzwj6oosortonj5pxd9s7ckgd8cr87szddaamxi77kny'
@@ -46,6 +49,7 @@ export default function App() {
   const [identityPhrase, setIdentityPhrase] = useState('')
   const [identityReady, setIdentityReady] = useState(false)
   const [identityChoice, setIdentityChoice] = useState<'choose' | 'existing'>('choose')
+  const [entryMode, setEntryMode] = useState<'choose' | 'create' | 'join'>('choose')
   const [invite, setInvite] = useState('')
   const [boardName, setBoardName] = useState('')
   const [recentBoards, setRecentBoards] = useState<RecentBoard[]>([])
@@ -108,6 +112,7 @@ export default function App() {
         setInvitationLink('')
         setDisplayName('')
         setDisplayNameDraft('')
+        setEntryMode('choose')
       }
       if (message.type === messageTypes.boardState) {
         setBoard(message.objects || [])
@@ -169,15 +174,15 @@ export default function App() {
     })
   }
 
-  async function copyInvitation() {
-    if (!invitationLink) return
-    await Clipboard.setStringAsync(inviteLink(invitationLink))
-    Alert.alert('Invitation copied', 'The invitation link is ready to paste.')
-  }
-
   async function shareInvitation() {
     if (!invitationLink) return
     await Share.share({ message: inviteLink(invitationLink), url: inviteLink(invitationLink) })
+  }
+
+  function logout() {
+    setIdentityReady(false)
+    setIdentityChoice('choose')
+    setEntryMode('choose')
   }
 
   async function pasteInvitation() {
@@ -217,10 +222,72 @@ export default function App() {
         )}
       </Screen>
     )
+  if (!roomReady && entryMode === 'create')
+    return (
+      <Screen title='OpenCollab'>
+        <Text style={styles.heading}>Create a private board</Text>
+        <Text style={styles.muted}>
+          You will get an invitation link to share once the board is ready.
+        </Text>
+        <TextInput
+          style={styles.input}
+          value={boardName}
+          onChangeText={setBoardName}
+          placeholder='Board name'
+          autoFocus
+        />
+        <View style={styles.row}>
+          <Button title='Back' variant='secondary' onPress={() => setEntryMode('choose')} />
+          <Button
+            title='Create board'
+            onPress={() => {
+              if (!boardName.trim())
+                return Alert.alert('Board name required', 'Give your board a name.')
+              send({ type: messageTypes.roomStart, invite: null, name: boardName.trim() })
+            }}
+          />
+        </View>
+      </Screen>
+    )
+  if (!roomReady && entryMode === 'join')
+    return (
+      <Screen title='OpenCollab'>
+        <Text style={styles.heading}>Join a private board</Text>
+        <Text style={styles.muted}>
+          Paste the invitation link you received from a board member.
+        </Text>
+        <TextInput
+          style={styles.input}
+          value={invite}
+          onChangeText={setInvite}
+          placeholder='Invitation link'
+          autoCapitalize='none'
+          testID='board-invite-input'
+        />
+        <Button title='Paste invitation' variant='secondary' onPress={pasteInvitation} />
+        <View style={styles.row}>
+          <Button title='Back' variant='secondary' onPress={() => setEntryMode('choose')} />
+          <Button
+            title='Join board'
+            onPress={() => {
+              if (!invite.trim())
+                return Alert.alert('Invitation required', 'Paste an invitation link first.')
+              send({ type: messageTypes.roomStart, invite: normalizeInvite(invite) })
+            }}
+          />
+        </View>
+      </Screen>
+    )
   if (!roomReady)
     return (
       <Screen title='OpenCollab'>
-        <Text style={styles.heading}>Private board</Text>
+        <Text style={styles.heading}>Private boards</Text>
+        <Button title='Create a new board' onPress={() => setEntryMode('create')} />
+        <Button
+          title='Join with invitation'
+          variant='secondary'
+          onPress={() => setEntryMode('join')}
+        />
         {recentBoards.length > 0 ? (
           <View style={styles.card}>
             <Text style={styles.heading}>Recently joined</Text>
@@ -238,31 +305,7 @@ export default function App() {
             ))}
           </View>
         ) : null}
-        <TextInput
-          style={styles.input}
-          value={invite}
-          onChangeText={setInvite}
-          placeholder='Paste invitation link'
-          autoCapitalize='none'
-          testID='board-invite-input'
-        />
-        <Button title='Paste invitation' onPress={pasteInvitation} />
-        <TextInput
-          style={styles.input}
-          value={boardName}
-          onChangeText={setBoardName}
-          placeholder='Board name (only when creating)'
-        />
-        <View style={styles.row}>
-          <Button
-            title='Create'
-            onPress={() => send({ type: messageTypes.roomStart, invite: null, name: boardName })}
-          />
-          <Button
-            title='Join'
-            onPress={() => send({ type: messageTypes.roomStart, invite: normalizeInvite(invite) })}
-          />
-        </View>
+        <Button title='Log out' variant='secondary' onPress={logout} />
       </Screen>
     )
   if (!displayName)
@@ -295,10 +338,17 @@ export default function App() {
     )
 
   return (
-    <Screen title={boardName || 'OpenCollab'}>
-      <Pressable onPress={() => setProfileOpen(true)}>
-        <Text style={styles.profileLink}>@{displayName}</Text>
-      </Pressable>
+    <Screen
+      title={boardName || 'OpenCollab'}
+      headerRight={
+        <Pressable style={styles.userPanel} onPress={() => setProfileOpen(true)}>
+          <Text style={styles.userPanelLabel}>Profile</Text>
+          <Text style={styles.userPanelName} numberOfLines={1}>
+            @{displayName}
+          </Text>
+        </Pressable>
+      }
+    >
       <Modal
         visible={profileOpen}
         transparent
@@ -309,13 +359,10 @@ export default function App() {
           <Pressable style={styles.modalCard} onPress={(event) => event.stopPropagation()}>
             <Text style={styles.heading}>Connection details</Text>
             <Text style={styles.muted}>Signed in as @{displayName}</Text>
-            <Text style={styles.muted}>Network: {networkStatus} · Peers: {peerCount}</Text>
-            <Text style={styles.modalLabel}>Invitation link</Text>
-            <Text selectable style={styles.inviteText}>
-              {invitationLink || 'Unavailable'}
+            <Text style={styles.muted}>
+              Network: {networkStatus} · Peers: {peerCount}
             </Text>
-            <Button title='Copy invitation link' onPress={copyInvitation} />
-            <Button title='Share invitation link' onPress={shareInvitation} />
+            <Button title='Share invitation' onPress={shareInvitation} />
             <Button
               title='Switch board'
               onPress={() => {
@@ -399,27 +446,60 @@ export default function App() {
   )
 }
 
-function Screen({ title, children }: { title: string; children?: React.ReactNode }) {
+function Screen({
+  title,
+  headerRight,
+  children
+}: {
+  title: string
+  headerRight?: React.ReactNode
+  children?: React.ReactNode
+}) {
   return (
     <ScrollView contentContainerStyle={styles.screen}>
-      <Text style={styles.title}>{title}</Text>
+      <View style={styles.header}>
+        <Text style={styles.title} numberOfLines={1}>
+          {title}
+        </Text>
+        {headerRight}
+      </View>
       {children}
     </ScrollView>
   )
 }
-function Button({ title, onPress }: { title: string; onPress: () => void }) {
+function Button({
+  title,
+  onPress,
+  variant = 'primary'
+}: {
+  title: string
+  onPress: () => void
+  variant?: 'primary' | 'secondary'
+}) {
+  const secondary = variant === 'secondary'
   return (
-    <Pressable style={styles.button} onPress={onPress}>
-      <Text style={styles.buttonText}>{title}</Text>
+    <Pressable style={[styles.button, secondary && styles.buttonSecondary]} onPress={onPress}>
+      <Text style={[styles.buttonText, secondary && styles.buttonTextSecondary]}>{title}</Text>
     </Pressable>
   )
 }
 const styles = StyleSheet.create({
   screen: { flexGrow: 1, padding: 24, gap: 14, backgroundColor: '#f4f7fb' },
-  title: { fontSize: 30, fontWeight: '700', color: '#172033', marginTop: 30 },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 30 },
+  title: { flex: 1, fontSize: 30, fontWeight: '700', color: '#172033' },
+  userPanel: {
+    backgroundColor: '#e0e9ff',
+    borderColor: '#bfd0ff',
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    maxWidth: 150
+  },
+  userPanelLabel: { color: '#63708a', fontSize: 11, fontWeight: '600', textTransform: 'uppercase' },
+  userPanelName: { color: '#1d4ed8', fontWeight: '700', fontSize: 15 },
   heading: { fontSize: 19, fontWeight: '700', color: '#172033' },
   muted: { color: '#63708a' },
-  profileLink: { color: '#2563eb', fontWeight: '700', fontSize: 16 },
   input: {
     backgroundColor: 'white',
     borderColor: '#d5ddea',
@@ -436,6 +516,8 @@ const styles = StyleSheet.create({
     alignItems: 'center'
   },
   buttonText: { color: 'white', fontWeight: '700' },
+  buttonSecondary: { backgroundColor: 'white', borderColor: '#2563eb', borderWidth: 1 },
+  buttonTextSecondary: { color: '#2563eb' },
   card: { backgroundColor: 'white', borderRadius: 14, padding: 16, gap: 10 },
   recentBoard: {
     alignItems: 'center',
@@ -451,8 +533,6 @@ const styles = StyleSheet.create({
     padding: 24
   },
   modalCard: { backgroundColor: 'white', borderRadius: 16, padding: 20, gap: 12 },
-  modalLabel: { fontWeight: '700', color: '#172033' },
-  inviteText: { color: '#334155', lineHeight: 20 },
   comment: { marginTop: 6 },
   bold: { fontWeight: '700' }
 })
