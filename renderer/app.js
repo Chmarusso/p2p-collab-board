@@ -439,7 +439,29 @@ function renderBoard(nextObjects) {
   restoreFocus(focus)
 }
 
+// A joiner whose board has never synced only gets data once another member is
+// online; after a short wait, say so instead of showing placeholders forever.
+const WAIT_FOR_MEMBERS_MS = 6000
+let waitingTimer = null
+let waitedForMembers = false
+
+function updateWaiting() {
+  // Not the peer count: other joiners connect too but hold no board data.
+  document.getElementById('board-waiting').hidden = !(
+    waitedForMembers && boardLoading.classList.contains('visible')
+  )
+}
+
 function setBoardLoading(loading) {
+  clearTimeout(waitingTimer)
+  waitedForMembers = false
+  if (loading) {
+    waitingTimer = setTimeout(() => {
+      waitedForMembers = true
+      updateWaiting()
+    }, WAIT_FOR_MEMBERS_MS)
+  }
+  updateWaiting()
   boardLoading.classList.toggle('visible', loading)
   document.querySelector('.new-object-bar').style.display = loading ? 'none' : 'flex'
   boardObjects.style.display = loading ? 'none' : 'grid'
@@ -539,7 +561,8 @@ bridge.onWorkerIPC(workers.main, (data) => {
     }
     if (message.status === 'ready') {
       roomEntered = true
-      boardSynced = false
+      // Writers already hold the board; a joiner waits for its first sync.
+      boardSynced = !!message.writable
       roomGate.style.display = 'none'
       const hasDisplayName = Boolean(message.displayName)
       profileGate.style.display = hasDisplayName ? 'none' : 'block'
@@ -566,6 +589,7 @@ bridge.onWorkerIPC(workers.main, (data) => {
   if (message.type === 'peer-count') {
     peerCount = message.count || 0
     updateStatusChip()
+    updateWaiting()
     if (connectionModal.classList.contains('open')) {
       document.getElementById('modal-peers').innerText = peerCount
     }

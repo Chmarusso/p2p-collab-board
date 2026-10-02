@@ -460,6 +460,14 @@
       #board-loading.visible {
         display: grid;
       }
+      .waiting {
+        display: grid;
+        gap: 6px;
+        border-color: var(--info);
+      }
+      .waiting[hidden] {
+        display: none;
+      }
       .skeleton {
         height: 92px;
         border-radius: 14px;
@@ -566,9 +574,15 @@
         display: flex;
         animation: fade-in 0.2s ease-out;
       }
-      #update-banner small {
+      #app-version {
+        position: fixed;
+        right: 12px;
+        bottom: 8px;
+        z-index: 5;
         color: var(--muted);
         font-family: var(--mono);
+        font-size: 11px;
+        pointer-events: none;
       }
       @keyframes shimmer {
         from {
@@ -626,8 +640,8 @@
     <div id="update-banner" role="status">
       <span></span>
       <button id="update-apply" hidden>Restart to update</button>
-      <small id="app-version"></small>
     </div>
+    <small id="app-version"></small>
     <main class="container">
       <div id="identity-gate" class="gate">
         <div class="brand">OpenCollab // p2p</div>
@@ -723,6 +737,13 @@
           </div>
         </form>
         <div id="board-loading" aria-label="Syncing board">
+          <div id="board-waiting" class="card waiting" role="status" hidden>
+            <strong>Waiting for a board member to come online…</strong>
+            <span class="muted"
+              >Boards live only on members' devices. This one fills in automatically as soon as
+              another member opens it — keep OpenCollab open until then.</span
+            >
+          </div>
           <div class="skeleton"></div>
           <div class="skeleton"></div>
           <div class="skeleton"></div>

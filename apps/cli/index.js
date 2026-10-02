@@ -78,6 +78,11 @@ function action(fn) {
     try {
       await fn(context)
     } catch (err) {
+      if (/could not be locked/i.test(err.message)) {
+        err.message =
+          'This storage is in use by another opencollab process (e.g. `watch`).\n' +
+          'Stop it first, or use a different --storage.'
+      }
       console.error(`error: ${err.message}`)
       process.exitCode = 1
     }
@@ -125,6 +130,17 @@ async function openBoard(session, flags, { invite, name } = {}) {
     warn(`No peers reachable within ${waitOf(flags)}s — using the local copy.`)
   }
   return { room, boardName, online }
+}
+
+// Refuse writes on a board that has never synced: Autobee keeps a joiner's
+// writes in memory until it first meets an existing member, so a CLI that
+// exits before that would silently drop them.
+function assertWritable(session, room) {
+  if (room.writable || session.state.synced) return
+  throw new Error(
+    'This board has not synced yet: no member has been online since you joined.\n' +
+      'Try again when another member is online (or keep `opencollab watch` running).'
+  )
 }
 
 const newestFirst = (objects) =>
@@ -291,10 +307,18 @@ const join = command(
   ...boardFlags(),
   action(async ({ args, flags }) => {
     await withSession(flags, async (session) => {
-      const { boardName } = await openBoard(session, flags, {
+      const { boardName, room } = await openBoard(session, flags, {
         invite: normalizeInvite(args.invite)
       })
-      say(`Joined "${boardName}" · ${session.state.objects.length} posts.`)
+      if (room.writable || session.state.synced) {
+        say(`Joined "${boardName}" · ${session.state.objects.length} posts.`)
+      } else {
+        say(
+          "Joined, but no board member is online yet. Boards live only on members' devices,",
+          'so this one fills in once another member opens it. Run `opencollab watch` to',
+          'wait and finish joining automatically.'
+        )
+      }
     })
   })
 )
@@ -339,7 +363,8 @@ const name = command(
   ...boardFlags(),
   action(async ({ args, flags }) => {
     await withSession(flags, async (session) => {
-      await openBoard(session, flags)
+      const { room } = await openBoard(session, flags)
+      assertWritable(session, room)
       session.send({ type: messageTypes.profileSet, displayName: args.displayName })
       await session.wait((message) => message.type === messageTypes.profileStatus, {
         label: 'display name'
@@ -396,7 +421,8 @@ const post = command(
       images.push({ data: data.toString('base64'), type, ...imageSize(data, type) })
     }
     await withSession(flags, async (session) => {
-      await openBoard(session, flags)
+      const { room } = await openBoard(session, flags)
+      assertWritable(session, room)
       const startedAt = Date.now()
       session.send({
         type: messageTypes.boardCreate,
@@ -429,7 +455,8 @@ const comment = command(
   ...boardFlags(),
   action(async ({ args, flags }) => {
     await withSession(flags, async (session) => {
-      await openBoard(session, flags)
+      const { room } = await openBoard(session, flags)
+      assertWritable(session, room)
       const target = findPost(session.state.objects, args.post)
       session.send({ type: messageTypes.boardComment, objectId: target.id, text: args.text })
       await session.wait(
@@ -458,7 +485,8 @@ const vote = command(
     const value = { up: 1, down: -1, clear: 0 }[String(args.direction).toLowerCase()]
     if (value === undefined) throw new Error('Direction must be up, down or clear')
     await withSession(flags, async (session) => {
-      await openBoard(session, flags)
+      const { room } = await openBoard(session, flags)
+      assertWritable(session, room)
       const target = findPost(session.state.objects, args.post)
       session.send({ type: messageTypes.boardVote, objectId: target.id, value })
       await session.wait(
@@ -518,7 +546,8 @@ const watch = command(
   ...boardFlags(),
   action(async ({ flags }) => {
     await withSession(flags, async (session) => {
-      const { boardName } = await openBoard(session, { ...flags, wait: 0 })
+      const { boardName, room } = await openBoard(session, { ...flags, wait: 0 })
+      let synced = room.writable || session.state.synced
       const seen = new Set()
       const remember = () => {
         for (const object of session.state.objects) {
@@ -529,7 +558,13 @@ const watch = command(
       remember()
       let peers = session.state.peers
       say(`Watching "${boardName}" · ${session.state.objects.length} posts · Ctrl+C to stop`)
+      if (!synced) say('· waiting for a board member to come online to finish joining…')
       session.waiters.add((message) => {
+        if (message.type === messageTypes.boardSynced && !synced) {
+          synced = true
+          const name = session.state.room?.boardName
+          say(`· synced with the board${name ? ` "${name}"` : ''} — you can post now`)
+        }
         if (message.type === 'peer-count' && session.state.peers !== peers) {
           peers = session.state.peers
           say(`· ${peers} peer${peers === 1 ? '' : 's'} connected`)

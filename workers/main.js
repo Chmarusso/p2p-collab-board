@@ -749,7 +749,10 @@ async function startRoom(invite, name) {
       status: 'ready',
       invite: roomState.invite,
       boardName,
-      displayName: ownIdentity ? profiles.get(ownIdentity) || null : null
+      displayName: ownIdentity ? profiles.get(ownIdentity) || null : null,
+      // A joiner is not a writer until it has synced with an existing member;
+      // until then its writes only live in memory and are lost if it closes.
+      writable: boardDb.writable
     })
   )
   if (!invite || board.size > 0) sendBoardSynced()
