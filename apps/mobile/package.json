@@ -10,6 +10,7 @@
     "bundle:bare": "bare-pack --host ios-arm64 --host ios-arm64-simulator --host ios-x64-simulator --host android-arm64 --linked --imports ./bare-pack.imports.json --out ./src/worker.bundle.js ./../../workers/main.js"
   },
   "dependencies": {
+    "@expo/vector-icons": "^15.1.1",
     "@opencollab/board-protocol": "file:../../packages/board-protocol",
     "expo": "^55.0.8",
     "expo-clipboard": "^55.0.17",

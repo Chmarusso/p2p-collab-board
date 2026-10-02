@@ -1976,7 +1976,7 @@ PODS:
     - React-RCTFBReactNativeSpec
     - ReactCommon/turbomodule/core
     - SocketRocket
-  - "react-native-bare-kit (0.12.3+0ff0ca)":
+  - "react-native-bare-kit (0.12.3+a6802e)":
     - boost
     - DoubleConversion
     - fast_float
@@ -2901,7 +2901,7 @@ SPEC CHECKSUMS:
   React-logger: 49a2029a7c055bf0ef005fec0955c2548fe88f12
   React-Mapbuffer: 2859d1e7202df918c8578db97deb5767b337dff9
   React-microtasksnativemodule: e811b68410bc71e77b91a700b527dc39661f6fc4
-  react-native-bare-kit: 35e595074d090c48a953dfb0de825e99a5eaaf3a
+  react-native-bare-kit: 3ec0a3c6be08074b76d34d523827c9beac93863d
   React-NativeModulesApple: 5327be5c0d9734f0c6db2219f3c20c13aef13884
   React-networking: 659753d9f58d683f3aee733c542bdae2b23f85d1
   React-oscompat: 173f032a95ee30e92bbd28cd9b4626de0977f828
