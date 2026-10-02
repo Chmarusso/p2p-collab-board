@@ -2,6 +2,7 @@ const PearRuntime = require('pear-runtime')
 const Hyperswarm = require('hyperswarm')
 const Corestore = require('corestore')
 const Autobee = require('autobee')
+const Hyperblobs = require('hyperblobs')
 const Identity = require('keet-identity-key')
 const crypto = require('hypercore-crypto')
 const sodium = require('sodium-native')
@@ -47,6 +48,16 @@ let boardName = ''
 let roomSyncTimer = null
 let replicationDiscovery = null
 let boardUpdateInFlight = null
+// Image attachments: each member appends images to their own Hyperblobs core,
+// block-encrypted with a key derived from the board secret, and posts carry
+// references to them. Readers open the author's core by key and fetch sparsely.
+let blobsCore = null
+let boardBlobs = null
+const remoteBlobs = new Map()
+const MAX_IMAGES = 4
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024
+const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+const IMAGE_FETCH_TIMEOUT = 20000
 
 function derivePasswordKey(password, salt) {
   const key = Buffer.alloc(sodium.crypto_secretbox_KEYBYTES)
@@ -333,7 +344,12 @@ async function applyBoardNodes(nodes, view, host) {
 
 async function onBoardUpdate() {
   try {
+    const previousName = boardName
     await loadBoard()
+    // A joiner learns the name from replicated board metadata; tell the UI.
+    if (boardName && boardName !== previousName) {
+      pipe.write(JSON.stringify({ type: 'board-name', name: boardName }))
+    }
     sendBoardState()
     sendBoardSynced()
   } catch (error) {
@@ -435,12 +451,65 @@ function verifyBoardMessage(message) {
   }
 }
 
+function blobEncryption() {
+  const key = Buffer.alloc(32)
+  sodium.crypto_generichash(key, Buffer.from('opencollab/blobs/v1'), roomState.secret)
+  return { key }
+}
+
+function isImageRef(ref) {
+  return (
+    typeof ref?.core === 'string' &&
+    /^[0-9a-f]{64}$/.test(ref.core) &&
+    IMAGE_TYPES.includes(ref.type) &&
+    ['byteOffset', 'blockOffset', 'blockLength', 'byteLength'].every(
+      (field) => Number.isSafeInteger(ref.id?.[field]) && ref.id[field] >= 0
+    ) &&
+    ref.id.byteLength > 0 &&
+    ref.id.byteLength <= MAX_IMAGE_BYTES
+  )
+}
+
+const imageKey = (ref) => `${ref.core}:${ref.id.blockOffset}:${ref.id.blockLength}`
+
+async function readImage(ref) {
+  let blobs = ref.core === blobsCore.key.toString('hex') ? boardBlobs : remoteBlobs.get(ref.core)
+  if (!blobs) {
+    const core = boardStore.get({ key: Buffer.from(ref.core, 'hex'), encryption: blobEncryption() })
+    await core.ready()
+    blobs = new Hyperblobs(core)
+    remoteBlobs.set(ref.core, blobs)
+  }
+  return blobs.get(ref.id, { timeout: IMAGE_FETCH_TIMEOUT })
+}
+
+async function storeImages(images) {
+  const refs = []
+  for (const image of (Array.isArray(images) ? images : []).slice(0, MAX_IMAGES)) {
+    if (!IMAGE_TYPES.includes(image?.type) || typeof image.data !== 'string') continue
+    const bytes = Buffer.from(image.data, 'base64')
+    if (!bytes.length || bytes.length > MAX_IMAGE_BYTES) continue
+    const id = await boardBlobs.put(bytes)
+    refs.push({
+      core: blobsCore.key.toString('hex'),
+      id,
+      type: image.type,
+      width: Number.isSafeInteger(image.width) ? image.width : null,
+      height: Number.isSafeInteger(image.height) ? image.height : null
+    })
+  }
+  return refs
+}
+
 function applyBoardMessage(message) {
   if (!verifyBoardMessage(message)) return false
   const payload = message.payload
   if (payload.type === 'create') {
     if (!board.has(payload.object.id)) {
-      board.set(payload.object.id, { ...payload.object, author: message.identity })
+      const images = Array.isArray(payload.object.images)
+        ? payload.object.images.filter(isImageRef).slice(0, MAX_IMAGES)
+        : []
+      board.set(payload.object.id, { ...payload.object, images, author: message.identity })
     }
   } else if (payload.type === 'profile') {
     if (!payload.displayName?.trim()) return false
@@ -641,6 +710,12 @@ async function startRoom(invite, name) {
     topic: boardDb.discoveryKey,
     invite: encodeBoardInvite(secret, boardDb.key)
   }
+  blobsCore = boardStore.get({
+    name: `blobs:${boardDb.key.toString('hex')}`,
+    encryption: blobEncryption()
+  })
+  await blobsCore.ready()
+  boardBlobs = new Hyperblobs(blobsCore)
   if (invite && !boardDb.writable) {
     await boardDb.append(
       Buffer.from(
@@ -699,6 +774,11 @@ async function closeRoom() {
     replicationDiscovery = null
   }
   roomState = null
+  for (const blobs of remoteBlobs.values()) await blobs.core.close()
+  remoteBlobs.clear()
+  if (blobsCore) await blobsCore.close()
+  blobsCore = null
+  boardBlobs = null
   if (boardDb) {
     await boardDb.close()
     boardDb = null
@@ -799,6 +879,7 @@ pipe.on('data', async (data) => {
       if (!identityReady) throw new Error('Unlock your identity before sending messages')
       await identityReady
       const identity = identityState.identity.identityPublicKey.toString('hex')
+      const images = boardBlobs ? await storeImages(msg.images) : []
       const message = {
         type: 'board:message',
         id: `${identity.slice(0, 12)}-${Date.now()}-create`,
@@ -811,6 +892,7 @@ pipe.on('data', async (data) => {
             body: typeof msg.body === 'string' ? msg.body.trim() : '',
             author: identity,
             createdAt: new Date().toISOString(),
+            images,
             votes: {},
             comments: []
           }
@@ -822,6 +904,31 @@ pipe.on('data', async (data) => {
         identityState.deviceProof
       ).toString('base64')
       sendBoardMessage(message, true)
+    } else if (msg.type === 'board:image') {
+      // Only fetch images referenced by a post on the open board.
+      const ref = [...board.values()]
+        .flatMap((object) => object.images || [])
+        .find((image) => isImageRef(msg.ref) && imageKey(image) === imageKey(msg.ref))
+      if (!ref || !boardBlobs) return
+      try {
+        const data = await readImage(ref)
+        pipe.write(
+          JSON.stringify({
+            type: 'board-image',
+            key: imageKey(ref),
+            mime: ref.type,
+            data: data.toString('base64')
+          })
+        )
+      } catch (err) {
+        pipe.write(
+          JSON.stringify({
+            type: 'board-image',
+            key: imageKey(ref),
+            error: err.code || err.message
+          })
+        )
+      }
     } else if (['board:vote', 'board:comment'].includes(msg.type)) {
       if (!identityReady) throw new Error('Unlock your identity before editing the board')
       await identityReady
