@@ -52,7 +52,29 @@ from the Pear template for Electron.
 | [Hyperdrive](https://github.com/holepunchto/hyperdrive)                                                                | P2P file system that carries app releases                   |
 | [Electron](https://www.electronjs.org), [Expo](https://expo.dev) / [React Native](https://reactnative.dev)             | Desktop and iOS shells                                      |
 
-## Getting started
+## Install with Pear
+
+The desktop app and the CLI are published on Pear links, so you install them from peers
+instead of a download server. You need [Node.js](https://nodejs.org); `npx pear` runs
+the [Pear CLI](https://docs.pears.com).
+
+```sh
+# Desktop app, installed into your OS applications folder
+npx pear install pear://nzi3suuxyzwj6oosortonj5pxd9s7ckgd8cr87szddaamxi77kny
+
+# CLI, then put it on your PATH
+npx pear install --to ~/.local/share pear://q1huw5ozxk8j36pcb8sicfr4dtgf9154r5aj3yzqa14ngxxq1kmy
+ln -s ~/.local/share/opencollab/bin.js /usr/local/bin/opencollab
+```
+
+Installed apps update themselves from the same link. Installs and updates need at least
+one peer online that has the release, such as a machine running `pear seed <link>`.
+Builds are published per platform, so a platform without a published build can't install.
+
+The iOS app can't be installed from Pear. Build it from [`apps/mobile`](apps/mobile/README.md);
+after that it receives JavaScript updates over Pear.
+
+## Run from source
 
 ```sh
 npm run install:mac   # macOS (npm run install:all on Windows and Linux)
