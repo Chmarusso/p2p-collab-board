@@ -4,3 +4,7 @@ apps/mobile/.expo/
 identity-mnemonic.txt
 identity-mnemonic.json
 todo
+
+# video and Tweet thread production
+video/
+docs/video-script.md
