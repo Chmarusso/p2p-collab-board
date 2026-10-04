@@ -1,4 +1,4 @@
-# hello-pear-electron <a name="hello-pear-electron"></a>
+# Development and deployment <a name="hello-pear-electron"></a>
 
 > Pear Hello World for Electron with `pear-runtime`
 
@@ -463,7 +463,7 @@ Create a GitHub environment (Settings -> Environments) named `release`. Run the 
 | `WINDOWS_CERT_PASSWORD`   | `win32`  | Password for the Windows `.pfx`                             |
 
 - macOS signing requires an [Apple Developer Program](https://developer.apple.com) membership.
-- Windows certificate 'subject' must match the `Publisher` in [AppxManifest.xml](build/AppxManifest.xml).
+- Windows certificate 'subject' must match the `Publisher` in [AppxManifest.xml](../build/AppxManifest.xml).
 - Linux builds are not signed, no configuration needed.
 
 ## Store Submissions <a name="store-submissions"></a>
@@ -484,8 +484,8 @@ $ git checkout -b my-app-submission -t new-pr
 
 Create these files in the flathub directory:
 
-- metainfo file using the [appstream web form](https://www.freedesktop.org/software/appstream/metainfocreator/#/), like [`com.pears.HelloPear.metainfo.xml`](./flatpak/com.pears.HelloPear.metainfo.xml)
-- Flatpak YAML file, like [`com.pears.HelloPear.yml`](flatpak/com.pears.HelloPear.yml)
+- metainfo file using the [appstream web form](https://www.freedesktop.org/software/appstream/metainfocreator/#/), like [`com.pears.HelloPear.metainfo.xml`](../flatpak/com.pears.HelloPear.metainfo.xml)
+- Flatpak YAML file, like [`com.pears.HelloPear.yml`](../flatpak/com.pears.HelloPear.yml)
 
 #### Testing
 
