@@ -31,6 +31,7 @@
     "test:autobee-replication": "node scripts/test-autobee-replication.mjs",
     "test:kanban": "node scripts/test-kanban-convergence.mjs && node scripts/test-kanban-worker.mjs",
     "test:kanban-peers": "node scripts/test-kanban-peers.mjs",
+    "dev:worst-case": "node scripts/worst-case-board.mjs",
     "relay": "node scripts/board-relay.mjs",
     "start": "electron-forge start -- --no-updates",
     "package": "electron-forge package",

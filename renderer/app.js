@@ -61,6 +61,8 @@ let renderDeferred = false
 let editingBody = false
 // Label toggles not yet echoed back by the worker, so quick clicks stack.
 let labelDraft = null
+const COMMENTS_SHOWN = 10
+let showAllComments = false
 let recoloringLabel = null
 let newLabelColor = null
 const filters = { labels: new Set(), member: '', due: '' }
@@ -324,8 +326,15 @@ async function rememberBoard(board) {
   await showRecentBoards()
 }
 
+function setBoardName(name) {
+  const heading = document.getElementById('board-name')
+  heading.innerText = name
+  heading.title = name
+}
+
 function updateIdentityMenu() {
-  identityMenu.innerHTML = `${identicon(currentIdentity)}<span>@${escape(currentDisplayName || 'DisplayName')}</span>`
+  identityMenu.innerHTML = `${identicon(currentIdentity)}<span dir="auto">@${escape(currentDisplayName || 'DisplayName')}</span>`
+  identityMenu.title = currentDisplayName ? `@${currentDisplayName}` : ''
 }
 
 function updateStatusChip() {
@@ -364,7 +373,7 @@ function renderComment(comment) {
     seenComments.add(comment.id)
     element.classList.add('enter')
   }
-  element.innerHTML = `<div class="comment-meta">${identityHtml(comment.author)}<span class="time" title="${escape(new Date(comment.createdAt).toLocaleString())}">${escape(relativeTime(comment.createdAt))}</span></div><div class="markdown"></div>`
+  element.innerHTML = `<div class="comment-meta">${identityHtml(comment.author)}<span class="time" title="${escape(new Date(comment.createdAt).toLocaleString())}">${escape(relativeTime(comment.createdAt))}</span></div><div class="markdown" dir="auto"></div>`
   element.querySelector('.markdown').append(markdownFor(comment.text, comment.mentions))
   return element
 }
@@ -498,7 +507,12 @@ function dueInfo(dueDate) {
   const deadline = dateOnly ? new Date(year, month - 1, day, 23, 59, 59) : new Date(dueDate)
   if (Number.isNaN(deadline.getTime())) return null
   const left = deadline - Date.now()
-  const text = deadline.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+  // The year shows when it isn't this one, or "Jan 15" two years overdue reads as recent.
+  const text = deadline.toLocaleDateString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    ...(deadline.getFullYear() !== new Date().getFullYear() && { year: 'numeric' })
+  })
   return {
     deadline,
     dateOnly,
@@ -516,15 +530,24 @@ function dueBadge(object) {
   return `<span class="due-badge ${due.status}" title="${label}: ${escape(due.deadline.toLocaleString())}">${icon('clock')}${escape(due.text)}</span>`
 }
 
-function labelChips(labelIds) {
-  return (labelIds || [])
+// `max` caps the chips shown (card faces); the rest collapse into "+N".
+function labelChips(labelIds, max = Infinity) {
+  const shown = (labelIds || [])
     .map((id) => labels.find((label) => label.id === id))
     .filter(Boolean)
+  const chips = shown
+    .slice(0, max)
     .map(
       (label) =>
-        `<span class="label-chip" style="--label-color: ${label.color || '#8590a2'}" title="${escape(label.name)}">${escape(label.name)}</span>`
+        `<span class="label-chip" style="--label-color: ${label.color || '#8590a2'}" title="${escape(label.name)}" dir="auto">${escape(label.name)}</span>`
     )
-    .join('')
+  if (shown.length > max) {
+    const rest = shown.slice(max)
+    chips.push(
+      `<span class="label-chip" title="${escape(rest.map((label) => label.name).join(', '))}">+${rest.length}</span>`
+    )
+  }
+  return chips.join('')
 }
 
 const mentionsMember = (object, identity) =>
@@ -582,8 +605,8 @@ function renderCard(object) {
   const score = scoreOf(object)
   const comments = object.comments?.length || 0
   const images = object.images?.length || 0
-  const chips = labelChips(object.labelIds)
-  card.innerHTML = `${chips ? `<div class="label-list">${chips}</div>` : ''}<div class="kanban-card-title">${escape(object.title)}</div>
+  const chips = labelChips(object.labelIds, 4)
+  card.innerHTML = `${chips ? `<div class="label-list">${chips}</div>` : ''}<div class="kanban-card-title" dir="auto" title="${escape(object.title)}">${escape(object.title)}</div>
     <div class="kanban-card-meta">${[
       dueBadge(object),
       Object.keys(object.votes || {}).length
@@ -731,7 +754,8 @@ function renderColumn(column, index) {
     const name = document.createElement('button')
     name.className = 'column-name'
     name.textContent = column.name
-    name.title = 'Rename column'
+    name.dir = 'auto'
+    name.title = `${column.name} (click to rename)`
     name.onclick = () => {
       renamingColumn = { id: column.id, text: column.name }
       renderBoard()
@@ -931,6 +955,8 @@ function boardRects() {
 // FLIP: cards and columns a peer moved slide from where they were. getBounding-
 // ClientRect includes running animations, so a rebuild mid-slide retargets.
 function animateBoardChanges(before) {
+  // My own drag or keyboard move: everything it shifted lands instantly too.
+  if (localCardMoves.size || localColumnMoves.size) return
   const after = boardRects()
   // On-screen movement, so ease-in-out rather than an entrance curve.
   const options = { duration: 220, easing: cssToken('--ease-in-out') }
@@ -1139,6 +1165,7 @@ function openCard(id) {
   cardTitle.value = object.title
   setEditingBody(false)
   labelDraft = null
+  showAllComments = false
   document.getElementById('card-label-new').value = ''
   closeDuePopover()
   document.getElementById('card-comment').value = ''
@@ -1194,7 +1221,20 @@ function refreshCard() {
   const comments = [...(object.comments || [])].sort(
     (a, b) => new Date(a.createdAt) - new Date(b.createdAt)
   )
-  for (const comment of comments) list.appendChild(renderComment(comment))
+  // Long threads show the latest comments; older ones are one click away.
+  const hidden = showAllComments ? 0 : Math.max(0, comments.length - COMMENTS_SHOWN)
+  if (hidden) {
+    const more = document.createElement('button')
+    more.type = 'button'
+    more.className = 'ghost comments-more'
+    more.textContent = `Show ${hidden} earlier ${hidden === 1 ? 'comment' : 'comments'}`
+    more.onclick = () => {
+      showAllComments = true
+      refreshCard()
+    }
+    list.appendChild(more)
+  }
+  for (const comment of comments.slice(hidden)) list.appendChild(renderComment(comment))
   markMentionsRead((item) => item.cardId === object.id)
 }
 
@@ -1694,7 +1734,7 @@ bridge.onWorkerIPC(workers.main, (data) => {
       updateIdentityMenu()
       currentInvite = message.invite || ''
       if (message.boardName) {
-        document.getElementById('board-name').innerText = message.boardName
+        setBoardName(message.boardName)
         rememberBoard({ invite: message.invite, name: message.boardName })
       }
     }
@@ -1743,7 +1783,7 @@ bridge.onWorkerIPC(workers.main, (data) => {
     renderBoard({ animate: true })
   }
   if (message.type === 'board-name') {
-    document.getElementById('board-name').innerText = message.name
+    setBoardName(message.name)
     if (currentInvite) rememberBoard({ invite: currentInvite, name: message.name })
   }
   if (message.type === 'profile-status') {

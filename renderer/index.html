@@ -312,8 +312,13 @@
       }
       .topbar-meta {
         display: flex;
+        flex-wrap: wrap;
         align-items: center;
         gap: 10px;
+        min-width: 0;
+      }
+      .topbar > div:first-child {
+        min-width: 0;
       }
       .status-chip {
         display: inline-flex;
@@ -342,9 +347,28 @@
       }
       #identity-label {
         gap: 8px;
+        max-width: 220px;
+        white-space: nowrap;
+      }
+      #identity-label,
+      #identity-label span {
+        min-width: 0;
+      }
+      #identity-label span {
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      #board-name {
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+        overflow: hidden;
+        overflow-wrap: anywhere;
       }
       .new-object-bar {
         display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
         justify-content: space-between;
         align-items: center;
         margin-bottom: 14px;
@@ -414,10 +438,24 @@
         font-size: 12px;
         color: var(--muted);
       }
+      /* Overlaid on hover so they don't take room from the column name. */
+      .column-head {
+        position: relative;
+      }
       .column-tools {
+        position: absolute;
+        top: 6px;
+        right: 6px;
         display: flex;
+        background: var(--surface);
+        border-radius: 8px;
         opacity: 0;
+        pointer-events: none;
         transition: opacity 0.15s ease;
+      }
+      .column-head:hover .column-tools,
+      .column-head:focus-within .column-tools {
+        pointer-events: auto;
       }
       .column-head:hover .column-tools,
       .column-head:focus-within .column-tools {
@@ -475,6 +513,10 @@
         border-style: dashed;
       }
       .kanban-card-title {
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 4;
+        overflow: hidden;
         font-weight: 650;
         line-height: 1.35;
         overflow-wrap: anywhere;
@@ -574,12 +616,34 @@
         gap: 16px;
         width: min(640px, 100%);
       }
+      /* Grid children default to min-width: auto and grow with long content. */
+      .card-detail > *,
+      .card-detail-props > *,
+      .card-detail .stack > *,
+      .card-detail-sub {
+        min-width: 0;
+      }
+      .card-detail select {
+        max-width: 100%;
+      }
+      .markdown table {
+        display: block;
+        max-width: 100%;
+        overflow-x: auto;
+      }
+      .comments-more {
+        justify-self: start;
+        font-size: 13px;
+      }
       .card-detail-head {
         display: flex;
         gap: 8px;
         align-items: flex-start;
       }
       #card-title {
+        field-sizing: content;
+        resize: none;
+        line-height: 1.3;
         font-size: 20px;
         font-weight: 700;
         border-color: transparent;
@@ -707,8 +771,11 @@
       .markdown table {
         border-collapse: collapse;
       }
+      /* Cells keep whole words; a wide table scrolls instead. */
       .markdown th,
       .markdown td {
+        overflow-wrap: normal;
+        min-width: 4em;
         padding: 4px 10px;
         border: 1px solid var(--border);
       }
@@ -824,7 +891,12 @@
         display: none;
       }
       .label-chip {
-        display: inline-flex;
+        display: inline-block;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        line-height: 18px;
         align-items: center;
         min-height: 20px;
         padding: 1px 8px;
@@ -1394,7 +1466,7 @@
         <div id="recent-boards" aria-label="Joined boards"></div>
         <div id="room-create-form" class="stack">
           <p class="muted">Choose a name for your new private board.</p>
-          <input id="room-name" placeholder="Board name" />
+          <input id="room-name" placeholder="Board name" maxlength="100" />
           <div class="row">
             <button id="room-create-back" class="secondary">Back</button>
             <button id="room-create">Create board</button>
@@ -1429,7 +1501,7 @@
       <section id="chat">
         <div class="topbar">
           <div>
-            <h1 id="board-name">OpenCollab</h1>
+            <h1 id="board-name" dir="auto">OpenCollab</h1>
             <p class="muted prompt">private peer-to-peer board</p>
           </div>
           <div class="topbar-meta">
@@ -1551,7 +1623,13 @@
     <div id="card-modal" role="dialog" aria-modal="true" aria-label="Card details">
       <div class="modal-card card-detail">
         <div class="card-detail-head">
-          <input id="card-title" aria-label="Card title" maxlength="200" />
+          <textarea
+            id="card-title"
+            aria-label="Card title"
+            maxlength="200"
+            rows="1"
+            dir="auto"
+          ></textarea>
           <button id="close-card-modal" class="ghost icon-only" aria-label="Close">✕</button>
         </div>
         <div class="card-detail-sub">
@@ -1611,7 +1689,7 @@
             <h3 class="section-label">Description</h3>
             <button id="card-body-edit" type="button" class="ghost">Edit</button>
           </div>
-          <div id="card-body-view" class="markdown"></div>
+          <div id="card-body-view" class="markdown" dir="auto"></div>
           <textarea
             id="card-body"
             rows="8"

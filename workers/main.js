@@ -582,8 +582,11 @@ async function sendOwnOp(payload) {
 
 const newId = (prefix) => `${prefix}:${crypto.randomBytes(6).toString('hex')}`
 // Unique even for several cards or comments created in the same millisecond.
+// The counter keeps several made in the same millisecond in creation order,
+// since comments sort by time and then by id.
+let idSequence = 0
 const uniqueId = (identity) =>
-  `${identity.slice(0, 12)}-${Date.now()}-${crypto.randomBytes(3).toString('hex')}`
+  `${identity.slice(0, 12)}-${Date.now()}-${String(idSequence++ % 1e6).padStart(6, '0')}${crypto.randomBytes(3).toString('hex')}`
 
 const cardById = (id) => boardState.objects.find((object) => object.id === id)
 const columnById = (id) => boardState.columns.find((column) => column.id === id)
@@ -743,7 +746,7 @@ async function startRoom(invite, name) {
     )
   }
   if (boardDb) await closeRoom()
-  boardName = typeof name === 'string' ? name.trim() : ''
+  boardName = typeof name === 'string' ? name.trim().slice(0, LIMITS.boardName) : ''
   boardStore = new Corestore(path.join(updaterConfig.dir, 'board-store'))
   boardDb = new Autobee(boardStore, decoded.key, {
     apply: applyBoardNodes,
@@ -976,7 +979,7 @@ pipe.on('data', async (data) => {
       if (!cardById(msg.objectId) || ![1, -1, 0].includes(msg.value)) return
       await sendOwnOp({ type: 'vote', objectId: msg.objectId, value: msg.value })
     } else if (msg.type === messageTypes.boardComment) {
-      const text = typeof msg.text === 'string' ? msg.text.trim() : ''
+      const text = typeof msg.text === 'string' ? msg.text.trim().slice(0, LIMITS.comment) : ''
       if (!cardById(msg.objectId) || !text) return
       const identity = await unlockedIdentity()
       await sendOwnOp({

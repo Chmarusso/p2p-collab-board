@@ -260,3 +260,26 @@ Phases 2 to 5 can be reordered; phase 1 has to come first.
 - Leaving a board resets the theme; boards without one keep the default look.
 - Checked in dev and in a packaged copy outside the repo, together with the
   phase 2 and phase 4 flows.
+
+## Polish after phase 5
+
+- Motion (find-animation-opportunities → animate → review-animations): cards and
+  columns a peer moves slide into place (FLIP, 220 ms, ease-in-out); your own
+  drags and keyboard moves stay instant. Card press feedback, dialog and panel
+  entries, drop marker entry, mentions pop. `--ease-out` / `--ease-in-out` tokens;
+  reduced motion keeps fades and drops movement. No entry motion on bulk loads.
+- Labels: every board label is a one-click chip on the card, plus a "New label"
+  box (Enter creates or reuses by name). Renaming, recoloring and deleting moved
+  to a separate Labels screen with usage counts.
+- Due date: hidden behind an "Add due date" button; a popover holds the date and
+  an optional time.
+- Stress test (break-ui) with `npm run dev:worst-case` against a dev app with
+  `--remote-debugging-port`. Fixed: dialog overflow from long URLs, tables and
+  code; long titles in the dialog; the identity button wrapping and widening the
+  page at 320 px; due dates without the year; label chips wrapping; column names
+  truncated by invisible tools; RTL text; same-millisecond comments out of order;
+  uncapped board names (now 100) and comments (now 5,000).
+- Defaults chosen for you (easy to change): card faces show 4 labels then "+N",
+  titles clamp to 4 lines, the dialog shows the latest 10 comments.
+- Open: boards with 1,000+ cards rebuild every card on each update; virtualizing
+  is a separate change.

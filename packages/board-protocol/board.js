@@ -13,6 +13,8 @@ const DEFAULT_COLUMN = DEFAULT_COLUMNS[0].id
 
 const LIMITS = Object.freeze({
   title: 200,
+  boardName: 100,
+  comment: 5000,
   body: 20000,
   columnName: 60,
   labelName: 40,
