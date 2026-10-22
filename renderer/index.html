@@ -3,6 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <title>OpenCollab</title>
+    <link
+      rel="stylesheet"
+      href="../node_modules/@highlightjs/cdn-assets/styles/github-dark.min.css"
+    />
     <style>
       :root {
         --bg: #0a0e14;
@@ -619,6 +623,178 @@
         background: var(--magenta);
         color: #1a0315;
       }
+      .markdown {
+        line-height: 1.55;
+        overflow-wrap: anywhere;
+      }
+      .markdown > :first-child {
+        margin-top: 0;
+      }
+      .markdown > :last-child {
+        margin-bottom: 0;
+      }
+      .markdown p,
+      .markdown ul,
+      .markdown ol,
+      .markdown blockquote,
+      .markdown pre,
+      .markdown table {
+        margin: 0 0 10px;
+      }
+      .markdown ul,
+      .markdown ol {
+        padding-left: 22px;
+      }
+      .markdown h1,
+      .markdown h2,
+      .markdown h3,
+      .markdown h4 {
+        margin: 14px 0 8px;
+        font-size: 16px;
+      }
+      .markdown h1 {
+        font-size: 19px;
+      }
+      .markdown a {
+        color: var(--info);
+      }
+      .markdown blockquote {
+        padding-left: 12px;
+        border-left: 3px solid var(--border);
+        color: var(--muted);
+      }
+      .markdown code {
+        font-family: var(--mono);
+        font-size: 0.9em;
+        padding: 1px 5px;
+        border-radius: 5px;
+        background: var(--bg);
+        border: 1px solid var(--border);
+      }
+      .markdown pre {
+        overflow-x: auto;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+      }
+      .markdown pre code.hljs {
+        display: block;
+        padding: 12px;
+        border: 0;
+        border-radius: 8px;
+        font-size: 13px;
+        line-height: 1.5;
+      }
+      .markdown table {
+        border-collapse: collapse;
+      }
+      .markdown th,
+      .markdown td {
+        padding: 4px 10px;
+        border: 1px solid var(--border);
+      }
+      #card-body-view {
+        min-height: 24px;
+        padding: 10px 12px;
+        border-radius: 8px;
+        background: var(--surface-raised);
+        cursor: text;
+      }
+      #card-body-view.empty {
+        color: var(--muted);
+      }
+      .hint {
+        font-size: 12px;
+      }
+      .mention {
+        padding: 0 4px;
+        border-radius: 5px;
+        background: rgba(34, 211, 238, 0.14);
+        color: var(--info);
+        font-weight: 600;
+      }
+      .mention.mention-me {
+        background: rgba(57, 255, 136, 0.16);
+        color: var(--accent);
+      }
+      .mention-menu {
+        display: grid;
+        gap: 2px;
+        padding: 4px;
+        margin-top: 4px;
+        background: var(--surface-raised);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
+      }
+      .mention-option {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 8px;
+        border-radius: 6px;
+        cursor: pointer;
+      }
+      .mention-option.active,
+      .mention-option:hover {
+        background: var(--border);
+      }
+      #mentions-button {
+        gap: 4px;
+        font-family: var(--mono);
+      }
+      #mentions-button.unread {
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+      #mentions-button .count:empty {
+        display: none;
+      }
+      #mentions-modal {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 10;
+        align-items: flex-start;
+        justify-content: center;
+        padding: 48px 20px;
+        background: rgba(3, 6, 10, 0.7);
+        backdrop-filter: blur(4px);
+      }
+      #mentions-modal.open {
+        display: flex;
+        animation: fade-in 0.15s ease;
+      }
+      .mentions-list {
+        display: grid;
+        gap: 8px;
+        max-height: 60vh;
+        overflow-y: auto;
+      }
+      .mention-item {
+        display: grid;
+        gap: 4px;
+        justify-content: stretch;
+        text-align: left;
+        padding: 10px 12px;
+        background: var(--surface-raised);
+        border: 1px solid var(--border);
+        color: var(--text);
+        font-weight: 400;
+      }
+      .mention-item.unread {
+        border-color: var(--accent);
+      }
+      .mention-item .snippet {
+        color: var(--muted);
+        font-size: 13px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .kanban-card-meta .mention-me {
+        padding: 0 5px;
+        font-weight: 700;
+      }
       .comments:empty {
         display: none;
       }
@@ -918,6 +1094,9 @@
               <span aria-hidden="true">·</span>
               <span id="sync-status">syncing…</span>
             </span>
+            <button id="mentions-button" class="secondary" aria-label="Mentions" hidden>
+              <span aria-hidden="true">@</span><span id="mentions-count" class="count"></span>
+            </button>
             <button id="identity-label" class="secondary" aria-label="Open connection details">
               @DisplayName
             </button>
@@ -1002,15 +1181,21 @@
           <span id="card-archived-badge" class="badge" hidden>Archived</span>
         </div>
         <section class="stack">
-          <h3 class="section-label">Description</h3>
+          <div class="row card-detail-bar">
+            <h3 class="section-label">Description</h3>
+            <button id="card-body-edit" type="button" class="ghost">Edit</button>
+          </div>
+          <div id="card-body-view" class="markdown"></div>
           <textarea
             id="card-body"
-            rows="5"
-            placeholder="Add a more detailed description…"
+            rows="8"
+            placeholder="Add a more detailed description… Markdown and @mentions work."
+            hidden
           ></textarea>
           <div id="card-body-actions" class="row" hidden>
             <button id="card-body-save" type="button">Save</button>
             <button id="card-body-cancel" type="button" class="secondary">Cancel</button>
+            <span class="muted hint">Markdown · ⌘/Ctrl+Enter saves</span>
           </div>
         </section>
         <div id="card-images" class="object-images"></div>
@@ -1031,6 +1216,18 @@
         </section>
         <div class="row card-detail-foot">
           <button id="card-archive" type="button" class="secondary">Archive</button>
+        </div>
+      </div>
+    </div>
+    <div id="mentions-modal" role="dialog" aria-modal="true" aria-labelledby="mentions-title">
+      <div class="modal-card">
+        <div class="row card-detail-bar">
+          <h2 id="mentions-title">Mentions</h2>
+          <button id="mentions-read" class="ghost">Mark all read</button>
+        </div>
+        <div id="mentions-list" class="mentions-list"></div>
+        <div class="row" style="justify-content: flex-end; margin-top: 12px">
+          <button id="close-mentions-modal" class="ghost">Close</button>
         </div>
       </div>
     </div>

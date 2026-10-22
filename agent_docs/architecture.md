@@ -12,6 +12,12 @@ The code is small — read it for the wiring; below are only the non-obvious fac
   or positional → packaged app crashes at startup. This also makes Win/Linux deep
   links unreachable (a URL in argv kills the process before the single-instance
   lock; only macOS `'open-url'` works).
+- The renderer has no bundler: it imports browser ES modules straight from
+  `../node_modules/…` (`renderer/markdown.js`). Those packages must be root
+  `dependencies`, not devDependencies, or packaging prunes them and the page fails
+  to load. Card text from peers goes through DOMPurify there; links never navigate
+  the window (`will-navigate` / `setWindowOpenHandler` in `electron/main.js` send
+  http(s)/mailto to the system browser).
 - The worker specifier `'/workers/main.js'` is the worker's **identity** — embedded
   in every IPC channel name; must start with `/`; `pear:startWorker` resolves any
   renderer-supplied specifier with **no allowlist**.

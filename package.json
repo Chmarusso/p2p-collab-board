@@ -45,14 +45,17 @@
     "cli": "node apps/cli/bin.js"
   },
   "dependencies": {
+    "@highlightjs/cdn-assets": "^11.12.0",
     "@opencollab/board-protocol": "file:packages/board-protocol",
     "autobee": "^2.12.1",
+    "dompurify": "^3.4.17",
     "framed-stream": "^1.0.1",
     "hello-pear-worker": "^1.0.0",
     "hyperblobs": "^2.12.1",
     "hypercore-crypto": "^3.7.0",
     "keet-identity-key": "^3.2.0",
     "keytar": "^7.9.0",
+    "marked": "^15.0.12",
     "paparam": "^1.10.0",
     "pear-runtime": "^1.1.4",
     "sodium-native": "^5.1.0",

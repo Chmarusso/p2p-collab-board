@@ -1,3 +1,5 @@
+import { renderMarkdown, findMentions } from './markdown.js'
+
 const bridge = window.bridge
 const normalizeInvite = (value) => {
   const invite = String(value || '').trim()
@@ -45,6 +47,10 @@ let columnComposer = null
 let renamingColumn = null
 let dragging = null
 let renderDeferred = false
+let editingBody = false
+// Mentions: what this device has read is kept locally, per identity and board.
+const notifiedMentions = new Set()
+let mentionsPrimed = false
 // Image attachments: bytes live encrypted in each author's Hyperblobs core;
 // the worker fetches them on demand and they are cached here as data URLs.
 const MAX_IMAGES = 4
@@ -68,6 +74,7 @@ const icons = {
   image:
     '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/>',
   message: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+  text: '<path d="M4 6h16M4 12h16M4 18h10"/>',
   users:
     '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>'
 }
@@ -142,7 +149,10 @@ function resetBoardUi() {
   cardComposer = null
   columnComposer = null
   renamingColumn = null
+  notifiedMentions.clear()
+  mentionsPrimed = false
   closeCard()
+  closeMentions()
   closeNewObject()
 }
 
@@ -238,8 +248,18 @@ function renderComment(comment) {
     seenComments.add(comment.id)
     element.classList.add('enter')
   }
-  element.innerHTML = `<div class="comment-meta">${identityHtml(comment.author)}<span class="time" title="${escape(new Date(comment.createdAt).toLocaleString())}">${escape(relativeTime(comment.createdAt))}</span></div><div>${escape(comment.text)}</div>`
+  element.innerHTML = `<div class="comment-meta">${identityHtml(comment.author)}<span class="time" title="${escape(new Date(comment.createdAt).toLocaleString())}">${escape(relativeTime(comment.createdAt))}</span></div><div class="markdown"></div>`
+  element.querySelector('.markdown').append(markdownFor(comment.text, comment.mentions))
   return element
+}
+
+function markdownFor(text, mentions) {
+  return renderMarkdown(text, {
+    mentions: (mentions || [])
+      .filter((identity) => profiles[identity])
+      .map((identity) => ({ identity, name: profiles[identity] })),
+    self: currentIdentity
+  })
 }
 
 const imageKey = (ref) => `${ref.core}:${ref.id.blockOffset}:${ref.id.blockLength}`
@@ -392,7 +412,11 @@ function renderCard(object) {
       Object.keys(object.votes || {}).length
         ? `<span title="Score">${icon(score < 0 ? 'down' : 'up')}${score}</span>`
         : '',
+      object.body?.trim() ? `<span title="Has a description">${icon('text')}</span>` : '',
       comments ? `<span title="Comments">${icon('message')}${comments}</span>` : '',
+      unreadMentions().some((item) => item.cardId === object.id)
+        ? '<span class="mention mention-me" title="You were mentioned">@</span>'
+        : '',
       images ? `<span title="Images">${icon('image')}${images}</span>` : '',
       object.archived ? '<span>archived</span>' : ''
     ].join('')}</div>`
@@ -718,6 +742,7 @@ function renderBoard() {
   archivedToggle.setAttribute('aria-pressed', String(showArchived))
   renderColumnOptions(document.getElementById('object-column'))
   refreshCard()
+  updateMentions()
 }
 
 boardObjects.ondragover = (event) => {
@@ -756,8 +781,7 @@ function openCard(id) {
   cardFocusReturn = document.activeElement
   openCardId = id
   cardTitle.value = object.title
-  cardBody.value = object.body || ''
-  document.getElementById('card-body-actions').hidden = true
+  setEditingBody(false)
   document.getElementById('card-comment').value = ''
   const images = document.getElementById('card-images')
   images.innerHTML = ''
@@ -782,7 +806,13 @@ function refreshCard() {
   const object = cardById(openCardId)
   if (!object) return closeCard()
   if (document.activeElement !== cardTitle) cardTitle.value = object.title
-  if (document.getElementById('card-body-actions').hidden) cardBody.value = object.body || ''
+  if (!editingBody) {
+    const view = document.getElementById('card-body-view')
+    view.innerHTML = ''
+    view.classList.toggle('empty', !object.body?.trim())
+    if (object.body?.trim()) view.append(markdownFor(object.body, object.mentions))
+    else view.textContent = 'Add a more detailed description…'
+  }
   document.getElementById('card-author').innerHTML =
     `${identityHtml(object.author)}<span class="time">${escape(relativeTime(object.createdAt))}</span>`
   renderColumnOptions(cardColumn, object.columnId)
@@ -804,6 +834,34 @@ function refreshCard() {
     (a, b) => new Date(a.createdAt) - new Date(b.createdAt)
   )
   for (const comment of comments) list.appendChild(renderComment(comment))
+  markMentionsRead((item) => item.cardId === object.id)
+}
+
+function setEditingBody(editing) {
+  editingBody = editing
+  const object = cardById(openCardId)
+  cardBody.hidden = !editing
+  document.getElementById('card-body-view').hidden = editing
+  document.getElementById('card-body-actions').hidden = !editing
+  document.getElementById('card-body-edit').hidden = editing
+  if (editing) {
+    cardBody.value = object?.body || ''
+    cardBody.focus()
+  }
+}
+
+function saveCardBody() {
+  const object = cardById(openCardId)
+  if (object && cardBody.value !== (object.body || '')) {
+    send({
+      type: 'board:card-update',
+      objectId: object.id,
+      body: cardBody.value,
+      mentions: findMentions(cardBody.value, profiles)
+    })
+  }
+  setEditingBody(false)
+  refreshCard()
 }
 
 function saveCardTitle() {
@@ -822,19 +880,21 @@ cardTitle.onkeydown = (event) => {
   }
 }
 cardTitle.onblur = saveCardTitle
-cardBody.oninput = () => {
-  document.getElementById('card-body-actions').hidden = false
-}
-document.getElementById('card-body-save').onclick = () => {
-  const object = cardById(openCardId)
-  if (object && cardBody.value !== (object.body || '')) {
-    send({ type: 'board:card-update', objectId: object.id, body: cardBody.value })
+cardBody.onkeydown = (event) => {
+  if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+    event.preventDefault()
+    saveCardBody()
   }
-  document.getElementById('card-body-actions').hidden = true
 }
+document.getElementById('card-body-save').onclick = saveCardBody
 document.getElementById('card-body-cancel').onclick = () => {
-  document.getElementById('card-body-actions').hidden = true
+  setEditingBody(false)
   refreshCard()
+}
+document.getElementById('card-body-edit').onclick = () => setEditingBody(true)
+document.getElementById('card-body-view').onclick = (event) => {
+  // Links open in the browser; anywhere else starts editing.
+  if (!event.target.closest('a')) setEditingBody(true)
 }
 cardColumn.onchange = () => {
   if (openCardId) moveCard(openCardId, cardColumn.value, Infinity)
@@ -856,7 +916,14 @@ document.getElementById('card-comment-form').onsubmit = (event) => {
   event.preventDefault()
   const input = document.getElementById('card-comment')
   const text = input.value.trim()
-  if (text && openCardId) send({ type: 'board:comment', objectId: openCardId, text })
+  if (text && openCardId) {
+    send({
+      type: 'board:comment',
+      objectId: openCardId,
+      text,
+      mentions: findMentions(text, profiles)
+    })
+  }
   input.value = ''
 }
 document.getElementById('card-archive').onclick = () => {
@@ -1067,6 +1134,7 @@ bridge.onWorkerIPC(workers.main, (data) => {
   }
   if (message.type === 'board-synced') {
     boardSynced = true
+    updateMentions()
     if (boardView.style.display === 'block') setBoardLoading(false)
     updateStatusChip()
   }
@@ -1117,6 +1185,7 @@ document.addEventListener('keydown', (event) => {
   if (event.key !== 'Escape') return
   if (document.getElementById('image-viewer').classList.contains('open')) closeImageViewer()
   else if (cardModal.classList.contains('open')) closeCard()
+  else if (mentionsModal.classList.contains('open')) closeMentions()
   else if (connectionModal.classList.contains('open')) closeConnectionModal()
   else if (newObjectForm.classList.contains('open')) {
     closeNewObject()
@@ -1205,6 +1274,7 @@ newObjectForm.onsubmit = (event) => {
     title: title.value,
     body: document.getElementById('object-body').value,
     columnId: document.getElementById('object-column').value,
+    mentions: findMentions(document.getElementById('object-body').value, profiles),
     images: pendingImages.map(({ url, type, width, height }) => ({
       data: url.slice(url.indexOf(',') + 1),
       type,
@@ -1257,3 +1327,215 @@ document.getElementById('identity-create-new').onclick = () =>
 bridge.identityKeychainStatus().then(({ available }) => {
   if (!available) document.getElementById('identity-use-saved').disabled = true
 })
+
+// @mentions: typing `@` in a description or comment suggests board members.
+function attachMentionPicker(field) {
+  const menu = document.createElement('div')
+  menu.className = 'mention-menu'
+  menu.setAttribute('role', 'listbox')
+  menu.hidden = true
+  ;(field.closest('.comment-form') || field).insertAdjacentElement('afterend', menu)
+  let matches = []
+  let active = 0
+  let start = -1
+  const close = () => {
+    menu.hidden = true
+    matches = []
+  }
+  const render = () => {
+    menu.innerHTML = matches
+      .map(
+        ([identity, name], index) =>
+          `<div role="option" class="mention-option${index === active ? ' active' : ''}" data-index="${index}" aria-selected="${index === active}">${identicon(identity)}<span>${escape(name)}</span></div>`
+      )
+      .join('')
+    menu.hidden = false
+  }
+  const update = () => {
+    const caret = field.selectionStart
+    const match = field.value.slice(0, caret).match(/(^|\s)@([^\s@]{0,32})$/)
+    if (!match) return close()
+    start = caret - match[2].length - 1
+    const query = match[2].toLowerCase()
+    matches = Object.entries(profiles)
+      .filter(
+        ([identity, name]) => identity !== currentIdentity && name.toLowerCase().startsWith(query)
+      )
+      .slice(0, 6)
+    if (!matches.length) return close()
+    active = Math.min(active, matches.length - 1)
+    render()
+  }
+  const pick = (index) => {
+    const name = matches[index][1]
+    const caret = field.selectionStart
+    field.value = `${field.value.slice(0, start)}@${name} ${field.value.slice(caret)}`
+    const position = start + name.length + 2
+    field.setSelectionRange(position, position)
+    close()
+    field.focus()
+  }
+  field.addEventListener('input', update)
+  field.addEventListener('keydown', (event) => {
+    if (menu.hidden) return
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault()
+      active = (active + (event.key === 'ArrowDown' ? 1 : -1) + matches.length) % matches.length
+      render()
+    } else if (event.key === 'Enter' || event.key === 'Tab') {
+      event.preventDefault()
+      event.stopImmediatePropagation()
+      pick(active)
+    } else if (event.key === 'Escape') {
+      event.stopPropagation()
+      close()
+    }
+  })
+  menu.addEventListener('mousedown', (event) => {
+    const option = event.target.closest('[data-index]')
+    if (!option) return
+    event.preventDefault()
+    pick(Number(option.dataset.index))
+  })
+  field.addEventListener('blur', () => setTimeout(close, 100))
+}
+// The picker must see Enter before the field's own handlers (save, submit).
+for (const id of ['card-body', 'card-comment', 'object-body']) {
+  attachMentionPicker(document.getElementById(id))
+}
+
+const mentionsModal = document.getElementById('mentions-modal')
+
+function hashText(text) {
+  let hash = 5381
+  for (let i = 0; i < text.length; i++) hash = ((hash << 5) + hash + text.charCodeAt(i)) | 0
+  return (hash >>> 0).toString(36)
+}
+
+const readMentionsKey = () =>
+  `opencollab.mentions-read.${currentIdentity}.${hashText(currentInvite)}`
+
+function readMentions() {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(readMentionsKey()) || '[]'))
+  } catch {
+    return new Set()
+  }
+}
+
+function markMentionsRead(predicate) {
+  const items = mentionItems().filter(predicate)
+  if (!items.length) return
+  const read = readMentions()
+  const before = read.size
+  for (const item of items) read.add(item.key)
+  if (read.size === before) return
+  try {
+    localStorage.setItem(readMentionsKey(), JSON.stringify([...read]))
+  } catch {}
+  updateMentions()
+  for (const card of document.querySelectorAll('.kanban-card')) {
+    if (items.some((item) => item.cardId === card.dataset.cardId)) {
+      card.querySelector('.kanban-card-meta .mention-me')?.remove()
+    }
+  }
+}
+
+// Every card description and comment by someone else that mentions me.
+function mentionItems() {
+  if (!currentIdentity) return []
+  const items = []
+  for (const object of objects) {
+    if (object.author !== currentIdentity && object.mentions?.includes(currentIdentity)) {
+      items.push({
+        key: `card:${object.id}:${hashText(object.body || '')}`,
+        cardId: object.id,
+        author: object.author,
+        title: object.title,
+        text: object.body,
+        at: object.createdAt
+      })
+    }
+    for (const comment of object.comments || []) {
+      if (comment.author === currentIdentity || !comment.mentions?.includes(currentIdentity)) {
+        continue
+      }
+      items.push({
+        key: `comment:${comment.id}`,
+        cardId: object.id,
+        author: comment.author,
+        title: object.title,
+        text: comment.text,
+        at: comment.createdAt
+      })
+    }
+  }
+  return items.sort((a, b) => (Date.parse(b.at) || 0) - (Date.parse(a.at) || 0))
+}
+
+function unreadMentions() {
+  const read = readMentions()
+  return mentionItems().filter((item) => !read.has(item.key))
+}
+
+function updateMentions() {
+  const items = mentionItems()
+  const unread = unreadMentions()
+  const button = document.getElementById('mentions-button')
+  button.hidden = !items.length
+  button.classList.toggle('unread', unread.length > 0)
+  document.getElementById('mentions-count').textContent = unread.length || ''
+  button.setAttribute('aria-label', `Mentions, ${unread.length} unread`)
+  if (mentionsModal.classList.contains('open')) renderMentions()
+
+  // Notify only about mentions that arrive while the app runs, and only when
+  // the window isn't in front; the badge covers the rest.
+  for (const item of unread) {
+    if (notifiedMentions.has(item.key)) continue
+    notifiedMentions.add(item.key)
+    if (!mentionsPrimed || document.hasFocus()) continue
+    const notification = new window.Notification(
+      `${profiles[item.author] || 'Someone'} mentioned you`,
+      {
+        body: `${item.title}: ${(item.text || '').slice(0, 120)}`
+      }
+    )
+    notification.onclick = () => {
+      window.focus()
+      openCard(item.cardId)
+    }
+  }
+  if (boardSynced) mentionsPrimed = true
+}
+
+function renderMentions() {
+  const read = readMentions()
+  const list = document.getElementById('mentions-list')
+  list.innerHTML = ''
+  for (const item of mentionItems()) {
+    const entry = document.createElement('button')
+    entry.className = `mention-item${read.has(item.key) ? '' : ' unread'}`
+    entry.innerHTML = `<div class="comment-meta">${identityHtml(item.author)}<span class="time">${escape(relativeTime(item.at))}</span></div>
+      <strong>${escape(item.title)}</strong><span class="snippet">${escape(item.text || '')}</span>`
+    entry.onclick = () => {
+      closeMentions()
+      openCard(item.cardId)
+    }
+    list.append(entry)
+  }
+}
+
+function closeMentions() {
+  mentionsModal.classList.remove('open')
+}
+
+document.getElementById('mentions-button').onclick = () => {
+  renderMentions()
+  mentionsModal.classList.add('open')
+  document.getElementById('close-mentions-modal').focus()
+}
+document.getElementById('close-mentions-modal').onclick = closeMentions
+document.getElementById('mentions-read').onclick = () => markMentionsRead(() => true)
+mentionsModal.onclick = (event) => {
+  if (event.target === mentionsModal) closeMentions()
+}

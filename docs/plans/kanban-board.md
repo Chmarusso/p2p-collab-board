@@ -1,6 +1,6 @@
 # Plan: Kanban board (Trello-style)
 
-Status: **phases 1 (worker + protocol) and 2 (desktop Kanban UI) done; phase 3 (Markdown, code highlighting, mentions) next**. Nothing here is implemented yet.
+Status: **phases 1–3 done; phase 4 (due dates, labels, filters) next**. Nothing here is implemented yet.
 
 ## Goal
 
@@ -221,3 +221,19 @@ Phases 2 to 5 can be reordered; phase 1 has to come first.
   now get a random suffix.
 - Checked over CDP in the dev app and in the packaged app (no keychain: the test
   uses an in-memory identity).
+
+## Phase 3 notes
+
+- `renderer/markdown.js`: marked → DOMPurify, raw HTML shown as text, no images,
+  only http(s)/mailto links, read-only task checkboxes. Code blocks highlighted
+  with highlight.js (13 languages) from `@highlightjs/cdn-assets`, the project's
+  browser ES-module build (the `highlight.js` npm package is CommonJS inside).
+- @mentions: `@` opens a member picker in the description, comment and new-card
+  fields; ops carry `mentions` (identity keys). Mentions of you show a badge on the
+  card, an inbox in the top bar and a desktop notification while the window is in
+  the background (web `Notification`, no bridge change needed). Read state is in
+  `localStorage`, per identity and board.
+- Checked with a second worker over the DHT: the comment, the notification, the
+  inbox and marking as read all worked. XSS payloads (`<img onerror>`, `<script>`,
+  `javascript:` / `data:` links) render inert, in dev and in a packaged copy
+  outside the repo.

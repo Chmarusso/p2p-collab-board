@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, safeStorage } = require('electron')
+const { app, BrowserWindow, ipcMain, safeStorage, shell } = require('electron')
 const keytar = require('keytar')
 const nodeCrypto = require('crypto')
 const fs = require('fs/promises')
@@ -220,6 +220,20 @@ async function createWindow() {
       nodeIntegration: false,
       contextIsolation: true
     }
+  })
+
+  // Card text comes from other peers: links in it never navigate the app or open
+  // app windows. Web and mail links go to the system browser instead.
+  const openExternally = (url) => {
+    if (/^(https?|mailto):/i.test(url)) shell.openExternal(url)
+  }
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    openExternally(url)
+    return { action: 'deny' }
+  })
+  win.webContents.on('will-navigate', (event, url) => {
+    event.preventDefault()
+    openExternally(url)
   })
 
   const devServerUrl = process.env.PEAR_DEV_SERVER_URL
