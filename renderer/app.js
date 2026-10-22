@@ -35,6 +35,14 @@ let columns = []
 let labels = []
 let theme = { background: null, accent: null }
 let colorPickerColumn = null
+let colorPickerEntering = false
+// Moves made here land where the user put them; only peers' moves animate.
+const localCardMoves = new Set()
+const localColumnMoves = new Set()
+let lastUnreadMentions = 0
+const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
+const cssToken = (name) =>
+  window.getComputedStyle(document.documentElement).getPropertyValue(name).trim()
 let profiles = {}
 let boardSynced = false
 let roomEntered = false
@@ -164,6 +172,7 @@ function resetBoardUi() {
   renamingColumn = null
   notifiedMentions.clear()
   mentionsPrimed = false
+  lastUnreadMentions = 0
   filters.labels.clear()
   filters.member = ''
   filters.due = ''
@@ -546,10 +555,12 @@ function moveCard(cardId, columnId, visibleIndex) {
         ? all.indexOf(visible[0])
         : all.length
       : all.indexOf(visible[Math.min(visibleIndex, visible.length) - 1]) + 1
+  localCardMoves.add(cardId)
   send({ type: 'board:card-move', objectId: cardId, columnId, index })
 }
 
 function moveColumn(columnId, index) {
+  localColumnMoves.add(columnId)
   send({ type: 'board:column-update', columnId, index })
 }
 
@@ -645,7 +656,11 @@ function placeMarker(container, items, index, className) {
     marker = document.createElement('div')
     marker.className = className
   }
-  container.insertBefore(marker, items[index] || container.querySelector(':scope > .add-column'))
+  const before = items[index] || container.querySelector(':scope > .add-column')
+  // dragover fires constantly; re-inserting would replay the marker's entry.
+  if (marker.parentNode !== container || marker.nextSibling !== before) {
+    container.insertBefore(marker, before)
+  }
 }
 
 function renderComposer({ placeholder, value, onInput, onSubmit, onCancel, submitLabel }) {
@@ -739,7 +754,9 @@ function renderColumn(column, index) {
   }
   tool('palette', 'Column color', () => {
     colorPickerColumn = colorPickerColumn === column.id ? null : column.id
+    colorPickerEntering = true
     renderBoard()
+    colorPickerEntering = false
   })
   tool('left', 'Move column left', () => moveColumn(column.id, index - 1), index === 0)
   tool(
@@ -829,7 +846,8 @@ function renderColumn(column, index) {
   element.append(head)
   if (colorPickerColumn === column.id) {
     const colors = document.createElement('div')
-    colors.className = 'column-colors'
+    // Only the render that opens the row plays its entry, not later rebuilds.
+    colors.className = colorPickerEntering ? 'column-colors entering' : 'column-colors'
     colors.setAttribute('role', 'group')
     colors.setAttribute('aria-label', 'Column color')
     colors.innerHTML =
@@ -889,12 +907,77 @@ function renderAddColumn() {
   return element
 }
 
-function renderBoard() {
+// Where each card and column sits, relative to the board, so the page moving
+// (a banner, a panel opening) doesn't count as the board moving.
+function boardRects() {
+  const origin = boardObjects.getBoundingClientRect()
+  const at = (element) => {
+    const box = element.getBoundingClientRect()
+    return { x: box.left - origin.left, y: box.top - origin.top }
+  }
+  const rects = { cards: new Map(), columns: new Map() }
+  for (const element of boardObjects.querySelectorAll('.column')) {
+    rects.columns.set(element.dataset.columnId, at(element))
+  }
+  for (const element of boardObjects.querySelectorAll('[data-card-id]')) {
+    rects.cards.set(element.dataset.cardId, at(element))
+  }
+  return rects
+}
+
+// FLIP: cards and columns a peer moved slide from where they were. getBounding-
+// ClientRect includes running animations, so a rebuild mid-slide retargets.
+function animateBoardChanges(before) {
+  const after = boardRects()
+  // On-screen movement, so ease-in-out rather than an entrance curve.
+  const options = { duration: 220, easing: cssToken('--ease-in-out') }
+  const shifted = (from, to) => Math.abs(from.x - to.x) + Math.abs(from.y - to.y) > 1
+  const columnDelta = new Map()
+  for (const element of boardObjects.querySelectorAll('.column')) {
+    const id = element.dataset.columnId
+    const from = before.columns.get(id)
+    const to = after.columns.get(id)
+    if (!from || localColumnMoves.has(id) || !shifted(from, to)) continue
+    const dx = from.x - to.x
+    const dy = from.y - to.y
+    columnDelta.set(id, { dx, dy })
+    if (reducedMotion.matches) {
+      element.animate([{ opacity: 0.6 }, { opacity: 1 }], { ...options, duration: 120 })
+    } else {
+      element.animate(
+        [{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }],
+        options
+      )
+    }
+  }
+  for (const element of boardObjects.querySelectorAll('[data-card-id]')) {
+    const id = element.dataset.cardId
+    const from = before.cards.get(id)
+    const to = after.cards.get(id)
+    if (!from || localCardMoves.has(id) || !shifted(from, to)) continue
+    // Inside a sliding column the card already rides along; animate the rest.
+    const column = columnDelta.get(element.closest('.column')?.dataset.columnId) || { dx: 0, dy: 0 }
+    const dx = from.x - to.x - column.dx
+    const dy = from.y - to.y - column.dy
+    if (Math.abs(dx) + Math.abs(dy) <= 1) continue
+    if (reducedMotion.matches) {
+      element.animate([{ opacity: 0.6 }, { opacity: 1 }], { ...options, duration: 120 })
+    } else {
+      element.animate(
+        [{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'none' }],
+        options
+      )
+    }
+  }
+}
+
+function renderBoard({ animate = false } = {}) {
   // Rebuilding mid-drag would cancel the drag; catch up when it ends.
   if (dragging) {
     renderDeferred = true
     return
   }
+  const before = animate ? boardRects() : null
   renderDeferred = false
   const active = document.activeElement
   const focus = active?.dataset?.focusKey
@@ -924,6 +1007,11 @@ function renderBoard() {
     input?.setSelectionRange?.(focus.start, focus.end)
   } else if (focus?.cardId) {
     document.querySelector(`[data-card-id="${focus.cardId}"]`)?.focus()
+  }
+  if (before) {
+    animateBoardChanges(before)
+    localCardMoves.clear()
+    localColumnMoves.clear()
   }
 
   const archived = objects.filter((object) => object.archived).length
@@ -1539,8 +1627,11 @@ bridge.onWorkerIPC(workers.main, (data) => {
     columns = message.columns || []
     labels = message.labels || []
     theme = message.theme || { background: null, accent: null }
+    // A board loading or syncing in bulk isn't cards arriving: no entry motion.
+    const arrived = objects.filter((object) => !seenObjects.has(object.id))
+    if (arrived.length > 3) for (const object of arrived) seenObjects.add(object.id)
     applyTheme()
-    renderBoard()
+    renderBoard({ animate: true })
   }
   if (message.type === 'board-name') {
     document.getElementById('board-name').innerText = message.name
@@ -1909,6 +2000,14 @@ function updateMentions() {
   button.hidden = !items.length
   button.classList.toggle('unread', unread.length > 0)
   document.getElementById('mentions-count').textContent = unread.length || ''
+  // A new unread mention gives the button one small pop; reading them doesn't.
+  if (mentionsPrimed && unread.length > lastUnreadMentions && !reducedMotion.matches) {
+    button.animate(
+      [{ transform: 'scale(1)' }, { transform: 'scale(1.12)' }, { transform: 'scale(1)' }],
+      { duration: 240, easing: cssToken('--ease-out') }
+    )
+  }
+  lastUnreadMentions = unread.length
   button.setAttribute('aria-label', `Mentions, ${unread.length} unread`)
   if (mentionsModal.classList.contains('open')) renderMentions()
 

@@ -22,6 +22,8 @@
         --error: #ff5c5c;
         --mono: 'JetBrains Mono', 'SF Mono', ui-monospace, Menlo, monospace;
         --radius: 10px;
+        --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+        --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
         color-scheme: dark;
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
         color: var(--text);
@@ -248,10 +250,10 @@
       }
       #connection-modal.open {
         display: flex;
-        animation: fade-in 0.15s ease;
+        animation: fade-in 150ms var(--ease-out);
       }
       #connection-modal.open .modal-card {
-        animation: pop-in 0.18s ease;
+        animation: pop-in 180ms var(--ease-out);
       }
       .modal-card {
         width: min(480px, 100%);
@@ -353,7 +355,7 @@
       }
       #new-object-form.open {
         display: grid;
-        animation: rise-in 0.18s ease;
+        animation: rise-in 180ms var(--ease-out);
       }
       body.board-open .container {
         width: auto;
@@ -453,8 +455,17 @@
       .kanban-card:hover {
         border-color: #2b3a4d;
       }
+      /* Subtle on purpose: cards are pressed tens of times a day. */
+      .kanban-card {
+        transition:
+          transform 160ms var(--ease-out),
+          border-color 0.15s ease;
+      }
+      .kanban-card:active {
+        transform: scale(0.98);
+      }
       .kanban-card.enter {
-        animation: rise-in 0.22s ease both;
+        animation: rise-in 220ms var(--ease-out) both;
       }
       .kanban-card.dragging {
         opacity: 0.4;
@@ -551,7 +562,11 @@
       }
       #card-modal.open {
         display: flex;
-        animation: fade-in 0.15s ease;
+        animation: fade-in 150ms var(--ease-out);
+      }
+      #card-modal.open .card-detail,
+      #mentions-modal.open .modal-card {
+        animation: pop-in 180ms var(--ease-out);
       }
       .card-detail {
         display: grid;
@@ -762,7 +777,7 @@
       }
       #mentions-modal.open {
         display: flex;
-        animation: fade-in 0.15s ease;
+        animation: fade-in 150ms var(--ease-out);
       }
       .mentions-list {
         display: grid;
@@ -980,7 +995,7 @@
         display: none;
       }
       .comment.enter {
-        animation: rise-in 0.22s ease both;
+        animation: rise-in 220ms var(--ease-out) both;
       }
       .score {
         font-family: var(--mono);
@@ -989,7 +1004,7 @@
         text-align: center;
       }
       .score.bump {
-        animation: bump 0.3s ease;
+        animation: bump 200ms var(--ease-out);
       }
       .comments {
         display: grid;
@@ -1183,8 +1198,40 @@
       }
       @keyframes bump {
         40% {
-          transform: scale(1.35);
+          transform: scale(1.15);
           color: var(--accent);
+        }
+      }
+      /* Disclosure panels and drop markers enter; closing stays instant. */
+      #filter-panel,
+      #theme-panel,
+      .label-editor,
+      .column-colors.entering {
+        transition:
+          opacity 160ms var(--ease-out),
+          transform 160ms var(--ease-out);
+      }
+      .drop-marker,
+      .column-drop-marker {
+        transition:
+          opacity 120ms var(--ease-out),
+          transform 120ms var(--ease-out);
+      }
+      @starting-style {
+        #filter-panel,
+        #theme-panel,
+        .label-editor,
+        .column-colors.entering {
+          opacity: 0;
+          transform: translateY(-4px);
+        }
+        .drop-marker {
+          opacity: 0;
+          transform: scaleX(0.5);
+        }
+        .column-drop-marker {
+          opacity: 0;
+          transform: scaleY(0.5);
         }
       }
       @media (prefers-reduced-motion: reduce) {
@@ -1192,7 +1239,16 @@
         *::before,
         *::after {
           animation: none !important;
-          transition: none !important;
+          /* Keep fades and color changes; drop anything that moves. */
+          transition-property: opacity, color, background-color, border-color !important;
+        }
+        /* Gentler, not zero: keep the fades, drop the movement. */
+        #card-modal.open .card-detail,
+        #mentions-modal.open .modal-card {
+          animation: fade-in 180ms var(--ease-out) !important;
+        }
+        .kanban-card:active {
+          transform: none;
         }
       }
       @media (max-width: 600px) {
