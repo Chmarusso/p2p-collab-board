@@ -643,7 +643,13 @@ async function rememberSpace(key, id) {
 
 // The store session to open a board in. `key` null means a new board.
 async function boardSpace(key) {
-  boardStore ??= new Corestore(path.join(updaterConfig.dir, 'board-store'))
+  // One root store for the worker's life. If it ever ends up closed (a failed
+  // open, a shutdown racing a request), start a fresh one instead of failing
+  // every board open with "Corestore is closed".
+  if (goodbye.exiting) throw new Error('OpenCollab is shutting down. Reopen the app.')
+  if (!boardStore || boardStore.closing) {
+    boardStore = new Corestore(path.join(updaterConfig.dir, 'board-store'))
+  }
   if (!key) {
     const id = crypto.randomBytes(16).toString('hex')
     return { id, store: boardStore.namespace(id) }

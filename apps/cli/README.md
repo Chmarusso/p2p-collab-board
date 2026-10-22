@@ -24,6 +24,25 @@ opencollab images 1 --out ./downloads
 opencollab watch                 # stay online and print new activity
 ```
 
+## Kanban
+
+Cards keep the `#N` numbers from `opencollab posts`; columns are picked by number,
+name or id.
+
+```sh
+opencollab board                 # columns with their cards (--archived, --json)
+opencollab column add Review     # also: column rename <col> <name>, move <col> <pos>, delete <col>
+opencollab move 3 Review         # to the bottom of Review (--top for the top)
+opencollab edit 3 --title "New title" --body "Markdown **works**"
+opencollab label 3 add bug       # creates the label if it is new (--color #f87168)
+opencollab label 3 remove bug
+opencollab labels
+opencollab due 3 2026-12-31 --time 17:00   # or: opencollab due 3 clear
+opencollab archive 3             # restore 3 brings it back
+opencollab describe "What this board is for"
+opencollab notifications         # mentions, due dates and activity across your boards
+```
+
 `--board|-b` picks a remembered board by name or number (`opencollab boards`); the
 latest is used by default. `--wait|-w` sets how long to wait for peers (default 10s).
 

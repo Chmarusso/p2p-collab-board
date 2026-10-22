@@ -1,13 +1,14 @@
 // opencollab — command-line client for OpenCollab boards. It drives the same
 // Bare backend as the desktop and mobile apps (workers/main.js), so boards,
-// posts, comments, votes and encrypted images are fully interoperable.
+// cards, columns, labels, comments, votes and encrypted images are fully
+// interoperable.
 const fs = require('fs/promises')
 const os = require('os')
 const path = require('path')
 const readline = require('readline')
 const Identity = require('keet-identity-key')
 const { command, flag, arg, summary, description, header, footer } = require('paparam')
-const { messageTypes, normalizeInvite, inviteLink } = require('@opencollab/board-protocol')
+const { messageTypes, normalizeInvite, inviteLink, LIMITS } = require('@opencollab/board-protocol')
 const { Session } = require('./lib/session')
 const runtime = require('./lib/runtime')
 const store = require('./lib/store')
@@ -175,7 +176,13 @@ async function finishWrite(session) {
 function printPost(session, post, index, { comments = false } = {}) {
   const score = Object.values(post.votes || {}).reduce((sum, vote) => sum + vote, 0)
   const own = post.votes?.[session.state.publicKey]
+  const column = session.state.columns.find((entry) => entry.id === post.columnId)
+  const labels = labelNames(session, post)
   const extras = [
+    column ? `in ${column.name}` : null,
+    labels.length ? `[${labels.join(', ')}]` : null,
+    dueText(post.dueDate),
+    post.archived ? 'archived' : null,
     `${score >= 0 ? '▲' : '▼'} ${score}${own ? (own > 0 ? ' (you ▲)' : ' (you ▼)') : ''}`,
     `${(post.comments || []).length} comments`,
     post.images?.length ? `${post.images.length} image${post.images.length === 1 ? '' : 's'}` : null
@@ -195,6 +202,58 @@ function printPost(session, post, index, { comments = false } = {}) {
       )
     }
   }
+}
+
+const labelNames = (session, post) =>
+  (post.labelIds || [])
+    .map((id) => session.state.labels.find((label) => label.id === id)?.name)
+    .filter(Boolean)
+
+// Date-only due dates are due at the end of that day, local time.
+function dueText(dueDate) {
+  if (!dueDate) return null
+  const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(dueDate)
+  const [year, month, day] = dueDate.split('-').map(Number)
+  const deadline = dateOnly ? new Date(year, month - 1, day, 23, 59, 59) : new Date(dueDate)
+  if (Number.isNaN(deadline.getTime())) return null
+  const left = deadline - Date.now()
+  const when = dateOnly ? dueDate : deadline.toLocaleString()
+  return left < 0 ? `overdue ${when}` : left < 86400000 ? `due soon ${when}` : `due ${when}`
+}
+
+// Columns by number (1-based, board order), name or id.
+function findColumn(columns, selector) {
+  const value = String(selector)
+  const index = Number(value)
+  if (Number.isInteger(index) && index >= 1 && index <= columns.length) return columns[index - 1]
+  const match =
+    columns.find((column) => column.id === value) ||
+    columns.find((column) => column.name.toLowerCase() === value.toLowerCase())
+  if (!match) {
+    throw new Error(
+      `No column "${selector}". Columns: ${columns.map((column, i) => `${i + 1} ${column.name}`).join(', ')}`
+    )
+  }
+  return match
+}
+
+const LABEL_COLORS = ['#4bce97', '#f5cd47', '#fea362', '#f87168', '#9f8fef']
+LABEL_COLORS.push('#579dff', '#6cc3e0', '#94c748', '#e774bb', '#8590a2')
+const newLabelId = () => `label:${require('crypto').randomBytes(6).toString('hex')}`
+
+// Sends `message`, then waits for a board-state where `check(state)` holds.
+async function apply(session, message, check, label) {
+  session.send(message)
+  await session.wait((reply, state) => reply.type === messageTypes.boardState && check(state), {
+    label
+  })
+}
+
+// Opens the board for a write on one card and returns it.
+async function openCard(session, flags, selector) {
+  const opened = await openBoard(session, flags)
+  assertWritable(session, opened.room)
+  return { ...opened, card: findPost(session.state.objects, selector) }
 }
 
 async function saveIdentity(flags, mnemonic, { force }) {
@@ -634,6 +693,446 @@ const update = command(
   })
 )
 
+const board = command(
+  'board',
+  summary('Show the board: columns and their cards'),
+  ...boardFlags(),
+  flag('--archived|-a', 'include archived cards'),
+  flag('--json', 'print raw JSON'),
+  action(async ({ flags }) => {
+    await withSession(flags, async (session) => {
+      const { boardName } = await openBoard(session, flags)
+      const { columns, objects, labels, theme, info, profiles } = session.state
+      if (flags.json) {
+        return say(
+          JSON.stringify(
+            { board: boardName, info, theme, columns, labels, profiles, cards: objects },
+            null,
+            2
+          )
+        )
+      }
+      // Card numbers match `opencollab posts`, so either list can be used to pick one.
+      const numbers = new Map(newestFirst(objects).map((post, index) => [post.id, index + 1]))
+      say(`${boardName} · ${objects.length} cards · ${session.state.peers} peers`)
+      if (info.description) say(...info.description.split('\n').map((line) => `  ${line}`))
+      for (const column of columns) {
+        const cards = objects.filter(
+          (card) => card.columnId === column.id && (flags.archived || !card.archived)
+        )
+        say('', `## ${column.name} (${cards.length})`)
+        for (const card of cards) {
+          const extras = [
+            labelNames(session, card).length ? `[${labelNames(session, card).join(', ')}]` : null,
+            dueText(card.dueDate),
+            Object.keys(card.votes || {}).length
+              ? `▲ ${Object.values(card.votes).reduce((sum, vote) => sum + vote, 0)}`
+              : null,
+            card.comments?.length ? `${card.comments.length} comments` : null,
+            card.archived ? 'archived' : null
+          ].filter(Boolean)
+          say(
+            `  #${numbers.get(card.id)}  ${card.title}${extras.length ? `  · ${extras.join(' · ')}` : ''}`
+          )
+        }
+      }
+    })
+  })
+)
+
+const columnAdd = command(
+  'add',
+  summary('Add a column at the end'),
+  arg('<name>', 'column name'),
+  ...boardFlags(),
+  action(async ({ args, flags }) => {
+    await withSession(flags, async (session) => {
+      const { room } = await openBoard(session, flags)
+      assertWritable(session, room)
+      const before = session.state.columns.length
+      await apply(
+        session,
+        { type: messageTypes.columnCreate, name: args.name },
+        (state) => state.columns.length > before,
+        'column to be added'
+      )
+      say(`Added column "${args.name.trim()}".`)
+      await finishWrite(session)
+    })
+  })
+)
+
+const columnRename = command(
+  'rename',
+  summary('Rename a column'),
+  arg('<column>', 'column number, name or id'),
+  arg('<name>', 'new name'),
+  ...boardFlags(),
+  action(async ({ args, flags }) => {
+    await withSession(flags, async (session) => {
+      const { room } = await openBoard(session, flags)
+      assertWritable(session, room)
+      const column = findColumn(session.state.columns, args.column)
+      const name = args.name.trim().slice(0, LIMITS.columnName)
+      await apply(
+        session,
+        { type: messageTypes.columnUpdate, columnId: column.id, name },
+        (state) => state.columns.find((entry) => entry.id === column.id)?.name === name,
+        'column to be renamed'
+      )
+      say(`Renamed "${column.name}" to "${name}".`)
+      await finishWrite(session)
+    })
+  })
+)
+
+const columnMove = command(
+  'move',
+  summary('Move a column to a position (1 = first)'),
+  arg('<column>', 'column number, name or id'),
+  arg('<position>', 'new position, 1-based'),
+  ...boardFlags(),
+  action(async ({ args, flags }) => {
+    const position = Number(args.position)
+    if (!Number.isInteger(position) || position < 1) throw new Error('Position must be 1 or more')
+    await withSession(flags, async (session) => {
+      const { room } = await openBoard(session, flags)
+      assertWritable(session, room)
+      const column = findColumn(session.state.columns, args.column)
+      const target = Math.min(position, session.state.columns.length) - 1
+      await apply(
+        session,
+        { type: messageTypes.columnUpdate, columnId: column.id, index: target },
+        (state) => state.columns.findIndex((entry) => entry.id === column.id) === target,
+        'column to be moved'
+      )
+      say(`Moved "${column.name}" to position ${target + 1}.`)
+      await finishWrite(session)
+    })
+  })
+)
+
+const columnDelete = command(
+  'delete',
+  summary('Delete a column; its cards move to the first remaining column'),
+  arg('<column>', 'column number, name or id'),
+  ...boardFlags(),
+  action(async ({ args, flags }) => {
+    await withSession(flags, async (session) => {
+      const { room } = await openBoard(session, flags)
+      assertWritable(session, room)
+      if (session.state.columns.length < 2) throw new Error('A board keeps at least one column')
+      const column = findColumn(session.state.columns, args.column)
+      await apply(
+        session,
+        { type: messageTypes.columnDelete, columnId: column.id },
+        (state) => !state.columns.some((entry) => entry.id === column.id),
+        'column to be deleted'
+      )
+      say(`Deleted column "${column.name}".`)
+      await finishWrite(session)
+    })
+  })
+)
+
+const column = command(
+  'column',
+  summary('Add, rename, move or delete columns'),
+  columnAdd,
+  columnRename,
+  columnMove,
+  columnDelete
+)
+
+const move = command(
+  'move',
+  summary('Move a card to a column (to the bottom, or --top)'),
+  arg('<card>', 'card number from `opencollab board`/`posts` or id prefix'),
+  arg('<column>', 'column number, name or id'),
+  ...boardFlags(),
+  flag('--top', 'put it at the top of the column'),
+  action(async ({ args, flags }) => {
+    await withSession(flags, async (session) => {
+      const { card } = await openCard(session, flags, args.card)
+      const column = findColumn(session.state.columns, args.column)
+      const others = session.state.objects.filter(
+        (entry) => entry.columnId === column.id && entry.id !== card.id
+      )
+      const index = flags.top ? 0 : others.length
+      await apply(
+        session,
+        { type: messageTypes.cardMove, objectId: card.id, columnId: column.id, index },
+        (state) => {
+          const cards = state.objects.filter((entry) => entry.columnId === column.id)
+          const at = cards.findIndex((entry) => entry.id === card.id)
+          return at !== -1 && (flags.top ? at === 0 : at === cards.length - 1)
+        },
+        'card to be moved'
+      )
+      say(`Moved "${card.title}" to ${column.name}${flags.top ? ' (top)' : ''}.`)
+      await finishWrite(session)
+    })
+  })
+)
+
+const edit = command(
+  'edit',
+  summary("Change a card's title or description"),
+  arg('<card>', 'card number or id prefix'),
+  ...boardFlags(),
+  flag('--title [text]', 'new title'),
+  flag('--body [text]', 'new description (Markdown)'),
+  action(async ({ args, flags }) => {
+    if (flags.title === undefined && flags.body === undefined) {
+      throw new Error('Pass --title and/or --body')
+    }
+    await withSession(flags, async (session) => {
+      const { card } = await openCard(session, flags, args.card)
+      const change = { type: messageTypes.cardUpdate, objectId: card.id }
+      if (flags.title !== undefined) change.title = String(flags.title)
+      if (flags.body !== undefined) change.body = String(flags.body)
+      await apply(
+        session,
+        change,
+        (state) => {
+          const next = state.objects.find((entry) => entry.id === card.id)
+          return (
+            (change.title === undefined ||
+              next?.title === change.title.trim().slice(0, LIMITS.title)) &&
+            (change.body === undefined || next?.body === change.body)
+          )
+        },
+        'card to be updated'
+      )
+      say(`Updated "${change.title?.trim() || card.title}".`)
+      await finishWrite(session)
+    })
+  })
+)
+
+const label = command(
+  'label',
+  summary('Add or remove a label on a card (creates the label if it is new)'),
+  arg('<card>', 'card number or id prefix'),
+  arg('<action>', 'add | remove'),
+  arg('<name>', 'label name'),
+  ...boardFlags(),
+  flag('--color [hex]', 'color for a new label, e.g. #f87168'),
+  action(async ({ args, flags }) => {
+    const verb = String(args.action).toLowerCase()
+    if (!['add', 'remove'].includes(verb)) throw new Error('Action must be add or remove')
+    await withSession(flags, async (session) => {
+      const { card } = await openCard(session, flags, args.card)
+      const name = args.name.trim().slice(0, LIMITS.labelName)
+      let existing = session.state.labels.find(
+        (entry) => entry.name.toLowerCase() === name.toLowerCase()
+      )
+      if (!existing && verb === 'remove') throw new Error(`No label "${name}" on this board`)
+      if (!existing) {
+        const labelId = newLabelId()
+        const color =
+          flags.color ||
+          LABEL_COLORS.find(
+            (value) => !session.state.labels.some((entry) => entry.color === value)
+          ) ||
+          LABEL_COLORS[0]
+        await apply(
+          session,
+          { type: messageTypes.labelUpsert, labelId, name, color },
+          (state) => state.labels.some((entry) => entry.id === labelId),
+          'label to be created'
+        )
+        existing = { id: labelId, name }
+      }
+      const current = card.labelIds || []
+      const labelIds =
+        verb === 'add'
+          ? [...new Set([...current, existing.id])]
+          : current.filter((id) => id !== existing.id)
+      await apply(
+        session,
+        { type: messageTypes.cardUpdate, objectId: card.id, labelIds },
+        (state) =>
+          state.objects.find((entry) => entry.id === card.id)?.labelIds.includes(existing.id) ===
+          (verb === 'add'),
+        'labels to be saved'
+      )
+      say(
+        `${verb === 'add' ? 'Added' : 'Removed'} "${existing.name}" ${verb === 'add' ? 'to' : 'from'} "${card.title}".`
+      )
+      await finishWrite(session)
+    })
+  })
+)
+
+const labelsList = command(
+  'labels',
+  summary("List the board's labels"),
+  ...boardFlags(),
+  action(async ({ flags }) => {
+    await withSession(flags, async (session) => {
+      await openBoard(session, flags)
+      const { labels, objects } = session.state
+      if (!labels.length) {
+        return say('No labels yet. Add one with `opencollab label <card> add <name>`.')
+      }
+      for (const entry of labels) {
+        const used = objects.filter((card) => card.labelIds?.includes(entry.id)).length
+        say(
+          `${entry.color || '#8590a2'}  ${entry.name}  (${used} ${used === 1 ? 'card' : 'cards'})`
+        )
+      }
+    })
+  })
+)
+
+const due = command(
+  'due',
+  summary('Set or clear a due date: YYYY-MM-DD (optionally --time HH:MM) or clear'),
+  arg('<card>', 'card number or id prefix'),
+  arg('<date>', 'YYYY-MM-DD | clear'),
+  ...boardFlags(),
+  flag('--time [HH:MM]', 'time of day, local; without it the card is due at the end of the day'),
+  action(async ({ args, flags }) => {
+    let dueDate = null
+    if (String(args.date).toLowerCase() !== 'clear') {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(args.date) || Number.isNaN(Date.parse(args.date))) {
+        throw new Error('Use a date like 2026-12-31, or clear')
+      }
+      if (flags.time && !/^\d{1,2}:\d{2}$/.test(flags.time)) {
+        throw new Error('Use a time like 17:30')
+      }
+      dueDate = flags.time
+        ? new Date(`${args.date}T${String(flags.time).padStart(5, '0')}`).toISOString()
+        : args.date
+    }
+    await withSession(flags, async (session) => {
+      const { card } = await openCard(session, flags, args.card)
+      await apply(
+        session,
+        { type: messageTypes.cardUpdate, objectId: card.id, dueDate },
+        (state) => state.objects.find((entry) => entry.id === card.id)?.dueDate === dueDate,
+        'due date to be saved'
+      )
+      say(
+        dueDate
+          ? `"${card.title}" is ${dueText(dueDate)}.`
+          : `Cleared the due date of "${card.title}".`
+      )
+      await finishWrite(session)
+    })
+  })
+)
+
+const archiveCommand = (archived) =>
+  command(
+    archived ? 'archive' : 'restore',
+    summary(archived ? 'Archive a card' : 'Restore an archived card'),
+    arg('<card>', 'card number or id prefix'),
+    ...boardFlags(),
+    action(async ({ args, flags }) => {
+      await withSession(flags, async (session) => {
+        const { card } = await openCard(session, flags, args.card)
+        await apply(
+          session,
+          { type: messageTypes.cardArchive, objectId: card.id, archived },
+          (state) => state.objects.find((entry) => entry.id === card.id)?.archived === archived,
+          `card to be ${archived ? 'archived' : 'restored'}`
+        )
+        say(`${archived ? 'Archived' : 'Restored'} "${card.title}".`)
+        await finishWrite(session)
+      })
+    })
+  )
+
+const describe = command(
+  'describe',
+  summary('Set the board description (Markdown; empty text clears it)'),
+  arg('<text>', 'description'),
+  ...boardFlags(),
+  action(async ({ args, flags }) => {
+    await withSession(flags, async (session) => {
+      const { room } = await openBoard(session, flags)
+      assertWritable(session, room)
+      const description = String(args.text).trim().slice(0, LIMITS.description)
+      await apply(
+        session,
+        { type: messageTypes.boardDescribe, description },
+        (state) => state.info.description === description,
+        'description to be saved'
+      )
+      say(description ? 'Board description saved.' : 'Board description cleared.')
+      await finishWrite(session)
+    })
+  })
+)
+
+const KIND_LABELS = {
+  mention: 'mention',
+  comment: 'comment',
+  moved: 'moved',
+  edited: 'edited',
+  'new-card': 'new card',
+  'due-soon': 'due soon',
+  overdue: 'overdue'
+}
+
+function alertLine(alert) {
+  const who = alert.authorName || shortKey(alert.author || '')
+  const card = `"${alert.cardTitle}"`
+  const text = {
+    mention: `${who} mentioned you ${alert.where === 'comment' ? 'in a comment on' : 'on'} ${card}`,
+    comment: `${who} commented on ${card}`,
+    moved: `${who} moved ${card}${alert.column ? ` to ${alert.column}` : ''}`,
+    edited: `${who} edited ${card}`,
+    'new-card': `${who} added ${card}`,
+    'due-soon': `${card} is ${dueText(alert.due)}`,
+    overdue: `${card} is ${dueText(alert.due)}`
+  }[alert.kind]
+  return `  ${KIND_LABELS[alert.kind].padEnd(9)} ${text}  (${relativeTime(new Date(alert.at).toISOString())})`
+}
+
+const notifications = command(
+  'notifications',
+  summary('Mentions, due dates and activity on your cards, across remembered boards'),
+  ...commonFlags(),
+  flag('--wait|-w [seconds]', 'how long to let the boards sync (default 60)'),
+  action(async ({ flags }) => {
+    const storage = storageOf(flags)
+    const secret = await password()
+    const remembered = await store.readBoards(storage, secret)
+    if (!remembered.length) {
+      return say('No boards yet. Use `opencollab create` or `opencollab join`.')
+    }
+    const seconds = Math.max(5, Number(flags.wait ?? 60) || 60)
+    await withSession(flags, async (session) => {
+      await session.unlock(secret)
+      // The worker checks each board in the background, like the apps do.
+      session.send({
+        type: messageTypes.boardsWatch,
+        boards: remembered.map(({ invite, name }) => ({ invite, name }))
+      })
+      await session
+        .wait(
+          (message, state) =>
+            message.type === messageTypes.boardAlerts &&
+            state.alerts.length > 0 &&
+            state.alerts.every((entry) => entry.checkedAt > 0),
+          { timeout: seconds * 1000, label: 'boards to be checked' }
+        )
+        .catch(() => warn(`Not every board finished syncing within ${seconds}s.`))
+      let total = 0
+      for (const entry of session.state.alerts) {
+        say('', `${entry.name || 'Board'}${entry.checkedAt ? '' : ' (not checked yet)'}`)
+        if (!entry.alerts.length) say('  nothing new')
+        for (const alert of entry.alerts) say(alertLine(alert))
+        total += entry.alerts.length
+      }
+      say('', `${total} notification${total === 1 ? '' : 's'} from the last 14 days.`)
+    })
+  })
+)
+
 const cli = command(
   'opencollab',
   header('OpenCollab — private peer-to-peer boards'),
@@ -649,10 +1148,21 @@ const cli = command(
   forget,
   invite,
   name,
+  board,
   posts,
   post,
   comment,
   vote,
+  column,
+  move,
+  edit,
+  label,
+  labelsList,
+  due,
+  archiveCommand(true),
+  archiveCommand(false),
+  describe,
+  notifications,
   images,
   watch,
   update,

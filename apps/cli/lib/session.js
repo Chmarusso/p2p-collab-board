@@ -15,6 +15,11 @@ class Session {
       room: null,
       objects: [],
       profiles: {},
+      columns: [],
+      labels: [],
+      theme: { background: null, accent: null },
+      info: { description: '' },
+      alerts: [],
       peers: 0,
       synced: false,
       displayName: null,
@@ -74,8 +79,13 @@ class Session {
     if (message.type === messageTypes.boardState) {
       state.objects = message.objects || []
       state.profiles = message.profiles || {}
+      state.columns = message.columns || []
+      state.labels = message.labels || []
+      state.theme = message.theme || state.theme
+      state.info = message.info || state.info
     }
     if (message.type === messageTypes.boardSynced) state.synced = true
+    if (message.type === messageTypes.boardAlerts) state.alerts = message.boards || []
     if (message.type === messageTypes.profileStatus) state.displayName = message.displayName
     if (message.type === 'board-name' && state.room) state.room.boardName = message.name
     if (message.type === 'peer-count') state.peers = message.count || 0

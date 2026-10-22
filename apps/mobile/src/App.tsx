@@ -330,6 +330,10 @@ export default function App() {
     ;(globalThis as Record<string, unknown>).__opencollab = {
       send,
       dismissBackup: () => setBackupPhrase(''),
+      subscribe: (listener: (message: WorkerMessage) => void) => {
+        workerListeners.current.add(listener)
+        return () => workerListeners.current.delete(listener)
+      },
       state: () => ({
         identityKey,
         roomReady,
