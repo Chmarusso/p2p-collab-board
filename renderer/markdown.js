@@ -1,7 +1,9 @@
 // Markdown for card descriptions and comments. Card text comes from other
 // peers and this page can drive the worker, so the HTML is always sanitized:
-// raw HTML in the source is shown as text, images are dropped (a remote image
+// raw HTML in the source is shown as text, remote images are dropped (they
 // would leak the reader's IP), and links are limited to http(s) and mailto.
+// `![alt](image:<key>)` points at one of the card's own encrypted attachments;
+// it becomes a placeholder the app fills from its image cache.
 import { Marked } from '../node_modules/marked/lib/marked.esm.js'
 import DOMPurify from '../node_modules/dompurify/dist/purify.es.mjs'
 import hljs from '../node_modules/@highlightjs/cdn-assets/es/core.min.js'
@@ -47,7 +49,10 @@ const marked = new Marked({
   breaks: true,
   renderer: {
     html: ({ text }) => escapeHtml(text),
-    image: ({ text }) => escapeHtml(text),
+    image: ({ href, text }) =>
+      href?.startsWith('image:')
+        ? `<span class="md-image" data-image="${escapeHtml(href.slice(6))}" data-alt="${escapeHtml(text || '')}"></span>`
+        : escapeHtml(text),
     code({ text, lang }) {
       const language = (lang || '').trim().split(/\s/)[0].toLowerCase()
       const known = language && hljs.getLanguage(language)

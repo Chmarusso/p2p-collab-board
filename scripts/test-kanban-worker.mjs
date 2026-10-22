@@ -73,6 +73,21 @@ try {
   session.send({ type: messageTypes.columnDelete, columnId: 'col:done' })
   session.send({ type: messageTypes.boardVote, objectId: first.id, value: 1 })
   session.send({ type: messageTypes.boardComment, objectId: first.id, text: 'looks good' })
+  session.send({ type: messageTypes.boardDescribe, description: 'Launch board for **Q4**' })
+  // 1×1 transparent PNG
+  const pixel =
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII='
+  session.send({
+    type: messageTypes.cardImagesAdd,
+    objectId: first.id,
+    requestId: 'r1',
+    images: [{ data: pixel, type: 'image/png', width: 1, height: 1 }]
+  })
+  const added = await session.wait((message) => message.type === 'card-images-added', {
+    label: 'image upload'
+  })
+  assert.equal(added.requestId, 'r1')
+  assert.equal(added.keys.length, 1)
   board = await until(
     'all edits',
     (b) =>
@@ -93,6 +108,11 @@ try {
     ['New', 'Doing', 'Review']
   )
   assert.deepEqual(board.theme, { background: 'preset:dusk', accent: '#22aa88' })
+  board = await until(
+    'description and image',
+    (b) => b.info?.description && b.objects.find((o) => o.id === first.id)?.images.length === 1
+  )
+  assert.equal(board.info.description, 'Launch board for **Q4**')
 
   // Invalid commands are dropped in the worker, not written to the log.
   session.send({ type: messageTypes.columnDelete, columnId: 'col:missing' })

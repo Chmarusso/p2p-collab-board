@@ -85,6 +85,8 @@ const card = (identity, id, ts, extra = {}) =>
       'label',
       'unlabel',
       'theme',
+      'info',
+      'image',
       'vote',
       'comment',
       'profile'
@@ -137,6 +139,15 @@ const card = (identity, id, ts, extra = {}) =>
       )
     } else if (kind === 'unlabel') {
       ops.push(op(identity, { type: 'label:delete', ts, labelId: pick(['l1', 'l2']) }))
+    } else if (kind === 'info') {
+      ops.push(op(identity, { type: 'board:info', ts, description: `About ${i}` }))
+    } else if (kind === 'image') {
+      const ref = {
+        core: identity,
+        id: { blockOffset: i, blockLength: 1, byteOffset: 0, byteLength: 9 },
+        type: 'image/png'
+      }
+      ops.push(op(identity, { type: 'card:image', ts, objectId, images: [ref] }))
     } else if (kind === 'theme') {
       ops.push(
         op(identity, { type: 'board:theme', ts, background: pick(['#112233', 'preset:dusk']) })
@@ -156,6 +167,35 @@ const card = (identity, id, ts, extra = {}) =>
     assert.equal(JSON.stringify(deriveBoard(shuffle(ops))), expected, `order ${run} diverged`)
   }
   console.log(`✓ ${ops.length} concurrent ops converge across 50 arrival orders`)
+}
+
+// Concurrent image uploads all survive (add-only set), in a stable order.
+{
+  const ref = (n) => ({
+    core: 'c'.repeat(64),
+    id: { blockOffset: n, blockLength: 1 },
+    type: 'image/png'
+  })
+  const ops = [
+    card(alice, 'c1', 1),
+    op(alice, { type: 'card:image', ts: 5, objectId: 'c1', images: [ref(1), ref(2)] }),
+    op(bob, { type: 'card:image', ts: 5, objectId: 'c1', images: [ref(3)] }),
+    op(carol, { type: 'card:image', ts: 4, objectId: 'c1', images: [ref(1)] }),
+    op(bob, { type: 'board:info', ts: 3, description: 'old' }),
+    op(alice, { type: 'board:info', ts: 6, description: 'Launch board for Q4' })
+  ]
+  const expected = JSON.stringify(deriveBoard(ops))
+  for (let run = 0; run < 20; run++) {
+    assert.equal(JSON.stringify(deriveBoard(shuffle(ops))), expected)
+  }
+  const state = deriveBoard(ops)
+  assert.deepEqual(
+    state.objects[0].images.map((image) => image.id.blockOffset),
+    [1, 2, 3],
+    'all three uploads kept, duplicates merged'
+  )
+  assert.equal(state.info.description, 'Launch board for Q4')
+  console.log('✓ concurrent image uploads all survive; board description is last-writer-wins')
 }
 
 // Last writer wins, ties broken by identity; ops before their card still apply.

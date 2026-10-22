@@ -1162,6 +1162,72 @@
         width: 22px;
         height: 18px;
       }
+      .board-description {
+        position: relative;
+        max-width: 720px;
+        margin-top: 6px;
+        color: var(--board-ink, var(--muted));
+      }
+      .board-description.clamped #board-description {
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+        overflow: hidden;
+      }
+      .board-description #board-description {
+        cursor: text;
+      }
+      #board-description-more {
+        padding: 0;
+        font-size: 13px;
+      }
+      #board-description-add {
+        padding: 4px 0;
+        margin-top: 6px;
+      }
+      #board-description-form {
+        max-width: 720px;
+        margin-top: 8px;
+      }
+      /* The card's first image, shown as a cover on the board. */
+      .card-cover {
+        margin: -10px -12px 2px;
+        height: 140px;
+        overflow: hidden;
+        border-radius: 8px 8px 0 0;
+        background: var(--surface);
+      }
+      .card-cover img {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+      .md-image {
+        display: block;
+        margin: 8px 0;
+      }
+      .md-image img {
+        display: block;
+        max-width: 100%;
+        max-height: 420px;
+        border-radius: 8px;
+        cursor: zoom-in;
+      }
+      .md-image.loading {
+        height: 120px;
+        border-radius: 8px;
+        background: var(--surface);
+      }
+      .md-image.missing::before {
+        content: attr(data-alt) ' (image unavailable)';
+        color: var(--muted);
+        font-size: 13px;
+      }
+      #card-body.dropping {
+        border-color: var(--accent);
+        border-style: dashed;
+      }
       .comments:empty {
         display: none;
       }
@@ -1502,7 +1568,28 @@
         <div class="topbar">
           <div>
             <h1 id="board-name" dir="auto">OpenCollab</h1>
-            <p class="muted prompt">private peer-to-peer board</p>
+            <div id="board-description-view" class="board-description">
+              <div id="board-description" class="markdown" dir="auto"></div>
+              <button id="board-description-more" type="button" class="ghost" hidden>More</button>
+            </div>
+            <button id="board-description-add" type="button" class="ghost prompt" hidden>
+              Add a board description
+            </button>
+            <form id="board-description-form" class="stack" hidden>
+              <textarea
+                id="board-description-input"
+                rows="3"
+                maxlength="2000"
+                dir="auto"
+                placeholder="What is this board for? Markdown works."
+                aria-label="Board description"
+              ></textarea>
+              <div class="row">
+                <button>Save</button>
+                <button id="board-description-cancel" type="button" class="ghost">Cancel</button>
+                <span class="muted hint">Everyone on the board sees it</span>
+              </div>
+            </form>
           </div>
           <div class="topbar-meta">
             <span id="status-chip" class="status-chip" role="status" aria-live="polite">
@@ -1698,10 +1785,15 @@
           ></textarea>
           <div id="card-body-actions" class="row" hidden>
             <button id="card-body-save" type="button">Save</button>
+            <button id="card-body-image" type="button" class="secondary" data-icon="image">
+              Add image
+            </button>
+            <input id="card-body-image-input" type="file" accept="image/*" multiple hidden />
             <button id="card-body-cancel" type="button" class="secondary">Cancel</button>
             <span class="muted hint">Markdown · ⌘/Ctrl+Enter saves</span>
           </div>
         </section>
+        <p id="card-image-error" class="error" role="alert" hidden></p>
         <div id="card-images" class="object-images"></div>
         <section class="stack">
           <div class="row card-detail-bar">

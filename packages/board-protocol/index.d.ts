@@ -9,6 +9,7 @@ export declare function inviteLink(invite: string): string
 export type BoardColumn = { id: string; name: string; position: string; color: string | null }
 export type BoardLabel = { id: string; name: string; color: string | null }
 export type BoardTheme = { background: string | null; accent: string | null }
+export type BoardInfo = { description: string }
 
 export declare const DEFAULT_COLUMNS: ReadonlyArray<Omit<BoardColumn, 'color'>>
 export declare const DEFAULT_COLUMN: string
@@ -22,6 +23,7 @@ export declare function deriveBoard(
   columns: BoardColumn[]
   labels: BoardLabel[]
   theme: BoardTheme
+  info: BoardInfo
   profiles: Record<string, string>
   maxTs: number
 }

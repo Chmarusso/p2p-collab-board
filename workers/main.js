@@ -211,8 +211,10 @@ function sendPeerCount() {
 }
 
 function sendBoardState() {
-  const { objects, profiles, columns, labels, theme } = boardState
-  pipe.write(JSON.stringify({ type: 'board-state', objects, profiles, columns, labels, theme }))
+  const { objects, profiles, columns, labels, theme, info } = boardState
+  pipe.write(
+    JSON.stringify({ type: 'board-state', objects, profiles, columns, labels, theme, info })
+  )
 }
 
 function sendBoardSynced() {
@@ -1052,6 +1054,29 @@ pipe.on('data', async (data) => {
     } else if (msg.type === messageTypes.labelDelete) {
       if (!boardState.labels.some((label) => label.id === msg.labelId)) return
       await sendOwnOp({ type: 'label:delete', labelId: msg.labelId })
+    } else if (msg.type === messageTypes.boardDescribe) {
+      if (typeof msg.description !== 'string') return
+      await sendOwnOp({
+        type: 'board:info',
+        description: msg.description.trim().slice(0, LIMITS.description)
+      })
+    } else if (msg.type === messageTypes.cardImagesAdd) {
+      // Stores the images in this member's encrypted blob core, then adds the
+      // refs to the card. The reply lets the UI reference them in Markdown.
+      const card = cardById(msg.objectId)
+      const room = LIMITS.images - (card?.images?.length || 0)
+      const refs = card && boardBlobs && room > 0 ? await storeImages(msg.images) : []
+      if (refs.length) {
+        await sendOwnOp({ type: 'card:image', objectId: card.id, images: refs.slice(0, room) })
+      }
+      pipe.write(
+        JSON.stringify({
+          type: 'card-images-added',
+          requestId: msg.requestId,
+          keys: refs.slice(0, room).map(imageKey),
+          error: refs.length ? null : room > 0 ? 'Could not store the image' : 'This card is full'
+        })
+      )
     } else if (msg.type === messageTypes.themeSet) {
       await sendOwnOp({
         type: 'board:theme',

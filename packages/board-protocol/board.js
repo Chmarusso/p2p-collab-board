@@ -14,6 +14,8 @@ const DEFAULT_COLUMN = DEFAULT_COLUMNS[0].id
 const LIMITS = Object.freeze({
   title: 200,
   boardName: 100,
+  description: 2000,
+  images: 12,
   comment: 5000,
   body: 20000,
   columnName: 60,
@@ -35,7 +37,9 @@ const OP_TYPES = Object.freeze([
   'column:delete',
   'label:upsert',
   'label:delete',
-  'board:theme'
+  'board:theme',
+  'board:info',
+  'card:image'
 ])
 
 // Positions are base-62 fractions compared as plain strings ("fractional
@@ -127,6 +131,8 @@ const cleanName = (value, max) => (typeof value === 'string' ? value.trim().slic
 const cleanList = (value, valid, max) =>
   Array.isArray(value) ? [...new Set(value.filter(valid))].slice(0, max) : null
 
+const imageKey = (ref) => JSON.stringify([ref?.core, ref?.id?.blockOffset, ref?.id?.blockLength])
+
 function stampOf(message) {
   const ts = message.payload.ts
   const legacy = !Number.isSafeInteger(ts) || ts < 0
@@ -159,6 +165,7 @@ function deriveBoard(messages, { images = (list) => (Array.isArray(list) ? list 
   const columns = new Map()
   const labels = new Map()
   const theme = {}
+  const info = {}
   let maxTs = 0
   const virtual = { ts: -1, legacy: false, identity: '', tie: '' }
   for (const column of DEFAULT_COLUMNS) {
@@ -209,7 +216,8 @@ function deriveBoard(messages, { images = (list) => (Array.isArray(list) ? list 
         base: { ...object, images: images(object.images), author: message.identity },
         registers,
         votes: {},
-        comments: new Map()
+        comments: new Map(),
+        added: new Map()
       })
     } else if (payload.type === 'profile') {
       const name = cleanName(payload.displayName, 48)
@@ -240,6 +248,10 @@ function deriveBoard(messages, { images = (list) => (Array.isArray(list) ? list 
         if (isColor(payload.color)) assign(registers, 'color', payload.color, stamp)
       }
       labels.set(payload.labelId, registers)
+    } else if (payload.type === 'board:info') {
+      if (typeof payload.description === 'string') {
+        assign(info, 'description', payload.description.slice(0, LIMITS.description), stamp)
+      }
     } else if (payload.type === 'board:theme') {
       if (payload.background === null || isBackground(payload.background)) {
         assign(theme, 'background', payload.background, stamp)
@@ -297,6 +309,14 @@ function deriveBoard(messages, { images = (list) => (Array.isArray(list) ? list 
           stamp
         )
       }
+    } else if (payload.type === 'card:image') {
+      // Images are only ever added, so concurrent uploads all survive: a set
+      // keyed by blob, each kept with its oldest stamp.
+      for (const ref of images(payload.images)) {
+        const key = imageKey(ref)
+        const known = card.added.get(key)
+        if (!known || newer(known.stamp, stamp)) card.added.set(key, { ref, stamp })
+      }
     } else if (payload.type === 'card:archive') {
       if (typeof payload.archived === 'boolean') {
         assign(registers, 'archived', payload.archived, stamp)
@@ -339,8 +359,24 @@ function deriveBoard(messages, { images = (list) => (Array.isArray(list) ? list 
     for (const [voter, vote] of Object.entries(card.votes).sort(byKey)) {
       if (vote.value !== 0) votes[voter] = vote.value
     }
+    const base = card.base.images || []
+    const baseKeys = new Set(base.map(imageKey))
+    const added = [...card.added.values()]
+      .filter((entry) => !baseKeys.has(imageKey(entry.ref)))
+      // Images from one op share a stamp; their key keeps the order stable.
+      .sort((a, b) =>
+        a.stamp.tie === b.stamp.tie
+          ? imageKey(a.ref) < imageKey(b.ref)
+            ? -1
+            : 1
+          : newer(a.stamp, b.stamp)
+            ? 1
+            : -1
+      )
+      .map((entry) => entry.ref)
     return {
       ...card.base,
+      images: [...base, ...added].slice(0, LIMITS.images),
       title: read(registers, 'title'),
       body: read(registers, 'body'),
       mentions: read(registers, 'mentions'),
@@ -365,6 +401,7 @@ function deriveBoard(messages, { images = (list) => (Array.isArray(list) ? list 
     columns: liveColumns,
     labels: liveLabels,
     theme: { background: read(theme, 'background', null), accent: read(theme, 'accent', null) },
+    info: { description: read(info, 'description', '') },
     profiles: Object.fromEntries(
       [...profiles].sort(byKey).map(([identity, r]) => [identity, r.name.value])
     ),

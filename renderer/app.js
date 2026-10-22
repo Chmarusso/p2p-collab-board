@@ -34,6 +34,11 @@ let objects = []
 let columns = []
 let labels = []
 let theme = { background: null, accent: null }
+let boardInfo = { description: '' }
+let editingDescription = false
+let descriptionExpanded = false
+// Image uploads waiting for the worker: requestId → { cardId, names }.
+const pendingUploads = new Map()
 let colorPickerColumn = null
 let colorPickerEntering = false
 // Moves made here land where the user put them; only peers' moves animate.
@@ -183,6 +188,10 @@ function resetBoardUi() {
   document.getElementById('filter-panel').hidden = true
   document.getElementById('theme-panel').hidden = true
   closeLabelsManager()
+  editingDescription = false
+  descriptionExpanded = false
+  boardInfo = { description: '' }
+  renderDescription()
   colorPickerColumn = null
   theme = { background: null, accent: null }
   closeCard()
@@ -378,13 +387,45 @@ function renderComment(comment) {
   return element
 }
 
-function markdownFor(text, mentions) {
-  return renderMarkdown(text, {
+// `images` are the card's attachments that `![alt](image:<key>)` may show.
+function markdownFor(text, mentions, images = []) {
+  const fragment = renderMarkdown(text, {
     mentions: (mentions || [])
       .filter((identity) => profiles[identity])
       .map((identity) => ({ identity, name: profiles[identity] })),
     self: currentIdentity
   })
+  for (const slot of fragment.querySelectorAll('.md-image')) {
+    const ref = images.find((image) => imageKey(image) === slot.dataset.image)
+    if (!ref) {
+      slot.classList.add('missing')
+      continue
+    }
+    slot.dataset.mdImageKey = imageKey(ref)
+    fillInlineImage(slot)
+    requestImage(ref)
+  }
+  return fragment
+}
+
+// Fills a cover or Markdown image from the cache; shows a placeholder until then.
+function fillInlineImage(slot) {
+  const key = slot.dataset.mdImageKey || slot.dataset.coverKey
+  const cached = imageCache.get(key)
+  slot.classList.toggle('loading', !cached)
+  slot.classList.toggle('missing', !!cached?.error && !!slot.dataset.mdImageKey)
+  slot.innerHTML = ''
+  if (!cached?.url) return
+  const img = document.createElement('img')
+  img.src = cached.url
+  img.alt = slot.dataset.alt || 'Card image'
+  if (slot.dataset.mdImageKey) {
+    img.onclick = (event) => {
+      event.stopPropagation()
+      openImageViewer(cached.url)
+    }
+  }
+  slot.append(img)
 }
 
 const imageKey = (ref) => `${ref.core}:${ref.id.blockOffset}:${ref.id.blockLength}`
@@ -606,7 +647,8 @@ function renderCard(object) {
   const comments = object.comments?.length || 0
   const images = object.images?.length || 0
   const chips = labelChips(object.labelIds, 4)
-  card.innerHTML = `${chips ? `<div class="label-list">${chips}</div>` : ''}<div class="kanban-card-title" dir="auto" title="${escape(object.title)}">${escape(object.title)}</div>
+  const cover = object.images?.[0]
+  card.innerHTML = `${cover ? `<div class="card-cover" data-cover-key="${escape(imageKey(cover))}"></div>` : ''}${chips ? `<div class="label-list">${chips}</div>` : ''}<div class="kanban-card-title" dir="auto" title="${escape(object.title)}">${escape(object.title)}</div>
     <div class="kanban-card-meta">${[
       dueBadge(object),
       Object.keys(object.votes || {}).length
@@ -620,6 +662,10 @@ function renderCard(object) {
       images ? `<span title="Images">${icon('image')}${images}</span>` : '',
       object.archived ? '<span>archived</span>' : ''
     ].join('')}</div>`
+  if (cover) {
+    fillInlineImage(card.querySelector('.card-cover'))
+    requestImage(cover)
+  }
   card.onclick = () => openCard(object.id)
   card.onkeydown = (event) => {
     if (event.key === 'Enter' || event.key === ' ') {
@@ -1169,13 +1215,22 @@ function openCard(id) {
   document.getElementById('card-label-new').value = ''
   closeDuePopover()
   document.getElementById('card-comment').value = ''
-  const images = document.getElementById('card-images')
-  images.innerHTML = ''
-  if (object.images?.length) renderImages(cardModal, object)
-  images.hidden = !object.images?.length
+  document.getElementById('card-image-error').hidden = true
+  renderCardGallery(object)
   refreshCard()
   cardModal.classList.add('open')
   cardTitle.focus()
+}
+
+// Rebuilt only when the card's images change, so a refresh doesn't flash them.
+function renderCardGallery(object) {
+  const gallery = document.getElementById('card-images')
+  const keys = (object.images || []).map(imageKey).join('|')
+  if (gallery.dataset.keys === keys) return
+  gallery.dataset.keys = keys
+  gallery.innerHTML = ''
+  if (object.images?.length) renderImages(cardModal, object)
+  gallery.hidden = !object.images?.length
 }
 
 function closeCard() {
@@ -1196,7 +1251,7 @@ function refreshCard() {
     const view = document.getElementById('card-body-view')
     view.innerHTML = ''
     view.classList.toggle('empty', !object.body?.trim())
-    if (object.body?.trim()) view.append(markdownFor(object.body, object.mentions))
+    if (object.body?.trim()) view.append(markdownFor(object.body, object.mentions, object.images))
     else view.textContent = 'Add a more detailed description…'
   }
   document.getElementById('card-author').innerHTML =
@@ -1204,6 +1259,7 @@ function refreshCard() {
   renderColumnOptions(cardColumn, object.columnId)
   document.getElementById('card-archived-badge').hidden = !object.archived
   renderCardLabels(object)
+  renderCardGallery(object)
   refreshDue(object)
   document.getElementById('card-archive').textContent = object.archived ? 'Restore' : 'Archive'
 
@@ -1768,6 +1824,12 @@ bridge.onWorkerIPC(workers.main, (data) => {
     for (const slot of document.querySelectorAll(`[data-image-key="${message.key}"]`)) {
       if (ref) fillImageSlot(slot, ref)
     }
+    for (const slot of document.querySelectorAll('[data-cover-key], [data-md-image-key]')) {
+      if ((slot.dataset.coverKey || slot.dataset.mdImageKey) === message.key) fillInlineImage(slot)
+    }
+  }
+  if (message.type === 'card-images-added') {
+    finishUpload(message)
   }
   if (message.type === 'board-state') {
     profiles = message.profiles || {}
@@ -1776,6 +1838,8 @@ bridge.onWorkerIPC(workers.main, (data) => {
     labels = message.labels || []
     labelDraft = null
     theme = message.theme || { background: null, accent: null }
+    boardInfo = message.info || { description: '' }
+    renderDescription()
     // A board loading or syncing in bulk isn't cards arriving: no entry motion.
     const arrived = objects.filter((object) => !seenObjects.has(object.id))
     if (arrived.length > 3) for (const object of arrived) seenObjects.add(object.id)
@@ -2212,3 +2276,166 @@ document.getElementById('mentions-read').onclick = () => markMentionsRead(() => 
 mentionsModal.onclick = (event) => {
   if (event.target === mentionsModal) closeMentions()
 }
+
+// Board description: shared, Markdown, two lines with "More" on the board.
+function renderDescription() {
+  const view = document.getElementById('board-description-view')
+  const text = document.getElementById('board-description')
+  const form = document.getElementById('board-description-form')
+  const add = document.getElementById('board-description-add')
+  const more = document.getElementById('board-description-more')
+  form.hidden = !editingDescription
+  if (editingDescription) {
+    view.hidden = true
+    add.hidden = true
+    return
+  }
+  const description = boardInfo.description || ''
+  view.hidden = !description
+  add.hidden = !!description || !roomEntered
+  text.innerHTML = ''
+  if (!description) return
+  text.append(markdownFor(description, []))
+  view.classList.toggle('clamped', !descriptionExpanded)
+  // Only offer "More" when two lines actually cut something off.
+  more.hidden = !descriptionExpanded && text.scrollHeight <= text.clientHeight + 1
+  more.textContent = descriptionExpanded ? 'Less' : 'More'
+}
+
+function editDescription() {
+  editingDescription = true
+  renderDescription()
+  const input = document.getElementById('board-description-input')
+  input.value = boardInfo.description || ''
+  input.focus()
+}
+
+function finishDescription(save) {
+  const input = document.getElementById('board-description-input')
+  if (save && input.value.trim() !== (boardInfo.description || '')) {
+    send({ type: 'board:describe', description: input.value })
+  }
+  editingDescription = false
+  renderDescription()
+}
+
+document.getElementById('board-description-add').onclick = editDescription
+document.getElementById('board-description').onclick = (event) => {
+  if (!event.target.closest('a')) editDescription()
+}
+document.getElementById('board-description-more').onclick = () => {
+  descriptionExpanded = !descriptionExpanded
+  renderDescription()
+}
+document.getElementById('board-description-form').onsubmit = (event) => {
+  event.preventDefault()
+  finishDescription(true)
+}
+document.getElementById('board-description-cancel').onclick = () => finishDescription(false)
+document.getElementById('board-description-input').onkeydown = (event) => {
+  if (event.key === 'Escape') {
+    event.stopPropagation()
+    finishDescription(false)
+  } else if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+    event.preventDefault()
+    finishDescription(true)
+  }
+}
+
+// Images in a card description: upload, paste or drop. The worker stores them
+// in this member's encrypted blob core; the reply's keys go into the Markdown.
+async function uploadCardImages(files) {
+  const error = document.getElementById('card-image-error')
+  error.hidden = true
+  const object = cardById(openCardId)
+  const images = []
+  const names = []
+  for (const file of files
+    .filter((entry) => entry.type.startsWith('image/'))
+    .slice(0, MAX_IMAGES)) {
+    try {
+      const image = await prepareImage(file)
+      // The worker rejects anything over 5 MB; base64 is ~4/3 of the bytes.
+      if (image.url.length * 0.75 > 5 * 1024 * 1024) {
+        error.textContent = `${file.name} is too large (max 5 MB).`
+        error.hidden = false
+        continue
+      }
+      images.push({
+        data: image.url.slice(image.url.indexOf(',') + 1),
+        type: image.type,
+        width: image.width,
+        height: image.height
+      })
+      names.push((file.name || 'image').replace(/\.[^.]+$/, '').replace(/[[\]]/g, ''))
+    } catch {
+      error.textContent = `${file.name} could not be read as an image.`
+      error.hidden = false
+    }
+  }
+  if (!object || !images.length) return
+  const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+  pendingUploads.set(requestId, { cardId: object.id, names })
+  const button = document.getElementById('card-body-image')
+  button.disabled = true
+  withIcon(button, 'image', 'Uploading…')
+  send({ type: 'board:card-images-add', objectId: object.id, requestId, images })
+}
+
+function finishUpload(message) {
+  const upload = pendingUploads.get(message.requestId)
+  if (!upload) return
+  pendingUploads.delete(message.requestId)
+  const button = document.getElementById('card-body-image')
+  button.disabled = pendingUploads.size > 0
+  if (!pendingUploads.size) withIcon(button, 'image', 'Add image')
+  if (!message.keys?.length) {
+    const error = document.getElementById('card-image-error')
+    error.textContent = message.error || 'The image could not be added.'
+    error.hidden = false
+    return
+  }
+  const markdown = message.keys
+    .map((key, index) => `![${upload.names[index] || 'image'}](image:${key})`)
+    .join('\n')
+  if (editingBody && openCardId === upload.cardId) {
+    // Insert where the cursor is, on its own lines.
+    const at = cardBody.selectionEnd
+    const before = cardBody.value.slice(0, at)
+    const gap = before && !before.endsWith('\n') ? '\n' : ''
+    cardBody.setRangeText(`${gap}${markdown}\n`, at, at, 'end')
+    cardBody.focus()
+  } else {
+    const object = cardById(upload.cardId)
+    if (!object) return
+    const body = object.body ? `${object.body}\n\n${markdown}` : markdown
+    send({ type: 'board:card-update', objectId: object.id, body })
+  }
+}
+
+document.getElementById('card-body-image').onclick = () =>
+  document.getElementById('card-body-image-input').click()
+document.getElementById('card-body-image-input').onchange = (event) => {
+  const files = [...event.target.files]
+  event.target.value = ''
+  uploadCardImages(files)
+}
+cardBody.addEventListener('paste', (event) => {
+  const files = [...(event.clipboardData?.files || [])]
+  if (!files.some((file) => file.type.startsWith('image/'))) return
+  event.preventDefault()
+  uploadCardImages(files)
+})
+cardBody.addEventListener('dragover', (event) => {
+  if (!event.dataTransfer?.types.includes('Files')) return
+  event.preventDefault()
+  cardBody.classList.add('dropping')
+})
+cardBody.addEventListener('dragleave', () => cardBody.classList.remove('dropping'))
+cardBody.addEventListener('drop', (event) => {
+  cardBody.classList.remove('dropping')
+  const files = [...(event.dataTransfer?.files || [])]
+  if (!files.length) return
+  event.preventDefault()
+  uploadCardImages(files)
+})

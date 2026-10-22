@@ -283,3 +283,10 @@ Phases 2 to 5 can be reordered; phase 1 has to come first.
   titles clamp to 4 lines, the dialog shows the latest 10 comments.
 - Open: boards with 1,000+ cards rebuild every card on each update; virtualizing
   is a separate change.
+- Board description: shared `board:info` op (last writer wins, 2,000 chars,
+  Markdown), shown under the board name, two lines with "More", edited in place.
+- Images in card descriptions: upload, paste or drop in the description editor.
+  `card:image` adds refs to the card as an add-only set, so concurrent uploads
+  all survive (12 per card). Markdown `![alt](image:<key>)` shows only the card's
+  own encrypted attachments; remote images stay blocked. The first image is the
+  card's cover on the board.

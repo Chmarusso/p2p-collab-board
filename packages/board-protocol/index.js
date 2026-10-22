@@ -18,6 +18,8 @@ const messageTypes = Object.freeze({
   labelUpsert: 'board:label-upsert',
   labelDelete: 'board:label-delete',
   themeSet: 'board:theme-set',
+  boardDescribe: 'board:describe',
+  cardImagesAdd: 'board:card-images-add',
   identityStatus: 'identity-status',
   roomStatus: 'room-status',
   boardState: 'board-state',
