@@ -1,3 +1,5 @@
+const board = require('./board')
+
 const messageTypes = Object.freeze({
   identityLoad: 'identity:load',
   identityCreate: 'identity:create-mobile',
@@ -7,6 +9,15 @@ const messageTypes = Object.freeze({
   boardCreate: 'board:create',
   boardVote: 'board:vote',
   boardComment: 'board:comment',
+  cardUpdate: 'board:card-update',
+  cardMove: 'board:card-move',
+  cardArchive: 'board:card-archive',
+  columnCreate: 'board:column-create',
+  columnUpdate: 'board:column-update',
+  columnDelete: 'board:column-delete',
+  labelUpsert: 'board:label-upsert',
+  labelDelete: 'board:label-delete',
+  themeSet: 'board:theme-set',
   identityStatus: 'identity-status',
   roomStatus: 'room-status',
   boardState: 'board-state',
@@ -22,7 +33,9 @@ function normalizeInvite(value) {
   if (typeof value !== 'string') return ''
   const invite = value.trim()
   if (!invite) return ''
-  const match = invite.match(/^(?:opencollab:\/\/board\/|opencollab:\/\/|https?:\/\/[^/]+\/board\/)?(.+)$/i)
+  const match = invite.match(
+    /^(?:opencollab:\/\/board\/|opencollab:\/\/|https?:\/\/[^/]+\/board\/)?(.+)$/i
+  )
   return decodeURIComponent(match ? match[1] : invite).replace(/\/$/, '')
 }
 
@@ -31,4 +44,4 @@ function inviteLink(invite) {
   return normalized ? `opencollab://board/${encodeURIComponent(normalized)}` : ''
 }
 
-module.exports = { messageTypes, command, normalizeInvite, inviteLink }
+module.exports = { messageTypes, command, normalizeInvite, inviteLink, ...board }

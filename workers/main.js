@@ -12,7 +12,14 @@ const fs = require('bare-fs')
 const path = require('bare-path')
 const dir = require('bare-storage')
 const { isBareKit } = require('which-runtime')
-const { messageTypes, normalizeInvite } = require('@opencollab/board-protocol')
+const {
+  messageTypes,
+  normalizeInvite,
+  deriveBoard,
+  positionAt,
+  OP_TYPES,
+  LIMITS
+} = require('@opencollab/board-protocol')
 
 const argv = (index) => Bare.argv[index + (isBareKit ? 0 : 2)]
 
@@ -41,9 +48,16 @@ let identityStatus = null
 let identityReady = null
 const identityFile = path.join(updaterConfig.dir, 'identity-mnemonic.json')
 const legacyIdentityFile = path.join(updaterConfig.dir, 'identity-mnemonic.txt')
-const board = new Map()
-const operationIds = new Set()
-const profiles = new Map()
+// Verified board ops by id, in log order. The board shown to the UI is always
+// derived from these (see board-protocol/board.js), never merged from peers.
+let boardOps = new Map()
+let boardState = deriveBoard([])
+let boardDigest = null
+let reportedDisplayName = null
+// Proof → hash of what it verified, so re-reading the log skips the crypto.
+const verifiedOps = new Map()
+// Never stamp an op lower than one already seen, even with a lagging clock.
+let lastTs = 0
 let boardName = ''
 let roomSyncTimer = null
 let replicationDiscovery = null
@@ -197,13 +211,8 @@ function sendPeerCount() {
 }
 
 function sendBoardState() {
-  pipe.write(
-    JSON.stringify({
-      type: 'board-state',
-      objects: [...board.values()],
-      profiles: Object.fromEntries(profiles)
-    })
-  )
+  const { objects, profiles, columns, labels, theme } = boardState
+  pipe.write(JSON.stringify({ type: 'board-state', objects, profiles, columns, labels, theme }))
 }
 
 function sendBoardSynced() {
@@ -231,8 +240,9 @@ function decryptBoardPayload(encrypted) {
     const nonce = Buffer.from(encrypted.nonce, 'base64')
     const ciphertext = Buffer.from(encrypted.ciphertext, 'base64')
     const plaintext = Buffer.alloc(ciphertext.length - sodium.crypto_secretbox_MACBYTES)
-    if (!sodium.crypto_secretbox_open_easy(plaintext, ciphertext, nonce, roomState.secret))
+    if (!sodium.crypto_secretbox_open_easy(plaintext, ciphertext, nonce, roomState.secret)) {
       return null
+    }
     return JSON.parse(plaintext.toString())
   } catch {
     return null
@@ -262,48 +272,64 @@ function decryptBoardMessage(message) {
     : null
 }
 
-function encryptBoardSnapshot() {
+function encryptBoardOps() {
   return {
-    type: 'board:state',
+    type: 'board:ops',
     encrypted: encryptBoardPayload({
       boardName,
-      objects: [...board.values()],
-      profiles: Object.fromEntries(profiles)
+      ops: [...boardOps.values()].map(({ id, identity, proof, payload }) => ({
+        id,
+        identity,
+        proof,
+        payload
+      }))
     })
   }
 }
 
-function decryptBoardSnapshot(message) {
-  const payload = decryptBoardPayload(message.encrypted)
-  if (payload?.boardName && !boardName) {
-    boardName = payload.boardName
-    pipe.write(JSON.stringify({ type: 'board-name', name: boardName }))
+function learnBoardName(name) {
+  if (typeof name !== 'string' || !name || boardName) return
+  boardName = name
+  pipe.write(JSON.stringify({ type: 'board-name', name: boardName }))
+}
+
+function opsDigest() {
+  if (!boardDigest) {
+    const hash = Buffer.alloc(32)
+    sodium.crypto_generichash(hash, Buffer.from([...boardOps.keys()].sort().join('\n')))
+    boardDigest = hash.toString('hex')
   }
-  for (const [identity, name] of Object.entries(payload?.profiles || {}))
-    profiles.set(identity, name)
+  return boardDigest
+}
+
+function deriveState() {
+  boardState = deriveBoard([...boardOps.values()], {
+    images: (list) => (Array.isArray(list) ? list.filter(isImageRef).slice(0, MAX_IMAGES) : [])
+  })
+  lastTs = Math.max(lastTs, boardState.maxTs)
+  boardDigest = null
+  // A display name set on another device arrives with the ops.
   const ownIdentity = identityState?.identity.identityPublicKey.toString('hex')
-  if (ownIdentity && profiles.has(ownIdentity)) {
-    pipe.write(
-      JSON.stringify({
-        type: 'profile-status',
-        identity: ownIdentity,
-        displayName: profiles.get(ownIdentity)
-      })
-    )
+  const displayName = ownIdentity ? boardState.profiles[ownIdentity] : null
+  if (displayName && displayName !== reportedDisplayName) {
+    reportedDisplayName = displayName
+    pipe.write(JSON.stringify({ type: 'profile-status', identity: ownIdentity, displayName }))
   }
-  return payload?.objects || null
+}
+
+// Adds a verified op; false for duplicates, unknown types and bad signatures.
+function ingest(message) {
+  if (typeof message?.id !== 'string' || boardOps.has(message.id)) return false
+  if (!OP_TYPES.includes(message.payload?.type) || !verifyBoardMessage(message)) return false
+  const { id, identity, proof, payload } = message
+  boardOps.set(id, { type: 'board:message', id, identity, proof, payload })
+  return true
 }
 
 async function loadBoard() {
-  board.clear()
-  profiles.clear()
-  operationIds.clear()
   if (!boardDb) return
   await boardDb.ready()
-  // The view is sorted by `op:<writer>:<length>`, not causal order, so a
-  // comment/vote from one writer can precede the create from another writer.
-  // Apply creates and profiles first, then the operations that reference them.
-  const dependent = []
+  const ops = new Map()
   for await (const entry of boardDb.view.createReadStream()) {
     try {
       const stored = JSON.parse(entry.value.toString())
@@ -312,17 +338,23 @@ async function loadBoard() {
         if (metadata?.boardName) boardName = metadata.boardName
       } else {
         const message = decryptBoardMessage(stored)
-        if (message?.id && !operationIds.has(message.id)) {
-          operationIds.add(message.id)
-          if (['vote', 'comment'].includes(message.payload?.type)) dependent.push(message)
-          else applyBoardMessage(message)
+        if (
+          typeof message?.id === 'string' &&
+          !ops.has(message.id) &&
+          OP_TYPES.includes(message.payload?.type) &&
+          verifyBoardMessage(message)
+        ) {
+          ops.set(message.id, message)
         }
       }
     } catch {
       console.error('Invalid persisted board operation')
     }
   }
-  for (const message of dependent) applyBoardMessage(message)
+  // Ops received live but not yet in the view stay, after the persisted ones.
+  for (const [id, message] of boardOps) if (!ops.has(id)) ops.set(id, message)
+  boardOps = ops
+  deriveState()
 }
 
 async function applyBoardNodes(nodes, view, host) {
@@ -430,8 +462,8 @@ function broadcast(message) {
   }
 }
 
-function broadcastBoardSnapshot() {
-  const data = JSON.stringify(encryptBoardSnapshot()) + '\n'
+function broadcastDigest() {
+  const data = JSON.stringify({ type: 'board:digest', hash: opsDigest() }) + '\n'
   for (const peer of chatConnections.values()) {
     if (peer.authenticated) peer.connection.write(data)
   }
@@ -443,9 +475,16 @@ function signedPayload(message) {
 
 function verifyBoardMessage(message) {
   try {
+    const signed = signedPayload(message)
+    const hash = Buffer.alloc(32)
+    sodium.crypto_generichash(hash, Buffer.concat([Buffer.from(message.identity), signed]))
+    const cached = verifiedOps.get(message.proof)
+    if (cached) return cached === hash.toString('hex')
     const proof = Buffer.from(message.proof, 'base64')
     const expectedIdentity = Buffer.from(message.identity, 'hex')
-    return !!Identity.verify(proof, signedPayload(message), { expectedIdentity })
+    if (!Identity.verify(proof, signed, { expectedIdentity })) return false
+    verifiedOps.set(message.proof, hash.toString('hex'))
+    return true
   } catch {
     return false
   }
@@ -501,72 +540,62 @@ async function storeImages(images) {
   return refs
 }
 
-function applyBoardMessage(message) {
-  if (!verifyBoardMessage(message)) return false
-  const payload = message.payload
-  if (payload.type === 'create') {
-    if (!board.has(payload.object.id)) {
-      const images = Array.isArray(payload.object.images)
-        ? payload.object.images.filter(isImageRef).slice(0, MAX_IMAGES)
-        : []
-      board.set(payload.object.id, { ...payload.object, images, author: message.identity })
-    }
-  } else if (payload.type === 'profile') {
-    if (!payload.displayName?.trim()) return false
-    profiles.set(message.identity, payload.displayName.trim())
-  } else if (payload.type === 'vote') {
-    const object = board.get(payload.objectId)
-    // 0 clears the voter's vote, so votes move the score one step at a time.
-    if (!object || ![1, -1, 0].includes(payload.value)) return false
-    if (payload.value === 0) delete object.votes[message.identity]
-    else object.votes[message.identity] = payload.value
-  } else if (payload.type === 'comment') {
-    const object = board.get(payload.objectId)
-    if (!object || !payload.text?.trim()) return false
-    object.comments ??= []
-    if (!object.comments.some((comment) => comment.id === payload.comment.id)) {
-      object.comments.push({ ...payload.comment, author: message.identity })
-    }
-  } else return false
-  return true
-}
-
-function mergeBoardObject(existing, incoming) {
-  if (!existing) return incoming
-
-  const comments = new Map((existing.comments || []).map((comment) => [comment.id, comment]))
-  for (const comment of incoming.comments || []) comments.set(comment.id, comment)
-
-  return {
-    ...existing,
-    ...incoming,
-    votes: { ...(existing.votes || {}), ...(incoming.votes || {}) },
-    comments: [...comments.values()]
-  }
-}
-
-function sendBoardMessage(message, local = false) {
-  if (message.id && operationIds.has(message.id)) return
-  if (!applyBoardMessage(message)) return
-  if (message.id) {
-    operationIds.add(message.id)
-    boardDb
-      .append(Buffer.from(JSON.stringify(encryptBoardMessage(message))), { optimistic: true })
-      .catch((err) => console.error('Board persistence failed', err))
-  }
+function sendBoardMessage(message) {
+  if (!ingest(message)) return
+  boardDb
+    .append(Buffer.from(JSON.stringify(encryptBoardMessage(message))), { optimistic: true })
+    .catch((err) => console.error('Board persistence failed', err))
   broadcast(message)
-  broadcastBoardSnapshot()
+  deriveState()
   sendBoardState()
-  const ownIdentity = identityState?.identity.identityPublicKey.toString('hex')
-  if (message.payload.type === 'profile' && message.identity === ownIdentity) {
-    pipe.write(
-      JSON.stringify({
-        type: 'profile-status',
-        identity: ownIdentity,
-        displayName: message.payload.displayName
-      })
-    )
+}
+
+function nextTs() {
+  lastTs = Math.max(Date.now(), lastTs + 1)
+  return lastTs
+}
+
+async function unlockedIdentity() {
+  if (!identityReady) throw new Error('Unlock your identity before editing the board')
+  await identityReady
+  return identityState.identity.identityPublicKey.toString('hex')
+}
+
+// Signs `payload` as the unlocked identity and applies it like a remote op.
+async function sendOwnOp(payload) {
+  const identity = await unlockedIdentity()
+  if (!boardDb) throw new Error('Open a board before editing it')
+  const message = {
+    type: 'board:message',
+    id: `${identity.slice(0, 12)}-${Date.now()}-${crypto.randomBytes(4).toString('hex')}-${payload.type}`,
+    identity,
+    payload: { ...payload, ts: nextTs() }
   }
+  message.proof = Identity.attestData(
+    signedPayload(message),
+    identityState.deviceKeyPair,
+    identityState.deviceProof
+  ).toString('base64')
+  sendBoardMessage(message)
+  return message
+}
+
+const newId = (prefix) => `${prefix}:${crypto.randomBytes(6).toString('hex')}`
+// Unique even for several cards or comments created in the same millisecond.
+const uniqueId = (identity) =>
+  `${identity.slice(0, 12)}-${Date.now()}-${crypto.randomBytes(3).toString('hex')}`
+
+const cardById = (id) => boardState.objects.find((object) => object.id === id)
+const columnById = (id) => boardState.columns.find((column) => column.id === id)
+
+function cardsIn(columnId, exceptId = null) {
+  return boardState.objects.filter(
+    (object) => object.columnId === columnId && object.id !== exceptId
+  )
+}
+
+function columnsExcept(columnId) {
+  return boardState.columns.filter((column) => column.id !== columnId)
 }
 
 function handleRoomMessage(peer, message) {
@@ -594,8 +623,7 @@ function handleRoomMessage(peer, message) {
       peer.authenticated = true
       pipe.write(JSON.stringify({ type: 'room-debug', status: 'authenticated' }))
       sendPeerCount()
-      writeConnection(peer.connection, encryptBoardSnapshot())
-      writeConnection(peer.connection, { type: 'board:request' })
+      writeConnection(peer.connection, encryptBoardOps())
     } else {
       pipe.write(JSON.stringify({ type: 'room-debug', status: 'authentication-failed' }))
       peer.connection.destroy()
@@ -603,14 +631,32 @@ function handleRoomMessage(peer, message) {
     return
   }
 
-  if (peer.authenticated && message.type === 'board:state') {
-    const objects = decryptBoardSnapshot(message) || []
-    for (const object of objects) board.set(object.id, mergeBoardObject(board.get(object.id), object))
-    sendBoardState()
+  if (peer.authenticated && message.type === 'board:ops') {
+    const payload = decryptBoardPayload(message.encrypted)
+    learnBoardName(payload?.boardName)
+    let changed = false
+    for (const op of Array.isArray(payload?.ops) ? payload.ops : []) changed = ingest(op) || changed
+    if (changed) {
+      deriveState()
+      sendBoardState()
+    }
     sendBoardSynced()
   }
+  // Peers announce a digest of their op ids; ask for the full set on a mismatch.
+  if (peer.authenticated && message.type === 'board:digest') {
+    if (message.hash !== opsDigest() && Date.now() - (peer.requestedAt || 0) > 3000) {
+      peer.requestedAt = Date.now()
+      writeConnection(peer.connection, { type: 'board:request' })
+    }
+  }
   if (peer.authenticated && message.type === 'board:request') {
-    writeConnection(peer.connection, encryptBoardSnapshot())
+    writeConnection(peer.connection, encryptBoardOps())
+  }
+  // Clients from before Kanban gossip unsigned object snapshots. Only the board
+  // name is taken from them; their posts arrive as signed ops.
+  if (peer.authenticated && message.type === 'board:state') {
+    learnBoardName(decryptBoardPayload(message.encrypted)?.boardName)
+    sendBoardSynced()
   }
   if (peer.authenticated && message.type === 'board:message') {
     const decrypted = decryptBoardMessage(message)
@@ -749,15 +795,15 @@ async function startRoom(invite, name) {
       status: 'ready',
       invite: roomState.invite,
       boardName,
-      displayName: ownIdentity ? profiles.get(ownIdentity) || null : null,
+      displayName: ownIdentity ? boardState.profiles[ownIdentity] || null : null,
       // A joiner is not a writer until it has synced with an existing member;
       // until then its writes only live in memory and are lost if it closes.
       writable: boardDb.writable
     })
   )
-  if (!invite || board.size > 0) sendBoardSynced()
+  if (!invite || boardOps.size > 0) sendBoardSynced()
   roomSyncTimer = setInterval(() => {
-    broadcastBoardSnapshot()
+    broadcastDigest()
     refreshBoard()
   }, 1000)
 }
@@ -788,9 +834,11 @@ async function closeRoom() {
   }
   boardStore = null
   boardUpdateInFlight = null
-  board.clear()
-  profiles.clear()
-  operationIds.clear()
+  boardOps = new Map()
+  boardState = deriveBoard([])
+  boardDigest = null
+  reportedDisplayName = null
+  verifiedOps.clear()
   boardName = ''
 }
 
@@ -815,8 +863,9 @@ pipe.on('data', async (data) => {
       pipe.write(JSON.stringify({ type: 'pong', time: new Date().toISOString() }))
     } else if (msg.type === messageTypes.roomStart) {
       try {
-        if (!identityReady || !identityState)
+        if (!identityReady || !identityState) {
           throw new Error('Unlock your identity before opening a board')
+        }
         await identityReady
         await startRoom(msg.invite, msg.name)
       } catch (err) {
@@ -859,57 +908,48 @@ pipe.on('data', async (data) => {
         sendIdentityStatus(err.message)
       }
     } else if (
-      msg.type === 'profile:set' &&
+      msg.type === messageTypes.profileSet &&
       typeof msg.displayName === 'string' &&
       msg.displayName.trim()
     ) {
-      if (!identityReady) throw new Error('Unlock your identity before setting a display name')
-      await identityReady
-      const identity = identityState.identity.identityPublicKey.toString('hex')
-      const message = {
-        type: 'board:message',
-        id: `${identity.slice(0, 12)}-${Date.now()}-profile`,
-        identity,
-        payload: { type: 'profile', displayName: msg.displayName.trim().slice(0, 48) }
+      const displayName = msg.displayName.trim().slice(0, 48)
+      const reported = reportedDisplayName
+      const { identity } = await sendOwnOp({ type: 'profile', displayName })
+      // Setting the same name again changes nothing, but the UI waits for a reply.
+      if (reportedDisplayName === reported) {
+        pipe.write(JSON.stringify({ type: 'profile-status', identity, displayName }))
       }
-      message.proof = Identity.attestData(
-        signedPayload(message),
-        identityState.deviceKeyPair,
-        identityState.deviceProof
-      ).toString('base64')
-      sendBoardMessage(message, true)
-    } else if (msg.type === 'board:create' && typeof msg.title === 'string' && msg.title.trim()) {
-      if (!identityReady) throw new Error('Unlock your identity before sending messages')
-      await identityReady
-      const identity = identityState.identity.identityPublicKey.toString('hex')
+    } else if (
+      msg.type === messageTypes.boardCreate &&
+      typeof msg.title === 'string' &&
+      msg.title.trim()
+    ) {
+      const identity = await unlockedIdentity()
       const images = boardBlobs ? await storeImages(msg.images) : []
-      const message = {
-        type: 'board:message',
-        id: `${identity.slice(0, 12)}-${Date.now()}-create`,
-        identity,
-        payload: {
-          type: 'create',
-          object: {
-            id: `${identity.slice(0, 12)}-${Date.now()}`,
-            title: msg.title.trim(),
-            body: typeof msg.body === 'string' ? msg.body.trim() : '',
-            author: identity,
-            createdAt: new Date().toISOString(),
-            images,
-            votes: {},
-            comments: []
-          }
+      const columnId = boardState.columns.some((column) => column.id === msg.columnId)
+        ? msg.columnId
+        : boardState.columns[0].id
+      await sendOwnOp({
+        type: 'create',
+        object: {
+          id: uniqueId(identity),
+          title: msg.title.trim().slice(0, LIMITS.title),
+          body: typeof msg.body === 'string' ? msg.body.trim() : '',
+          author: identity,
+          createdAt: new Date().toISOString(),
+          images,
+          votes: {},
+          comments: [],
+          columnId,
+          position: positionAt(cardsIn(columnId)),
+          labelIds: Array.isArray(msg.labelIds) ? msg.labelIds : [],
+          dueDate: msg.dueDate ?? null,
+          mentions: Array.isArray(msg.mentions) ? msg.mentions : []
         }
-      }
-      message.proof = Identity.attestData(
-        signedPayload(message),
-        identityState.deviceKeyPair,
-        identityState.deviceProof
-      ).toString('base64')
-      sendBoardMessage(message, true)
+      })
     } else if (msg.type === 'board:image') {
       // Only fetch images referenced by a post on the open board.
-      const ref = [...board.values()]
+      const ref = boardState.objects
         .flatMap((object) => object.images || [])
         .find((image) => isImageRef(msg.ref) && imageKey(image) === imageKey(msg.ref))
       if (!ref || !boardBlobs) return
@@ -932,36 +972,88 @@ pipe.on('data', async (data) => {
           })
         )
       }
-    } else if (['board:vote', 'board:comment'].includes(msg.type)) {
-      if (!identityReady) throw new Error('Unlock your identity before editing the board')
-      await identityReady
-      const identity = identityState.identity.identityPublicKey.toString('hex')
-      const payload =
-        msg.type === 'board:vote'
-          ? { type: 'vote', objectId: msg.objectId, value: msg.value }
-          : {
-              type: 'comment',
-              objectId: msg.objectId,
-              text: typeof msg.text === 'string' ? msg.text.trim() : '',
-              comment: {
-                id: `${identity.slice(0, 12)}-${Date.now()}`,
-                author: identity,
-                text: typeof msg.text === 'string' ? msg.text.trim() : '',
-                createdAt: new Date().toISOString()
-              }
-            }
-      const message = {
-        type: 'board:message',
-        id: `${identity.slice(0, 12)}-${Date.now()}-${payload.type}`,
-        identity,
-        payload
+    } else if (msg.type === messageTypes.boardVote) {
+      if (!cardById(msg.objectId) || ![1, -1, 0].includes(msg.value)) return
+      await sendOwnOp({ type: 'vote', objectId: msg.objectId, value: msg.value })
+    } else if (msg.type === messageTypes.boardComment) {
+      const text = typeof msg.text === 'string' ? msg.text.trim() : ''
+      if (!cardById(msg.objectId) || !text) return
+      const identity = await unlockedIdentity()
+      await sendOwnOp({
+        type: 'comment',
+        objectId: msg.objectId,
+        text,
+        comment: {
+          id: uniqueId(identity),
+          author: identity,
+          text,
+          createdAt: new Date().toISOString(),
+          mentions: Array.isArray(msg.mentions) ? msg.mentions : []
+        }
+      })
+    } else if (msg.type === messageTypes.cardUpdate) {
+      if (!cardById(msg.objectId)) return
+      const payload = { type: 'card:update', objectId: msg.objectId }
+      for (const field of ['title', 'body', 'dueDate', 'labelIds', 'mentions']) {
+        if (msg[field] !== undefined) payload[field] = msg[field]
       }
-      message.proof = Identity.attestData(
-        signedPayload(message),
-        identityState.deviceKeyPair,
-        identityState.deviceProof
-      ).toString('base64')
-      sendBoardMessage(message, true)
+      if (typeof payload.title === 'string') {
+        payload.title = payload.title.trim().slice(0, LIMITS.title)
+      }
+      await sendOwnOp(payload)
+    } else if (msg.type === messageTypes.cardMove) {
+      const card = cardById(msg.objectId)
+      if (!card || !columnById(msg.columnId)) return
+      await sendOwnOp({
+        type: 'card:move',
+        objectId: card.id,
+        columnId: msg.columnId,
+        position: positionAt(cardsIn(msg.columnId, card.id), msg.index)
+      })
+    } else if (msg.type === messageTypes.cardArchive) {
+      if (!cardById(msg.objectId) || typeof msg.archived !== 'boolean') return
+      await sendOwnOp({ type: 'card:archive', objectId: msg.objectId, archived: msg.archived })
+    } else if (msg.type === messageTypes.columnCreate) {
+      if (typeof msg.name !== 'string' || !msg.name.trim()) return
+      await sendOwnOp({
+        type: 'column:upsert',
+        columnId: newId('col'),
+        name: msg.name.trim().slice(0, LIMITS.columnName),
+        position: positionAt(boardState.columns, msg.index),
+        ...(msg.color !== undefined && { color: msg.color })
+      })
+    } else if (msg.type === messageTypes.columnUpdate) {
+      if (!columnById(msg.columnId)) return
+      await sendOwnOp({
+        type: 'column:upsert',
+        columnId: msg.columnId,
+        ...(typeof msg.name === 'string' && { name: msg.name.trim().slice(0, LIMITS.columnName) }),
+        ...(msg.color !== undefined && { color: msg.color }),
+        ...(msg.index !== undefined && {
+          position: positionAt(columnsExcept(msg.columnId), msg.index)
+        })
+      })
+    } else if (msg.type === messageTypes.columnDelete) {
+      // Keep at least one column; its cards move to the first remaining one.
+      if (!columnById(msg.columnId) || boardState.columns.length < 2) return
+      await sendOwnOp({ type: 'column:delete', columnId: msg.columnId })
+    } else if (msg.type === messageTypes.labelUpsert) {
+      const exists = boardState.labels.some((label) => label.id === msg.labelId)
+      await sendOwnOp({
+        type: 'label:upsert',
+        labelId: exists ? msg.labelId : newId('label'),
+        ...(typeof msg.name === 'string' && { name: msg.name.trim().slice(0, LIMITS.labelName) }),
+        ...(msg.color !== undefined && { color: msg.color })
+      })
+    } else if (msg.type === messageTypes.labelDelete) {
+      if (!boardState.labels.some((label) => label.id === msg.labelId)) return
+      await sendOwnOp({ type: 'label:delete', labelId: msg.labelId })
+    } else if (msg.type === messageTypes.themeSet) {
+      await sendOwnOp({
+        type: 'board:theme',
+        ...(msg.background !== undefined && { background: msg.background }),
+        ...(msg.accent !== undefined && { accent: msg.accent })
+      })
     }
   } catch {
     console.log(message)

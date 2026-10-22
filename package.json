@@ -29,6 +29,8 @@
     "test:recent-board-name": "node scripts/test-recent-board-name.mjs",
     "test:board-replication": "npm run test:autobee-replication",
     "test:autobee-replication": "node scripts/test-autobee-replication.mjs",
+    "test:kanban": "node scripts/test-kanban-convergence.mjs && node scripts/test-kanban-worker.mjs",
+    "test:kanban-peers": "node scripts/test-kanban-peers.mjs",
     "relay": "node scripts/board-relay.mjs",
     "start": "electron-forge start -- --no-updates",
     "package": "electron-forge package",
