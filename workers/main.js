@@ -1038,10 +1038,11 @@ pipe.on('data', async (data) => {
       if (!columnById(msg.columnId) || boardState.columns.length < 2) return
       await sendOwnOp({ type: 'column:delete', columnId: msg.columnId })
     } else if (msg.type === messageTypes.labelUpsert) {
-      const exists = boardState.labels.some((label) => label.id === msg.labelId)
+      // A client may pick the id of a new label, so it can assign it right away.
+      const valid = typeof msg.labelId === 'string' && /^label:[0-9a-f]{12}$/.test(msg.labelId)
       await sendOwnOp({
         type: 'label:upsert',
-        labelId: exists ? msg.labelId : newId('label'),
+        labelId: valid ? msg.labelId : newId('label'),
         ...(typeof msg.name === 'string' && { name: msg.name.trim().slice(0, LIMITS.labelName) }),
         ...(msg.color !== undefined && { color: msg.color })
       })

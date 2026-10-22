@@ -1,6 +1,6 @@
 # Plan: Kanban board (Trello-style)
 
-Status: **phases 1–3 done; phase 4 (due dates, labels, filters) next**. Nothing here is implemented yet.
+Status: **phases 1–4 done; phase 5 (theme) next**. Nothing here is implemented yet.
 
 ## Goal
 
@@ -237,3 +237,14 @@ Phases 2 to 5 can be reordered; phase 1 has to come first.
   inbox and marking as read all worked. XSS payloads (`<img onerror>`, `<script>`,
   `javascript:` / `data:` links) render inert, in dev and in a packaged copy
   outside the repo.
+
+## Phase 4 notes
+
+- Card dialog: labels (Trello's 10-color palette; create, rename, recolor, delete
+  with confirmation; a label created from a card is put on it) and a due date
+  with optional time. Date-only due dates are due at the end of that day.
+- Card face: label chips, due badge (amber within 24 h, red when overdue).
+- Filter panel: labels (any of), mentioned member, due (overdue / next 7 days /
+  none). Filters are local to the device and reset when you switch boards.
+- Worker: `board:label-upsert` accepts a client-chosen `label:<12 hex>` id.
+- Not done: "sort column by due date" (it would write one move op per card).

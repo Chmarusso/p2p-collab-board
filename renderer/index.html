@@ -795,6 +795,137 @@
         padding: 0 5px;
         font-weight: 700;
       }
+      .label-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .label-list:empty {
+        display: none;
+      }
+      .label-chip {
+        display: inline-flex;
+        align-items: center;
+        min-height: 20px;
+        padding: 1px 8px;
+        border-radius: 4px;
+        background: var(--label-color, #8590a2);
+        color: #0b0f14;
+        font-size: 12px;
+        font-weight: 700;
+      }
+      .kanban-card .label-list .label-chip {
+        min-height: 8px;
+        min-width: 36px;
+        padding: 0 6px;
+        font-size: 11px;
+      }
+      .label-editor {
+        display: grid;
+        gap: 6px;
+        padding: 10px;
+        background: var(--surface-raised);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+      }
+      .label-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .label-row .label-chip {
+        flex: 1;
+        min-height: 30px;
+        cursor: pointer;
+      }
+      .label-row .check {
+        width: 18px;
+        text-align: center;
+        font-weight: 700;
+      }
+      .label-row button.ghost {
+        padding: 4px;
+      }
+      .label-form {
+        display: grid;
+        gap: 8px;
+        padding-top: 8px;
+        border-top: 1px solid var(--border);
+      }
+      .swatches {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .swatch {
+        width: 28px;
+        height: 22px;
+        padding: 0;
+        border-radius: 4px;
+        border: 2px solid transparent;
+        background: var(--label-color);
+      }
+      .swatch[aria-pressed='true'] {
+        border-color: var(--text);
+      }
+      .card-detail-props {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        align-items: start;
+        gap: 16px;
+      }
+      .card-detail-props .stack {
+        align-content: start;
+      }
+      @media (max-width: 600px) {
+        .card-detail-props {
+          grid-template-columns: 1fr;
+        }
+      }
+      #card-due-date,
+      #card-due-time {
+        width: auto;
+        padding: 7px 8px;
+      }
+      .due-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 1px 6px;
+        border-radius: 4px;
+        font-family: var(--mono);
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .due-badge.soon {
+        background: rgba(245, 205, 71, 0.16);
+        color: #f5cd47;
+      }
+      .due-badge.overdue {
+        background: rgba(248, 113, 104, 0.18);
+        color: #f87168;
+      }
+      .filter-group {
+        display: grid;
+        grid-template-columns: 110px 1fr;
+        align-items: center;
+        gap: 10px;
+      }
+      #filter-panel {
+        margin-bottom: 14px;
+      }
+      #filter-labels .label-chip {
+        border: 2px solid transparent;
+        cursor: pointer;
+        opacity: 0.55;
+      }
+      #filter-labels .label-chip[aria-pressed='true'] {
+        border-color: var(--text);
+        opacity: 1;
+      }
+      #filter-toggle.active {
+        color: var(--accent);
+      }
       .comments:empty {
         display: none;
       }
@@ -1105,8 +1236,32 @@
         <div class="new-object-bar">
           <span class="section-label">Board</span>
           <div class="row">
+            <button id="filter-toggle" class="ghost" aria-expanded="false">Filter</button>
             <button id="archived-toggle" class="ghost" aria-pressed="false">Show archived</button>
             <button id="new-object-toggle" data-icon="plus" aria-expanded="false">New card</button>
+          </div>
+        </div>
+        <div id="filter-panel" class="card stack" hidden>
+          <div class="filter-group">
+            <span class="section-label">Labels</span>
+            <div id="filter-labels" class="row"></div>
+          </div>
+          <div class="filter-group">
+            <span class="section-label">Mentioned</span>
+            <select id="filter-member" aria-label="Mentioned member"></select>
+          </div>
+          <div class="filter-group">
+            <span class="section-label">Due</span>
+            <select id="filter-due" aria-label="Due date">
+              <option value="">Any time</option>
+              <option value="overdue">Overdue</option>
+              <option value="week">Due in the next 7 days</option>
+              <option value="none">No due date</option>
+            </select>
+          </div>
+          <div class="row">
+            <span id="filter-summary" class="muted"></span>
+            <button id="filter-clear" type="button" class="ghost">Clear filters</button>
           </div>
         </div>
         <form id="new-object-form" class="card stack">
@@ -1179,6 +1334,27 @@
             <select id="card-column" aria-label="Column"></select
           ></label>
           <span id="card-archived-badge" class="badge" hidden>Archived</span>
+        </div>
+        <div class="card-detail-props">
+          <section class="stack">
+            <h3 class="section-label">Labels</h3>
+            <div class="row">
+              <div id="card-labels" class="label-list"></div>
+              <button id="card-labels-edit" type="button" class="ghost" aria-expanded="false">
+                Edit labels
+              </button>
+            </div>
+            <div id="label-editor" class="label-editor" hidden></div>
+          </section>
+          <section class="stack">
+            <h3 class="section-label">Due date</h3>
+            <div class="row">
+              <input id="card-due-date" type="date" aria-label="Due date" />
+              <input id="card-due-time" type="time" aria-label="Due time (optional)" />
+              <button id="card-due-clear" type="button" class="ghost">Clear</button>
+              <span id="card-due-status" class="due-badge" hidden></span>
+            </div>
+          </section>
         </div>
         <section class="stack">
           <div class="row card-detail-bar">

@@ -32,6 +32,7 @@ let networkStatus = 'waiting'
 let peerCount = 0
 let objects = []
 let columns = []
+let labels = []
 let profiles = {}
 let boardSynced = false
 let roomEntered = false
@@ -48,6 +49,12 @@ let renamingColumn = null
 let dragging = null
 let renderDeferred = false
 let editingBody = false
+// Label being created or edited in the card dialog: { id, name, color }.
+let labelForm = null
+const filters = { labels: new Set(), member: '', due: '' }
+// Trello's label palette.
+const LABEL_COLORS = ['#4bce97', '#f5cd47', '#fea362', '#f87168', '#9f8fef']
+LABEL_COLORS.push('#579dff', '#6cc3e0', '#94c748', '#e774bb', '#8590a2')
 // Mentions: what this device has read is kept locally, per identity and board.
 const notifiedMentions = new Set()
 let mentionsPrimed = false
@@ -75,6 +82,8 @@ const icons = {
     '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/>',
   message: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
   text: '<path d="M4 6h16M4 12h16M4 18h10"/>',
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
   users:
     '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>'
 }
@@ -151,6 +160,10 @@ function resetBoardUi() {
   renamingColumn = null
   notifiedMentions.clear()
   mentionsPrimed = false
+  filters.labels.clear()
+  filters.member = ''
+  filters.due = ''
+  document.getElementById('filter-panel').hidden = true
   closeCard()
   closeMentions()
   closeNewObject()
@@ -372,7 +385,64 @@ const cardById = (id) => objects.find((object) => object.id === id)
 // The worker sends cards sorted by column, then position.
 const cardsIn = (columnId) => objects.filter((object) => object.columnId === columnId)
 const visibleCards = (columnId) =>
-  cardsIn(columnId).filter((object) => showArchived || !object.archived)
+  cardsIn(columnId).filter((object) => (showArchived || !object.archived) && matchesFilters(object))
+
+// Date-only due dates are due at the end of that day, local time.
+function dueInfo(dueDate) {
+  if (!dueDate) return null
+  const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(dueDate)
+  const [year, month, day] = dueDate.split('-').map(Number)
+  const deadline = dateOnly ? new Date(year, month - 1, day, 23, 59, 59) : new Date(dueDate)
+  if (Number.isNaN(deadline.getTime())) return null
+  const left = deadline - Date.now()
+  const text = deadline.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+  return {
+    deadline,
+    dateOnly,
+    status: left < 0 ? 'overdue' : left < 24 * 3600 * 1000 ? 'soon' : '',
+    text: dateOnly
+      ? text
+      : `${text}, ${deadline.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}`
+  }
+}
+
+function dueBadge(object) {
+  const due = dueInfo(object.dueDate)
+  if (!due) return ''
+  const label = { overdue: 'Overdue', soon: 'Due soon' }[due.status] || 'Due'
+  return `<span class="due-badge ${due.status}" title="${label}: ${escape(due.deadline.toLocaleString())}">${icon('clock')}${escape(due.text)}</span>`
+}
+
+function labelChips(labelIds) {
+  return (labelIds || [])
+    .map((id) => labels.find((label) => label.id === id))
+    .filter(Boolean)
+    .map(
+      (label) =>
+        `<span class="label-chip" style="--label-color: ${label.color || '#8590a2'}" title="${escape(label.name)}">${escape(label.name)}</span>`
+    )
+    .join('')
+}
+
+const mentionsMember = (object, identity) =>
+  object.mentions?.includes(identity) ||
+  object.comments?.some((comment) => comment.mentions?.includes(identity))
+
+function matchesFilters(object) {
+  if (filters.labels.size && !object.labelIds?.some((id) => filters.labels.has(id))) return false
+  if (filters.member && !mentionsMember(object, filters.member)) return false
+  if (filters.due) {
+    const due = dueInfo(object.dueDate)
+    if (filters.due === 'none') return !due
+    if (!due) return false
+    if (filters.due === 'overdue') return due.status === 'overdue'
+    const left = due.deadline - Date.now()
+    if (filters.due === 'week') return left >= 0 && left <= 7 * 24 * 3600 * 1000
+  }
+  return true
+}
+
+const filterCount = () => filters.labels.size + (filters.member ? 1 : 0) + (filters.due ? 1 : 0)
 
 // The worker places a card by index among all cards of the column, archived
 // ones included; the UI counts only the cards it shows.
@@ -407,8 +477,10 @@ function renderCard(object) {
   const score = scoreOf(object)
   const comments = object.comments?.length || 0
   const images = object.images?.length || 0
-  card.innerHTML = `<div class="kanban-card-title">${escape(object.title)}</div>
+  const chips = labelChips(object.labelIds)
+  card.innerHTML = `${chips ? `<div class="label-list">${chips}</div>` : ''}<div class="kanban-card-title">${escape(object.title)}</div>
     <div class="kanban-card-meta">${[
+      dueBadge(object),
       Object.keys(object.votes || {}).length
         ? `<span title="Score">${icon(score < 0 ? 'down' : 'up')}${score}</span>`
         : '',
@@ -741,8 +813,74 @@ function renderBoard() {
   archivedToggle.textContent = `${showArchived ? 'Hide' : 'Show'} archived (${archived})`
   archivedToggle.setAttribute('aria-pressed', String(showArchived))
   renderColumnOptions(document.getElementById('object-column'))
+  renderFilters()
   refreshCard()
   updateMentions()
+}
+
+function renderFilters() {
+  // Labels deleted by someone else drop out of the filter.
+  for (const id of filters.labels) {
+    if (!labels.some((label) => label.id === id)) filters.labels.delete(id)
+  }
+  const toggle = document.getElementById('filter-toggle')
+  const count = filterCount()
+  toggle.textContent = count ? `Filter (${count})` : 'Filter'
+  toggle.classList.toggle('active', count > 0)
+  const labelBox = document.getElementById('filter-labels')
+  labelBox.innerHTML = labels.length
+    ? labels
+        .map(
+          (label) =>
+            `<button type="button" class="label-chip" style="--label-color: ${label.color || '#8590a2'}" data-label-id="${escape(label.id)}" aria-pressed="${filters.labels.has(label.id)}">${escape(label.name || ' ')}</button>`
+        )
+        .join('')
+    : '<span class="muted">No labels yet</span>'
+  for (const chip of labelBox.querySelectorAll('[data-label-id]')) {
+    chip.onclick = () => {
+      const id = chip.dataset.labelId
+      if (filters.labels.has(id)) filters.labels.delete(id)
+      else filters.labels.add(id)
+      renderBoard()
+    }
+  }
+  const member = document.getElementById('filter-member')
+  if (document.activeElement !== member) {
+    member.innerHTML = `<option value="">Anyone</option>${Object.entries(profiles)
+      .map(
+        ([identity, name]) =>
+          `<option value="${escape(identity)}">${escape(identity === currentIdentity ? `${name} (you)` : name)}</option>`
+      )
+      .join('')}`
+    member.value = filters.member
+  }
+  document.getElementById('filter-due').value = filters.due
+  const shown = objects.filter((o) => (showArchived || !o.archived) && matchesFilters(o)).length
+  const total = objects.filter((o) => showArchived || !o.archived).length
+  document.getElementById('filter-summary').textContent = count
+    ? `Showing ${shown} of ${total} cards`
+    : ''
+  document.getElementById('filter-clear').hidden = !count
+}
+
+document.getElementById('filter-toggle').onclick = () => {
+  const panel = document.getElementById('filter-panel')
+  panel.hidden = !panel.hidden
+  document.getElementById('filter-toggle').setAttribute('aria-expanded', String(!panel.hidden))
+}
+document.getElementById('filter-member').onchange = (event) => {
+  filters.member = event.target.value
+  renderBoard()
+}
+document.getElementById('filter-due').onchange = (event) => {
+  filters.due = event.target.value
+  renderBoard()
+}
+document.getElementById('filter-clear').onclick = () => {
+  filters.labels.clear()
+  filters.member = ''
+  filters.due = ''
+  renderBoard()
 }
 
 boardObjects.ondragover = (event) => {
@@ -782,6 +920,9 @@ function openCard(id) {
   openCardId = id
   cardTitle.value = object.title
   setEditingBody(false)
+  labelForm = null
+  document.getElementById('label-editor').hidden = true
+  document.getElementById('card-labels-edit').setAttribute('aria-expanded', 'false')
   document.getElementById('card-comment').value = ''
   const images = document.getElementById('card-images')
   images.innerHTML = ''
@@ -817,6 +958,9 @@ function refreshCard() {
     `${identityHtml(object.author)}<span class="time">${escape(relativeTime(object.createdAt))}</span>`
   renderColumnOptions(cardColumn, object.columnId)
   document.getElementById('card-archived-badge').hidden = !object.archived
+  document.getElementById('card-labels').innerHTML = labelChips(object.labelIds)
+  if (!document.getElementById('label-editor').hidden) renderLabelEditor()
+  refreshDue(object)
   document.getElementById('card-archive').textContent = object.archived ? 'Restore' : 'Archive'
 
   const ownVote = object.votes?.[currentIdentity] || 0
@@ -835,6 +979,145 @@ function refreshCard() {
   )
   for (const comment of comments) list.appendChild(renderComment(comment))
   markMentionsRead((item) => item.cardId === object.id)
+}
+
+function refreshDue(object) {
+  const dateInput = document.getElementById('card-due-date')
+  const timeInput = document.getElementById('card-due-time')
+  const due = dueInfo(object.dueDate)
+  if (document.activeElement !== dateInput && document.activeElement !== timeInput) {
+    if (!due) {
+      dateInput.value = ''
+      timeInput.value = ''
+    } else if (due.dateOnly) {
+      dateInput.value = object.dueDate
+      timeInput.value = ''
+    } else {
+      const pad = (n) => String(n).padStart(2, '0')
+      const d = due.deadline
+      dateInput.value = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+      timeInput.value = `${pad(d.getHours())}:${pad(d.getMinutes())}`
+    }
+  }
+  const status = document.getElementById('card-due-status')
+  status.hidden = !due?.status
+  status.className = `due-badge ${due?.status || ''}`
+  status.textContent = due?.status === 'overdue' ? 'Overdue' : 'Due soon'
+  document.getElementById('card-due-clear').hidden = !due
+}
+
+function saveDue() {
+  const object = cardById(openCardId)
+  const date = document.getElementById('card-due-date').value
+  const time = document.getElementById('card-due-time').value
+  if (!object || !date) return
+  const dueDate = time ? new Date(`${date}T${time}`).toISOString() : date
+  if (dueDate !== object.dueDate) send({ type: 'board:card-update', objectId: object.id, dueDate })
+}
+
+function toggleCardLabel(labelId) {
+  const object = cardById(openCardId)
+  if (!object) return
+  const current = object.labelIds || []
+  const labelIds = current.includes(labelId)
+    ? current.filter((id) => id !== labelId)
+    : [...current, labelId]
+  send({ type: 'board:card-update', objectId: object.id, labelIds })
+}
+
+function renderLabelEditor() {
+  const editor = document.getElementById('label-editor')
+  const object = cardById(openCardId)
+  const focusKey = document.activeElement?.dataset?.focusKey
+  editor.innerHTML = ''
+  for (const label of labels) {
+    const row = document.createElement('div')
+    row.className = 'label-row'
+    const on = object?.labelIds?.includes(label.id)
+    row.innerHTML = `<span class="check" aria-hidden="true">${on ? '✓' : ''}</span>
+      <button type="button" class="label-chip" style="--label-color: ${label.color || '#8590a2'}" aria-pressed="${!!on}">${escape(label.name || ' ')}</button>
+      <button type="button" class="ghost" aria-label="Edit label ${escape(label.name)}">${icon('edit')}</button>`
+    const [chip, edit] = row.querySelectorAll('button')
+    chip.onclick = () => toggleCardLabel(label.id)
+    edit.onclick = () => {
+      labelForm = { id: label.id, name: label.name, color: label.color || LABEL_COLORS[0] }
+      renderLabelEditor()
+      editor.querySelector('[data-focus-key="label-name"]')?.focus()
+    }
+    editor.append(row)
+  }
+  if (!labelForm) {
+    const create = document.createElement('button')
+    create.type = 'button'
+    create.className = 'secondary'
+    withIcon(create, 'plus', 'Create a label')
+    create.onclick = () => {
+      labelForm = { id: null, name: '', color: LABEL_COLORS[labels.length % LABEL_COLORS.length] }
+      renderLabelEditor()
+      editor.querySelector('[data-focus-key="label-name"]')?.focus()
+    }
+    editor.append(create)
+    return
+  }
+  const form = document.createElement('form')
+  form.className = 'label-form'
+  form.innerHTML = `<input placeholder="Label name" maxlength="40" aria-label="Label name" data-focus-key="label-name" />
+    <div class="swatches" role="group" aria-label="Label color">${LABEL_COLORS.map(
+      (color) =>
+        `<button type="button" class="swatch" style="--label-color: ${color}" data-color="${color}" aria-label="Color ${color}" aria-pressed="${color === labelForm.color}"></button>`
+    ).join('')}</div>
+    <div class="row"><button>${labelForm.id ? 'Save' : 'Create'}</button><button type="button" class="ghost" data-action="cancel">Cancel</button>${
+      labelForm.id
+        ? '<button type="button" class="ghost" data-action="delete">Delete label</button>'
+        : ''
+    }</div>`
+  const name = form.querySelector('input')
+  name.value = labelForm.name
+  name.oninput = () => (labelForm.name = name.value)
+  for (const swatch of form.querySelectorAll('.swatch')) {
+    swatch.onclick = () => {
+      labelForm.color = swatch.dataset.color
+      renderLabelEditor()
+    }
+  }
+  form.onsubmit = (event) => {
+    event.preventDefault()
+    const { id, color } = labelForm
+    const labelId =
+      id ||
+      `label:${[...crypto.getRandomValues(new Uint8Array(6))].map((b) => b.toString(16).padStart(2, '0')).join('')}`
+    send({ type: 'board:label-upsert', labelId, name: labelForm.name.trim(), color })
+    // A label created from a card goes on that card.
+    if (!id && object) {
+      send({
+        type: 'board:card-update',
+        objectId: object.id,
+        labelIds: [...(object.labelIds || []), labelId]
+      })
+    }
+    labelForm = null
+    renderLabelEditor()
+  }
+  form.querySelector('[data-action="cancel"]').onclick = () => {
+    labelForm = null
+    renderLabelEditor()
+  }
+  const remove = form.querySelector('[data-action="delete"]')
+  if (remove) {
+    remove.onclick = () => {
+      if (remove.dataset.confirm) {
+        send({ type: 'board:label-delete', labelId: labelForm.id })
+        labelForm = null
+        renderLabelEditor()
+        return
+      }
+      remove.dataset.confirm = 'yes'
+      remove.className = 'danger'
+      remove.textContent = 'Remove from all cards?'
+    }
+  }
+  editor.append(form)
+  if (focusKey === 'label-name') name.focus()
 }
 
 function setEditingBody(editing) {
@@ -892,6 +1175,18 @@ document.getElementById('card-body-cancel').onclick = () => {
   refreshCard()
 }
 document.getElementById('card-body-edit').onclick = () => setEditingBody(true)
+document.getElementById('card-labels-edit').onclick = () => {
+  const editor = document.getElementById('label-editor')
+  editor.hidden = !editor.hidden
+  document.getElementById('card-labels-edit').setAttribute('aria-expanded', String(!editor.hidden))
+  labelForm = null
+  if (!editor.hidden) renderLabelEditor()
+}
+document.getElementById('card-due-date').onchange = saveDue
+document.getElementById('card-due-time').onchange = saveDue
+document.getElementById('card-due-clear').onclick = () => {
+  if (openCardId) send({ type: 'board:card-update', objectId: openCardId, dueDate: null })
+}
 document.getElementById('card-body-view').onclick = (event) => {
   // Links open in the browser; anywhere else starts editing.
   if (!event.target.closest('a')) setEditingBody(true)
@@ -1116,6 +1411,7 @@ bridge.onWorkerIPC(workers.main, (data) => {
     profiles = message.profiles || {}
     objects = message.objects || []
     columns = message.columns || []
+    labels = message.labels || []
     renderBoard()
   }
   if (message.type === 'board-name') {
