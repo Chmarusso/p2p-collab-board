@@ -202,8 +202,9 @@ goodbye(async () => {
   await chatSwarm.destroy()
   await replicationSwarm.destroy()
   await swarm.destroy()
+  await Promise.allSettled([...pendingAppends])
   if (boardDb) await boardDb.close()
-  else if (boardStore) await boardStore.close()
+  if (boardStore) await boardStore.close()
   await pear.close()
   await store.close()
 })
@@ -548,11 +549,17 @@ async function storeImages(images) {
   return refs
 }
 
+// Appends still being written; closing the board waits for them, or an edit
+// made just before switching boards would be lost.
+const pendingAppends = new Set()
+
 function sendBoardMessage(message) {
   if (!ingest(message)) return
-  boardDb
+  const append = boardDb
     .append(Buffer.from(JSON.stringify(encryptBoardMessage(message))), { optimistic: true })
     .catch((err) => console.error('Board persistence failed', err))
+  pendingAppends.add(append)
+  append.finally(() => pendingAppends.delete(append))
   broadcast(message)
   deriveState()
   sendBoardState()
@@ -609,6 +616,52 @@ function columnsExcept(columnId) {
   return boardState.columns.filter((column) => column.id !== columnId)
 }
 
+// Every board gets its own namespace ("space") in one long-lived board store.
+// Boards opened before spaces existed all share the root namespace: one Autobee
+// with the same local writer, so boards created on one device even shared a key.
+// Those keep working as they are ("legacy"); new boards are separate.
+const spacesFile = path.join(updaterConfig.dir, 'board-spaces.json')
+let spaces = null
+
+async function readSpaces() {
+  if (spaces) return spaces
+  try {
+    spaces = JSON.parse(await fs.promises.readFile(spacesFile, 'utf8'))
+  } catch {
+    spaces = {}
+  }
+  return spaces
+}
+
+async function rememberSpace(key, id) {
+  const known = await readSpaces()
+  if (known[key] === id) return
+  known[key] = id
+  await fs.promises.mkdir(updaterConfig.dir, { recursive: true })
+  await fs.promises.writeFile(spacesFile, JSON.stringify(known))
+}
+
+// The store session to open a board in. `key` null means a new board.
+async function boardSpace(key) {
+  boardStore ??= new Corestore(path.join(updaterConfig.dir, 'board-store'))
+  if (!key) {
+    const id = crypto.randomBytes(16).toString('hex')
+    return { id, store: boardStore.namespace(id) }
+  }
+  const hex = key.toString('hex')
+  let id = (await readSpaces())[hex]
+  if (!id) {
+    // First open since spaces: a board whose log is already stored here was
+    // opened before, in the root namespace. Anything else is a new join.
+    const core = boardStore.get({ key, active: false })
+    await core.ready()
+    id = core.length > 0 ? 'legacy' : hex
+    await core.close()
+    await rememberSpace(hex, id)
+  }
+  return { id, store: id === 'legacy' ? boardStore.session() : boardStore.namespace(id) }
+}
+
 // Notifications across boards. The UI passes the boards this identity joined;
 // the open one's alerts follow its ops live, the others are checked in the
 // background: opened read-only in a separate store, synced for a short
@@ -622,6 +675,7 @@ let peekStore = null
 let peekTimer = null
 let peeking = false
 let openAlertsTimer = null
+let activePeek = null
 
 peekSwarm.on('connection', (connection) => {
   if (!peekStore) return connection.destroy()
@@ -661,20 +715,29 @@ function updateOpenBoardAlerts() {
 }
 
 async function peekBoard(key, board) {
-  peekStore ??= new Corestore(path.join(updaterConfig.dir, 'peek-store'))
-  const db = new Autobee(peekStore.namespace(key), board.key, {
+  // Boards in their own space are read from this device's store, and synced
+  // with anyone online meanwhile. Legacy boards share the root namespace with
+  // whatever is open, so they are synced into a separate read-only store.
+  const space = await boardSpace(board.key)
+  const legacy = space.id === 'legacy'
+  if (legacy) {
+    await space.store.close()
+    peekStore ??= new Corestore(path.join(updaterConfig.dir, 'peek-store'))
+  }
+  const swarm = legacy ? peekSwarm : replicationSwarm
+  const db = new Autobee(legacy ? peekStore.namespace(key) : space.store, board.key, {
     apply: applyBoardNodes,
     optimistic: true
   })
   let discovery = null
   try {
     await db.ready()
-    discovery = peekSwarm.join(db.discoveryKey, { client: true, server: true })
+    discovery = swarm.join(db.discoveryKey, { client: true, server: true })
     const started = Date.now()
     while (Date.now() - started < PEEK_WINDOW) {
-      await new Promise((resolve) => setTimeout(resolve, 1500))
-      if (!peekSwarm.connections.size && Date.now() - started > PEEK_NO_PEERS) break
       await db.update().catch(() => {})
+      await new Promise((resolve) => setTimeout(resolve, 1500))
+      if (!swarm.connections.size && Date.now() - started > PEEK_NO_PEERS) break
     }
     const ops = new Map()
     let name = ''
@@ -712,11 +775,12 @@ async function peekAll() {
   try {
     for (const [key, board] of [...watched]) {
       if (boardDb?.key.toString('hex') === key || !watched.has(key)) continue
-      try {
-        await peekBoard(key, board)
-      } catch (error) {
+      const done = peekBoard(key, board).catch((error) =>
         console.error('Board check failed', error)
-      }
+      )
+      activePeek = { key, done }
+      await done
+      activePeek = null
       sendAlerts()
     }
   } finally {
@@ -865,9 +929,12 @@ chatSwarm.on('error', (error) => {
 replicationSwarm.on('connection', (connection) => {
   // Corestore replication carries only the encrypted board log. The relay or
   // peer does not receive plaintext board objects through this connection.
-  if (!boardDb) return connection.destroy()
-  boardDb.replicate(connection)
-  refreshBoard()
+  // It serves every board in the store, so background checks use it too.
+  if (!boardStore) return connection.destroy()
+  if (boardDb) {
+    boardDb.replicate(connection)
+    refreshBoard()
+  } else boardStore.replicate(connection)
   replicationPeerCount++
   sendPeerCount()
   let closed = false
@@ -899,14 +966,19 @@ async function startRoom(invite, name) {
     )
   }
   if (boardDb) await closeRoom()
+  // A background check may have this board open; let it finish first.
+  if (activePeek && decoded.key && activePeek.key === decoded.key.toString('hex')) {
+    await activePeek.done
+  }
   boardName = typeof name === 'string' ? name.trim().slice(0, LIMITS.boardName) : ''
-  boardStore = new Corestore(path.join(updaterConfig.dir, 'board-store'))
-  boardDb = new Autobee(boardStore, decoded.key, {
+  const space = await boardSpace(decoded.key)
+  boardDb = new Autobee(space.store, decoded.key, {
     apply: applyBoardNodes,
     optimistic: true,
     update: onBoardUpdate
   })
   await boardDb.ready()
+  if (!decoded.key) await rememberSpace(boardDb.key.toString('hex'), space.id)
   roomState = {
     secret,
     topic: boardDb.discoveryKey,
@@ -986,10 +1058,10 @@ async function closeRoom() {
   blobsCore = null
   boardBlobs = null
   if (boardDb) {
+    await Promise.allSettled([...pendingAppends])
     await boardDb.close()
     boardDb = null
   }
-  boardStore = null
   boardUpdateInFlight = null
   boardOps = new Map()
   boardState = deriveBoard([])
@@ -997,6 +1069,16 @@ async function closeRoom() {
   reportedDisplayName = null
   verifiedOps.clear()
   boardName = ''
+}
+
+// Opening and leaving boards run one at a time: messages are handled
+// concurrently, and a slow leave must not report "none" after the next board
+// already opened.
+let roomQueue = Promise.resolve()
+function inRoomQueue(task) {
+  const run = roomQueue.then(task)
+  roomQueue = run.catch(() => {})
+  return run
 }
 
 async function leaveRoom() {
@@ -1024,13 +1106,13 @@ pipe.on('data', async (data) => {
           throw new Error('Unlock your identity before opening a board')
         }
         await identityReady
-        await startRoom(msg.invite, msg.name)
+        await inRoomQueue(() => startRoom(msg.invite, msg.name))
       } catch (err) {
         pipe.write(JSON.stringify({ type: 'room-status', status: 'error', error: err.message }))
       }
     } else if (msg.type === messageTypes.roomLeave) {
       try {
-        await leaveRoom()
+        await inRoomQueue(leaveRoom)
       } catch (err) {
         pipe.write(JSON.stringify({ type: 'room-status', status: 'error', error: err.message }))
       }

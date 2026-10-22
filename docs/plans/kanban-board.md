@@ -290,3 +290,12 @@ Phases 2 to 5 can be reordered; phase 1 has to come first.
   all survive (12 per card). Markdown `![alt](image:<key>)` shows only the card's
   own encrypted attachments; remote images stay blocked. The first image is the
   card's cover on the board.
+- Notifications across boards: a bell in the header with alerts from every
+  joined board (mentions, due soon / overdue, others' comments, moves and edits
+  on my cards, new cards; last 14 days). The open board updates live; the others
+  are checked in the background every 3 minutes. Clicking an alert switches board
+  and opens the card. Rules in `board-protocol/alerts.js`.
+- Fixed on the way: boards created on one device shared one Autobee (same key);
+  new boards now get their own namespace (`board-spaces.json`), legacy boards keep
+  working. Leaving a board right after an edit no longer drops the edit, and
+  opening/leaving boards no longer race. `npm run test:board-spaces` covers these.

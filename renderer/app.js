@@ -1807,6 +1807,8 @@ bridge.onWorkerIPC(workers.main, (data) => {
       updateIdentityMenu()
       currentInvite = message.invite || ''
       currentBoardKey = message.boardKey || ''
+      // The worker sends the board's cards just before "ready".
+      openPendingCard()
       if (message.boardName) {
         setBoardName(message.boardName)
         rememberBoard({ invite: message.invite, name: message.boardName })
@@ -1864,12 +1866,7 @@ bridge.onWorkerIPC(workers.main, (data) => {
     if (arrived.length > 3) for (const object of arrived) seenObjects.add(object.id)
     applyTheme()
     renderBoard({ animate: true })
-    // A notification from another board asked for this card once it loads.
-    if (pendingOpenCard?.boardKey === currentBoardKey && cardById(pendingOpenCard.cardId)) {
-      const { cardId } = pendingOpenCard
-      pendingOpenCard = null
-      if (boardView.style.display === 'block') openCard(cardId)
-    }
+    openPendingCard()
   }
   if (message.type === 'board-name') {
     setBoardName(message.name)
@@ -1884,6 +1881,7 @@ bridge.onWorkerIPC(workers.main, (data) => {
     profileGate.style.display = 'none'
     showBoard(true)
     setBoardLoading(!boardSynced)
+    openPendingCard()
   }
   if (message.type === 'board-synced') {
     boardSynced = true
@@ -2315,6 +2313,15 @@ function openAlert(alert) {
   pendingOpenCard = { boardKey: alert.boardKey, cardId: alert.cardId }
   closeCard()
   send({ type: 'room:start', invite: alert.invite, name: alert.boardName })
+}
+
+// A notification from another board asked for this card once that board shows.
+function openPendingCard() {
+  if (!pendingOpenCard || pendingOpenCard.boardKey !== currentBoardKey) return
+  if (boardView.style.display !== 'block' || !cardById(pendingOpenCard.cardId)) return
+  const { cardId } = pendingOpenCard
+  pendingOpenCard = null
+  openCard(cardId)
 }
 
 function onBoardAlerts(message) {
