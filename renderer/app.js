@@ -33,6 +33,8 @@ let peerCount = 0
 let objects = []
 let columns = []
 let labels = []
+let theme = { background: null, accent: null }
+let colorPickerColumn = null
 let profiles = {}
 let boardSynced = false
 let roomEntered = false
@@ -83,6 +85,8 @@ const icons = {
   message: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
   text: '<path d="M4 6h16M4 12h16M4 18h10"/>',
   clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  palette:
+    '<circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2a10 10 0 0 0 0 20 2 2 0 0 0 2-2v-1a2 2 0 0 1 2-2h1a5 5 0 0 0 5-5c0-5.5-4.5-10-10-10z"/>',
   edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>',
   users:
     '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>'
@@ -164,6 +168,9 @@ function resetBoardUi() {
   filters.member = ''
   filters.due = ''
   document.getElementById('filter-panel').hidden = true
+  document.getElementById('theme-panel').hidden = true
+  colorPickerColumn = null
+  theme = { background: null, accent: null }
   closeCard()
   closeMentions()
   closeNewObject()
@@ -172,6 +179,90 @@ function resetBoardUi() {
 function showBoard(visible) {
   boardView.style.display = visible ? 'block' : 'none'
   document.body.classList.toggle('board-open', visible)
+  applyTheme()
+}
+
+// Board backgrounds. Presets are dark enough for the default light text.
+const BACKGROUNDS = {
+  'preset:ocean': 'linear-gradient(135deg, #0f2027, #203a43 50%, #2c5364)',
+  'preset:dusk': 'linear-gradient(135deg, #2b1055, #4b3b8f 55%, #7597de)',
+  'preset:forest': 'linear-gradient(135deg, #0b2e22, #135c44 60%, #1d7a5a)',
+  'preset:sunset': 'linear-gradient(135deg, #42275a, #734b6d 55%, #b0605f)',
+  'preset:ember': 'linear-gradient(135deg, #2a1414, #5c2318 55%, #8a3b1d)',
+  'preset:slate': 'linear-gradient(135deg, #1f2933, #323f4b 55%, #52606d)'
+}
+const ACCENTS = ['#39ff88', '#22d3ee', '#579dff', '#9f8fef', '#e774bb', '#fea362', '#f5cd47']
+
+function luminance(hex) {
+  const [r, g, b] = [1, 3, 5].map((i) => {
+    const c = parseInt(hex.slice(i, i + 2), 16) / 255
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+  })
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b
+}
+
+// Theme values are validated by the worker: a preset id or #rrggbb.
+function applyTheme() {
+  const root = document.documentElement
+  const open = document.body.classList.contains('board-open')
+  const background = open ? theme.background : null
+  const accent = open ? theme.accent : null
+  if (background) {
+    root.style.setProperty(
+      '--board-bg',
+      BACKGROUNDS[background] || (background.startsWith('#') ? background : 'var(--bg)')
+    )
+  } else root.style.removeProperty('--board-bg')
+  document.body.classList.toggle('themed', !!background)
+  // Text sitting on a light custom background turns dark.
+  if (background?.startsWith('#') && luminance(background) > 0.35) {
+    root.style.setProperty('--board-ink', '#0b0f14')
+  } else root.style.removeProperty('--board-ink')
+  if (accent) {
+    root.style.setProperty('--accent', accent)
+    root.style.setProperty('--accent-ink', luminance(accent) > 0.4 ? '#04110a' : '#ffffff')
+  } else {
+    root.style.removeProperty('--accent')
+    root.style.removeProperty('--accent-ink')
+  }
+}
+
+function setTheme(change) {
+  send({ type: 'board:theme-set', ...change })
+}
+
+function renderThemePanel() {
+  const backgrounds = document.getElementById('theme-backgrounds')
+  const current = theme.background
+  const options = [
+    [null, 'Default', 'var(--bg)'],
+    ...Object.entries(BACKGROUNDS).map(([id, css]) => [id, id.slice(7), css])
+  ]
+  backgrounds.innerHTML =
+    options
+      .map(
+        ([id, name, css]) =>
+          `<button type="button" class="swatch background" style="--label-color: ${css}" data-background="${id || ''}" aria-label="${escape(name)} background" title="${escape(name)}" aria-pressed="${current === id}"></button>`
+      )
+      .join('') +
+    `<label class="swatch background custom" title="Custom color" aria-pressed="${!!current?.startsWith('#')}" style="${current?.startsWith('#') ? `background: ${current}` : ''}">Custom<input type="color" aria-label="Custom background color" value="${current?.startsWith('#') ? current : '#1a2a3a'}" /></label>`
+  for (const button of backgrounds.querySelectorAll('[data-background]')) {
+    button.onclick = () => setTheme({ background: button.dataset.background || null })
+  }
+  backgrounds.querySelector('input').onchange = (event) =>
+    setTheme({ background: event.target.value })
+
+  const accents = document.getElementById('theme-accents')
+  accents.innerHTML =
+    ACCENTS.map(
+      (color, index) =>
+        `<button type="button" class="swatch" style="--label-color: ${color}" data-accent="${index === 0 ? '' : color}" aria-label="Accent ${color}" aria-pressed="${(theme.accent || ACCENTS[0]) === color}"></button>`
+    ).join('') +
+    `<label class="swatch custom" title="Custom accent">+<input type="color" aria-label="Custom accent color" value="${theme.accent || ACCENTS[0]}" /></label>`
+  for (const button of accents.querySelectorAll('[data-accent]')) {
+    button.onclick = () => setTheme({ accent: button.dataset.accent || null })
+  }
+  accents.querySelector('input').onchange = (event) => setTheme({ accent: event.target.value })
 }
 
 async function showRecentBoards() {
@@ -646,6 +737,10 @@ function renderColumn(column, index) {
     tools.append(button)
     return button
   }
+  tool('palette', 'Column color', () => {
+    colorPickerColumn = colorPickerColumn === column.id ? null : column.id
+    renderBoard()
+  })
   tool('left', 'Move column left', () => moveColumn(column.id, index - 1), index === 0)
   tool(
     'right',
@@ -731,7 +826,31 @@ function renderColumn(column, index) {
     foot.append(add)
   }
 
-  element.append(head, list, foot)
+  element.append(head)
+  if (colorPickerColumn === column.id) {
+    const colors = document.createElement('div')
+    colors.className = 'column-colors'
+    colors.setAttribute('role', 'group')
+    colors.setAttribute('aria-label', 'Column color')
+    colors.innerHTML =
+      `<button type="button" class="swatch none" data-color="" aria-label="No color" aria-pressed="${!column.color}"></button>` +
+      LABEL_COLORS.map(
+        (color) =>
+          `<button type="button" class="swatch" style="--label-color: ${color}" data-color="${color}" aria-label="Color ${color}" aria-pressed="${column.color === color}"></button>`
+      ).join('')
+    for (const swatch of colors.querySelectorAll('[data-color]')) {
+      swatch.onclick = () => {
+        send({
+          type: 'board:column-update',
+          columnId: column.id,
+          color: swatch.dataset.color || null
+        })
+        colorPickerColumn = null
+      }
+    }
+    element.append(colors)
+  }
+  element.append(list, foot)
   return element
 }
 
@@ -814,6 +933,7 @@ function renderBoard() {
   archivedToggle.setAttribute('aria-pressed', String(showArchived))
   renderColumnOptions(document.getElementById('object-column'))
   renderFilters()
+  if (!document.getElementById('theme-panel').hidden) renderThemePanel()
   refreshCard()
   updateMentions()
 }
@@ -863,6 +983,12 @@ function renderFilters() {
   document.getElementById('filter-clear').hidden = !count
 }
 
+document.getElementById('theme-toggle').onclick = () => {
+  const panel = document.getElementById('theme-panel')
+  panel.hidden = !panel.hidden
+  document.getElementById('theme-toggle').setAttribute('aria-expanded', String(!panel.hidden))
+  if (!panel.hidden) renderThemePanel()
+}
 document.getElementById('filter-toggle').onclick = () => {
   const panel = document.getElementById('filter-panel')
   panel.hidden = !panel.hidden
@@ -1412,6 +1538,8 @@ bridge.onWorkerIPC(workers.main, (data) => {
     objects = message.objects || []
     columns = message.columns || []
     labels = message.labels || []
+    theme = message.theme || { background: null, accent: null }
+    applyTheme()
     renderBoard()
   }
   if (message.type === 'board-name') {

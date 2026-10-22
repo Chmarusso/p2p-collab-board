@@ -926,6 +926,56 @@
       #filter-toggle.active {
         color: var(--accent);
       }
+      body.board-open.themed {
+        background: var(--board-bg);
+        background-attachment: fixed;
+      }
+      body.board-open .topbar h1,
+      body.board-open .topbar .prompt,
+      body.board-open .new-object-bar .section-label {
+        color: var(--board-ink, inherit);
+      }
+      #theme-panel {
+        margin-bottom: 14px;
+      }
+      .swatch.background {
+        width: 52px;
+        height: 34px;
+        background: var(--label-color);
+      }
+      .swatch.custom {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        background: var(--surface-raised);
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .swatch.custom input {
+        position: absolute;
+        inset: 0;
+        opacity: 0;
+        cursor: pointer;
+      }
+      .swatch.none {
+        background: repeating-linear-gradient(
+          45deg,
+          var(--surface-raised) 0 6px,
+          var(--border) 6px 12px
+        );
+      }
+      .column-colors {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        padding: 0 10px 8px;
+      }
+      .column-colors .swatch {
+        width: 22px;
+        height: 18px;
+      }
       .comments:empty {
         display: none;
       }
@@ -1236,10 +1286,22 @@
         <div class="new-object-bar">
           <span class="section-label">Board</span>
           <div class="row">
+            <button id="theme-toggle" class="ghost" aria-expanded="false">Customize</button>
             <button id="filter-toggle" class="ghost" aria-expanded="false">Filter</button>
             <button id="archived-toggle" class="ghost" aria-pressed="false">Show archived</button>
             <button id="new-object-toggle" data-icon="plus" aria-expanded="false">New card</button>
           </div>
+        </div>
+        <div id="theme-panel" class="card stack" hidden>
+          <div class="filter-group">
+            <span class="section-label">Background</span>
+            <div id="theme-backgrounds" class="swatches"></div>
+          </div>
+          <div class="filter-group">
+            <span class="section-label">Accent</span>
+            <div id="theme-accents" class="swatches"></div>
+          </div>
+          <p class="muted hint">Everyone on this board sees the same theme.</p>
         </div>
         <div id="filter-panel" class="card stack" hidden>
           <div class="filter-group">

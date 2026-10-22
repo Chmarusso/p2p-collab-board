@@ -1,6 +1,6 @@
 # Plan: Kanban board (Trello-style)
 
-Status: **phases 1–4 done; phase 5 (theme) next**. Nothing here is implemented yet.
+Status: **desktop done (phases 1–5); phase 6 (CLI) and 7 (iOS) remain**. Nothing here is implemented yet.
 
 ## Goal
 
@@ -248,3 +248,15 @@ Phases 2 to 5 can be reordered; phase 1 has to come first.
   none). Filters are local to the device and reset when you switch boards.
 - Worker: `board:label-upsert` accepts a client-chosen `label:<12 hex>` id.
 - Not done: "sort column by due date" (it would write one move op per card).
+
+## Phase 5 notes
+
+- "Customize" panel: six gradient backgrounds plus a custom color, seven accent
+  colors plus a custom one, shared by the board (`board:theme`). Per-column color
+  from the column header (palette icon), shown as the column's top border.
+- Text on a light custom background turns dark; the accent's button text picks
+  black or white by luminance. Cards and columns keep their own dark surfaces so
+  they stay readable on any background.
+- Leaving a board resets the theme; boards without one keep the default look.
+- Checked in dev and in a packaged copy outside the repo, together with the
+  phase 2 and phase 4 flows.
