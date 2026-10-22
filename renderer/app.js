@@ -44,7 +44,7 @@ let colorPickerEntering = false
 // Moves made here land where the user put them; only peers' moves animate.
 const localCardMoves = new Set()
 const localColumnMoves = new Set()
-let lastUnreadMentions = 0
+let lastUnreadAlerts = 0
 const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)')
 const cssToken = (name) =>
   window.getComputedStyle(document.documentElement).getPropertyValue(name).trim()
@@ -74,9 +74,13 @@ const filters = { labels: new Set(), member: '', due: '' }
 // Trello's label palette.
 const LABEL_COLORS = ['#4bce97', '#f5cd47', '#fea362', '#f87168', '#9f8fef']
 LABEL_COLORS.push('#579dff', '#6cc3e0', '#94c748', '#e774bb', '#8590a2')
-// Mentions: what this device has read is kept locally, per identity and board.
-const notifiedMentions = new Set()
-let mentionsPrimed = false
+// Notifications from every joined board (the worker checks the others in the
+// background). Read state is kept on this device, per identity.
+let alertBoards = []
+let currentBoardKey = ''
+let pendingOpenCard = null
+const notifiedAlerts = new Set()
+const primedBoards = new Set()
 // Image attachments: bytes live encrypted in each author's Hyperblobs core;
 // the worker fetches them on demand and they are cached here as data URLs.
 const MAX_IMAGES = 4
@@ -101,6 +105,7 @@ const icons = {
     '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/>',
   message: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
   text: '<path d="M4 6h16M4 12h16M4 18h10"/>',
+  bell: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
   clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
   palette:
     '<circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2a10 10 0 0 0 0 20 2 2 0 0 0 2-2v-1a2 2 0 0 1 2-2h1a5 5 0 0 0 5-5c0-5.5-4.5-10-10-10z"/>',
@@ -179,9 +184,6 @@ function resetBoardUi() {
   cardComposer = null
   columnComposer = null
   renamingColumn = null
-  notifiedMentions.clear()
-  mentionsPrimed = false
-  lastUnreadMentions = 0
   filters.labels.clear()
   filters.member = ''
   filters.due = ''
@@ -195,7 +197,7 @@ function resetBoardUi() {
   colorPickerColumn = null
   theme = { background: null, accent: null }
   closeCard()
-  closeMentions()
+  closeNotifications()
   closeNewObject()
 }
 
@@ -294,6 +296,11 @@ async function showRecentBoards() {
     return
   }
   const boards = await bridge.recentBoardsList(currentIdentity)
+  // The worker checks these in the background for the notification bar.
+  send({
+    type: 'boards:watch',
+    boards: boards.map(({ invite, name }) => ({ invite, name }))
+  })
   recentBoards.innerHTML = boards.length ? '<p class="section-label">Joined boards</p>' : ''
   for (const board of boards) {
     const row = document.createElement('div')
@@ -656,7 +663,12 @@ function renderCard(object) {
         : '',
       object.body?.trim() ? `<span title="Has a description">${icon('text')}</span>` : '',
       comments ? `<span title="Comments">${icon('message')}${comments}</span>` : '',
-      unreadMentions().some((item) => item.cardId === object.id)
+      unreadAlerts().some(
+        (alert) =>
+          alert.boardKey === currentBoardKey &&
+          alert.cardId === object.id &&
+          alert.kind === 'mention'
+      )
         ? '<span class="mention mention-me" title="You were mentioned">@</span>'
         : '',
       images ? `<span title="Images">${icon('image')}${images}</span>` : '',
@@ -1099,7 +1111,7 @@ function renderBoard({ animate = false } = {}) {
   if (!document.getElementById('theme-panel').hidden) renderThemePanel()
   if (labelsModal.classList.contains('open')) renderLabelsManager()
   refreshCard()
-  updateMentions()
+  updateNotifications()
 }
 
 function renderFilters() {
@@ -1291,7 +1303,7 @@ function refreshCard() {
     list.appendChild(more)
   }
   for (const comment of comments.slice(hidden)) list.appendChild(renderComment(comment))
-  markMentionsRead((item) => item.cardId === object.id)
+  markAlertsRead((alert) => alert.boardKey === currentBoardKey && alert.cardId === object.id)
 }
 
 function refreshDue(object) {
@@ -1697,6 +1709,11 @@ function closeNewObject() {
 
 function logout() {
   if (connectionModal.classList.contains('open')) connectionModal.classList.remove('open')
+  send({ type: 'boards:watch', boards: [] })
+  alertBoards = []
+  notifiedAlerts.clear()
+  primedBoards.clear()
+  updateNotifications()
   const wasInRoom = roomEntered
   identityUnlocked = false
   roomEntered = false
@@ -1789,6 +1806,7 @@ bridge.onWorkerIPC(workers.main, (data) => {
       }
       updateIdentityMenu()
       currentInvite = message.invite || ''
+      currentBoardKey = message.boardKey || ''
       if (message.boardName) {
         setBoardName(message.boardName)
         rememberBoard({ invite: message.invite, name: message.boardName })
@@ -1828,6 +1846,7 @@ bridge.onWorkerIPC(workers.main, (data) => {
       if ((slot.dataset.coverKey || slot.dataset.mdImageKey) === message.key) fillInlineImage(slot)
     }
   }
+  if (message.type === 'board-alerts') onBoardAlerts(message)
   if (message.type === 'card-images-added') {
     finishUpload(message)
   }
@@ -1845,6 +1864,12 @@ bridge.onWorkerIPC(workers.main, (data) => {
     if (arrived.length > 3) for (const object of arrived) seenObjects.add(object.id)
     applyTheme()
     renderBoard({ animate: true })
+    // A notification from another board asked for this card once it loads.
+    if (pendingOpenCard?.boardKey === currentBoardKey && cardById(pendingOpenCard.cardId)) {
+      const { cardId } = pendingOpenCard
+      pendingOpenCard = null
+      if (boardView.style.display === 'block') openCard(cardId)
+    }
   }
   if (message.type === 'board-name') {
     setBoardName(message.name)
@@ -1862,7 +1887,6 @@ bridge.onWorkerIPC(workers.main, (data) => {
   }
   if (message.type === 'board-synced') {
     boardSynced = true
-    updateMentions()
     if (boardView.style.display === 'block') setBoardLoading(false)
     updateStatusChip()
   }
@@ -1914,7 +1938,7 @@ document.addEventListener('keydown', (event) => {
   if (document.getElementById('image-viewer').classList.contains('open')) closeImageViewer()
   else if (labelsModal.classList.contains('open')) closeLabelsManager()
   else if (cardModal.classList.contains('open')) closeCard()
-  else if (mentionsModal.classList.contains('open')) closeMentions()
+  else if (notificationsModal.classList.contains('open')) closeNotifications()
   else if (connectionModal.classList.contains('open')) closeConnectionModal()
   else if (newObjectForm.classList.contains('open')) {
     closeNewObject()
@@ -2133,148 +2157,191 @@ for (const id of ['card-body', 'card-comment', 'object-body']) {
   attachMentionPicker(document.getElementById(id))
 }
 
-const mentionsModal = document.getElementById('mentions-modal')
+const notificationsModal = document.getElementById('notifications-modal')
+const NOTIFY_KINDS = ['mention', 'comment', 'due-soon', 'overdue']
 
-function hashText(text) {
-  let hash = 5381
-  for (let i = 0; i < text.length; i++) hash = ((hash << 5) + hash + text.charCodeAt(i)) | 0
-  return (hash >>> 0).toString(36)
-}
+const readAlertsKey = () => `opencollab.alerts-read.${currentIdentity}`
+const alertKey = (alert) => `${alert.boardKey}:${alert.id}`
 
-const readMentionsKey = () =>
-  `opencollab.mentions-read.${currentIdentity}.${hashText(currentInvite)}`
-
-function readMentions() {
+function readAlerts() {
   try {
-    return new Set(JSON.parse(localStorage.getItem(readMentionsKey()) || '[]'))
+    return new Set(JSON.parse(localStorage.getItem(readAlertsKey()) || '[]'))
   } catch {
     return new Set()
   }
 }
 
-function markMentionsRead(predicate) {
-  const items = mentionItems().filter(predicate)
-  if (!items.length) return
-  const read = readMentions()
+function allAlerts() {
+  return alertBoards
+    .flatMap((board) =>
+      board.alerts.map((alert) => ({
+        ...alert,
+        boardKey: board.key,
+        boardName: board.name,
+        invite: board.invite
+      }))
+    )
+    .sort((a, b) => b.at - a.at)
+}
+
+function unreadAlerts() {
+  const read = readAlerts()
+  return allAlerts().filter((alert) => !read.has(alertKey(alert)))
+}
+
+function markAlertsRead(predicate) {
+  const read = readAlerts()
   const before = read.size
-  for (const item of items) read.add(item.key)
+  for (const alert of allAlerts().filter(predicate)) read.add(alertKey(alert))
   if (read.size === before) return
   try {
-    localStorage.setItem(readMentionsKey(), JSON.stringify([...read]))
+    // Alerts age out after two weeks; the newest keys are enough to remember.
+    localStorage.setItem(readAlertsKey(), JSON.stringify([...read].slice(-2000)))
   } catch {}
-  updateMentions()
+  updateNotifications()
+  const unread = unreadAlerts()
   for (const card of document.querySelectorAll('.kanban-card')) {
-    if (items.some((item) => item.cardId === card.dataset.cardId)) {
+    if (!unread.some((alert) => alert.cardId === card.dataset.cardId)) {
       card.querySelector('.kanban-card-meta .mention-me')?.remove()
     }
   }
 }
 
-// Every card description and comment by someone else that mentions me.
-function mentionItems() {
-  if (!currentIdentity) return []
-  const items = []
-  for (const object of objects) {
-    if (object.author !== currentIdentity && object.mentions?.includes(currentIdentity)) {
-      items.push({
-        key: `card:${object.id}:${hashText(object.body || '')}`,
-        cardId: object.id,
-        author: object.author,
-        title: object.title,
-        text: object.body,
-        at: object.createdAt
-      })
-    }
-    for (const comment of object.comments || []) {
-      if (comment.author === currentIdentity || !comment.mentions?.includes(currentIdentity)) {
-        continue
-      }
-      items.push({
-        key: `comment:${comment.id}`,
-        cardId: object.id,
-        author: comment.author,
-        title: object.title,
-        text: comment.text,
-        at: comment.createdAt
-      })
-    }
-  }
-  return items.sort((a, b) => (Date.parse(b.at) || 0) - (Date.parse(a.at) || 0))
+function alertText(alert) {
+  const who = escape(alert.authorName || shortKey(alert.author || ''))
+  const card = `<strong>${escape(alert.cardTitle)}</strong>`
+  const due = alert.due ? escape(dueInfo(alert.due)?.text || alert.due) : ''
+  return (
+    {
+      mention: `${who} mentioned you ${alert.where === 'comment' ? 'in a comment on' : 'on'} ${card}`,
+      comment: `${who} commented on ${card}`,
+      moved: `${who} moved ${card}${alert.column ? ` to ${escape(alert.column)}` : ''}`,
+      edited: `${who} edited ${card}`,
+      'new-card': `${who} added ${card}`,
+      'due-soon': `${card} is due ${due}`,
+      overdue: `${card} is overdue (${due})`
+    }[alert.kind] || card
+  )
 }
 
-function unreadMentions() {
-  const read = readMentions()
-  return mentionItems().filter((item) => !read.has(item.key))
+const KIND_LABELS = {
+  mention: 'Mention',
+  comment: 'Comment',
+  moved: 'Moved',
+  edited: 'Edited',
+  'new-card': 'New card',
+  'due-soon': 'Due soon',
+  overdue: 'Overdue'
 }
 
-function updateMentions() {
-  const items = mentionItems()
-  const unread = unreadMentions()
-  const button = document.getElementById('mentions-button')
-  button.hidden = !items.length
+function updateNotifications() {
+  const unread = unreadAlerts()
+  const button = document.getElementById('notifications-button')
   button.classList.toggle('unread', unread.length > 0)
-  document.getElementById('mentions-count').textContent = unread.length || ''
-  // A new unread mention gives the button one small pop; reading them doesn't.
-  if (mentionsPrimed && unread.length > lastUnreadMentions && !reducedMotion.matches) {
+  document.getElementById('notifications-count').textContent = unread.length
+    ? unread.length > 99
+      ? '99+'
+      : unread.length
+    : ''
+  button.setAttribute('aria-label', `Notifications, ${unread.length} unread`)
+  // A new unread alert gives the button one small pop; reading them doesn't.
+  if (unread.length > lastUnreadAlerts && primedBoards.size && !reducedMotion.matches) {
     button.animate(
       [{ transform: 'scale(1)' }, { transform: 'scale(1.12)' }, { transform: 'scale(1)' }],
       { duration: 240, easing: cssToken('--ease-out') }
     )
   }
-  lastUnreadMentions = unread.length
-  button.setAttribute('aria-label', `Mentions, ${unread.length} unread`)
-  if (mentionsModal.classList.contains('open')) renderMentions()
+  lastUnreadAlerts = unread.length
+  if (notificationsModal.classList.contains('open')) renderNotifications()
 
-  // Notify only about mentions that arrive while the app runs, and only when
-  // the window isn't in front; the badge covers the rest.
-  for (const item of unread) {
-    if (notifiedMentions.has(item.key)) continue
-    notifiedMentions.add(item.key)
-    if (!mentionsPrimed || document.hasFocus()) continue
-    const notification = new window.Notification(
-      `${profiles[item.author] || 'Someone'} mentioned you`,
-      {
-        body: `${item.title}: ${(item.text || '').slice(0, 120)}`
-      }
-    )
+  // A board's first check only fills the list; desktop notifications are for
+  // what arrives after that, while the window is in the background.
+  for (const alert of unread) {
+    const key = alertKey(alert)
+    if (notifiedAlerts.has(key)) continue
+    notifiedAlerts.add(key)
+    if (!primedBoards.has(alert.boardKey) || !NOTIFY_KINDS.includes(alert.kind)) continue
+    if (document.hasFocus()) continue
+    const text = document.createElement('div')
+    text.innerHTML = alertText(alert)
+    const notification = new window.Notification(alert.boardName || 'OpenCollab', {
+      body: `${text.textContent}${alert.text ? `: ${alert.text.slice(0, 100)}` : ''}`
+    })
     notification.onclick = () => {
       window.focus()
-      openCard(item.cardId)
+      openAlert(alert)
     }
   }
-  if (boardSynced) mentionsPrimed = true
 }
 
-function renderMentions() {
-  const read = readMentions()
-  const list = document.getElementById('mentions-list')
+function renderNotifications() {
+  const read = readAlerts()
+  const list = document.getElementById('notifications-list')
   list.innerHTML = ''
-  for (const item of mentionItems()) {
-    const entry = document.createElement('button')
-    entry.className = `mention-item${read.has(item.key) ? '' : ' unread'}`
-    entry.innerHTML = `<div class="comment-meta">${identityHtml(item.author)}<span class="time">${escape(relativeTime(item.at))}</span></div>
-      <strong>${escape(item.title)}</strong><span class="snippet">${escape(item.text || '')}</span>`
-    entry.onclick = () => {
-      closeMentions()
-      openCard(item.cardId)
+  const alerts = allAlerts()
+  if (!alerts.length) {
+    const checking = alertBoards.some((board) => !board.checkedAt)
+    list.innerHTML = `<div class="notifications-empty">${checking ? 'Checking your boards…' : 'You’re all caught up.'}</div>`
+    return
+  }
+  for (const board of alertBoards) {
+    const items = alerts.filter((alert) => alert.boardKey === board.key)
+    if (!items.length) continue
+    const head = document.createElement('div')
+    head.className = 'notifications-board'
+    head.innerHTML = `<strong dir="auto">${escape(board.name || 'Board')}${board.key === currentBoardKey ? ' · open' : ''}</strong><span class="time">${board.checkedAt ? `checked ${escape(relativeTime(board.checkedAt))}` : 'checking…'}</span>`
+    list.append(head)
+    for (const alert of items) {
+      const entry = document.createElement('button')
+      entry.className = `mention-item${read.has(alertKey(alert)) ? '' : ' unread'}`
+      entry.innerHTML = `<div class="comment-meta"><span class="alert-kind ${alert.kind}">${KIND_LABELS[alert.kind]}</span><span class="time">${escape(relativeTime(alert.at))}</span></div>
+        <span class="what" dir="auto">${alertText(alert)}</span>${alert.text ? `<span class="snippet" dir="auto">${escape(alert.text)}</span>` : ''}`
+      entry.onclick = () => {
+        closeNotifications()
+        openAlert(alert)
+      }
+      list.append(entry)
     }
-    list.append(entry)
   }
 }
 
-function closeMentions() {
-  mentionsModal.classList.remove('open')
+// Opens the alert's card, switching boards first when it's on another one.
+function openAlert(alert) {
+  markAlertsRead((entry) => alertKey(entry) === alertKey(alert))
+  if (alert.boardKey === currentBoardKey && roomEntered) {
+    openCard(alert.cardId)
+    return
+  }
+  pendingOpenCard = { boardKey: alert.boardKey, cardId: alert.cardId }
+  closeCard()
+  send({ type: 'room:start', invite: alert.invite, name: alert.boardName })
 }
 
-document.getElementById('mentions-button').onclick = () => {
-  renderMentions()
-  mentionsModal.classList.add('open')
-  document.getElementById('close-mentions-modal').focus()
+function onBoardAlerts(message) {
+  alertBoards = message.boards || []
+  for (const board of alertBoards) {
+    if (board.checkedAt && !primedBoards.has(board.key)) {
+      for (const alert of board.alerts) notifiedAlerts.add(`${board.key}:${alert.id}`)
+      primedBoards.add(board.key)
+    }
+  }
+  updateNotifications()
 }
-document.getElementById('close-mentions-modal').onclick = closeMentions
-document.getElementById('mentions-read').onclick = () => markMentionsRead(() => true)
-mentionsModal.onclick = (event) => {
-  if (event.target === mentionsModal) closeMentions()
+
+function closeNotifications() {
+  notificationsModal.classList.remove('open')
+}
+
+document.getElementById('notifications-icon').innerHTML = icon('bell')
+document.getElementById('notifications-button').onclick = () => {
+  renderNotifications()
+  notificationsModal.classList.add('open')
+  document.getElementById('close-notifications-modal').focus()
+}
+document.getElementById('close-notifications-modal').onclick = closeNotifications
+document.getElementById('notifications-read').onclick = () => markAlertsRead(() => true)
+notificationsModal.onclick = (event) => {
+  if (event.target === notificationsModal) closeNotifications()
 }
 
 // Board description: shared, Markdown, two lines with "More" on the board.

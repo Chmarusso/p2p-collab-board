@@ -607,7 +607,7 @@
         animation: fade-in 150ms var(--ease-out);
       }
       #card-modal.open .card-detail,
-      #mentions-modal.open .modal-card,
+      #notifications-modal.open .modal-card,
       #labels-modal.open .modal-card {
         animation: pop-in 180ms var(--ease-out);
       }
@@ -825,18 +825,18 @@
       .mention-option:hover {
         background: var(--border);
       }
-      #mentions-button {
+      #notifications-button {
         gap: 4px;
         font-family: var(--mono);
       }
-      #mentions-button.unread {
+      #notifications-button.unread {
         border-color: var(--accent);
         color: var(--accent);
       }
-      #mentions-button .count:empty {
+      #notifications-button .count:empty {
         display: none;
       }
-      #mentions-modal {
+      #notifications-modal {
         display: none;
         position: fixed;
         inset: 0;
@@ -847,11 +847,11 @@
         background: rgba(3, 6, 10, 0.7);
         backdrop-filter: blur(4px);
       }
-      #mentions-modal.open {
+      #notifications-modal.open {
         display: flex;
         animation: fade-in 150ms var(--ease-out);
       }
-      .mentions-list {
+      .notifications-list {
         display: grid;
         gap: 8px;
         max-height: 60vh;
@@ -1228,6 +1228,54 @@
         border-color: var(--accent);
         border-style: dashed;
       }
+      .notifications-board {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 8px;
+        margin-top: 6px;
+        padding-top: 8px;
+        border-top: 1px solid var(--border);
+      }
+      .notifications-board:first-child {
+        margin-top: 0;
+        padding-top: 0;
+        border-top: 0;
+      }
+      .notifications-board strong {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .notifications-board .time {
+        flex-shrink: 0;
+      }
+      .mention-item .what {
+        overflow-wrap: anywhere;
+      }
+      .alert-kind {
+        font-family: var(--mono);
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+      }
+      .alert-kind.mention,
+      .alert-kind.comment {
+        color: var(--info);
+      }
+      .alert-kind.overdue {
+        color: #f87168;
+      }
+      .alert-kind.due-soon {
+        color: #f5cd47;
+      }
+      .notifications-empty {
+        padding: 18px;
+        color: var(--muted);
+        text-align: center;
+      }
       .comments:empty {
         display: none;
       }
@@ -1489,7 +1537,7 @@
         }
         /* Gentler, not zero: keep the fades, drop the movement. */
         #card-modal.open .card-detail,
-        #mentions-modal.open .modal-card,
+        #notifications-modal.open .modal-card,
         #labels-modal.open .modal-card {
           animation: fade-in 180ms var(--ease-out) !important;
         }
@@ -1598,8 +1646,9 @@
               <span aria-hidden="true">·</span>
               <span id="sync-status">syncing…</span>
             </span>
-            <button id="mentions-button" class="secondary" aria-label="Mentions" hidden>
-              <span aria-hidden="true">@</span><span id="mentions-count" class="count"></span>
+            <button id="notifications-button" class="secondary" aria-label="Notifications">
+              <span id="notifications-icon" aria-hidden="true"></span
+              ><span id="notifications-count" class="count"></span>
             </button>
             <button id="identity-label" class="secondary" aria-label="Open connection details">
               @DisplayName
@@ -1851,15 +1900,20 @@
         </form>
       </div>
     </div>
-    <div id="mentions-modal" role="dialog" aria-modal="true" aria-labelledby="mentions-title">
+    <div
+      id="notifications-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="notifications-title"
+    >
       <div class="modal-card">
         <div class="row card-detail-bar">
-          <h2 id="mentions-title">Mentions</h2>
-          <button id="mentions-read" class="ghost">Mark all read</button>
+          <h2 id="notifications-title">Notifications</h2>
+          <button id="notifications-read" class="ghost">Mark all read</button>
         </div>
-        <div id="mentions-list" class="mentions-list"></div>
+        <div id="notifications-list" class="notifications-list"></div>
         <div class="row" style="justify-content: flex-end; margin-top: 12px">
-          <button id="close-mentions-modal" class="ghost">Close</button>
+          <button id="close-notifications-modal" class="ghost">Close</button>
         </div>
       </div>
     </div>

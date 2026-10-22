@@ -1,4 +1,5 @@
 const board = require('./board')
+const alerts = require('./alerts')
 
 const messageTypes = Object.freeze({
   identityLoad: 'identity:load',
@@ -19,6 +20,8 @@ const messageTypes = Object.freeze({
   labelDelete: 'board:label-delete',
   themeSet: 'board:theme-set',
   boardDescribe: 'board:describe',
+  boardsWatch: 'boards:watch',
+  boardAlerts: 'board-alerts',
   cardImagesAdd: 'board:card-images-add',
   identityStatus: 'identity-status',
   roomStatus: 'room-status',
@@ -46,4 +49,4 @@ function inviteLink(invite) {
   return normalized ? `opencollab://board/${encodeURIComponent(normalized)}` : ''
 }
 
-module.exports = { messageTypes, command, normalizeInvite, inviteLink, ...board }
+module.exports = { messageTypes, command, normalizeInvite, inviteLink, ...board, ...alerts }

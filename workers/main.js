@@ -16,6 +16,7 @@ const {
   messageTypes,
   normalizeInvite,
   deriveBoard,
+  boardAlerts,
   positionAt,
   OP_TYPES,
   LIMITS
@@ -195,6 +196,9 @@ pear.updater.on('updating', () => pipe.write('updating'))
 pear.updater.on('updated', () => pipe.write('updated'))
 
 goodbye(async () => {
+  clearInterval(peekTimer)
+  await peekSwarm.destroy()
+  if (peekStore) await peekStore.close()
   await chatSwarm.destroy()
   await replicationSwarm.destroy()
   await swarm.destroy()
@@ -230,9 +234,10 @@ function encryptBoardPayload(payload) {
   return { nonce: nonce.toString('base64'), ciphertext: ciphertext.toString('base64') }
 }
 
-function decryptBoardPayload(encrypted) {
+// `secret` defaults to the open board's; background checks pass their own.
+function decryptBoardPayload(encrypted, secret = roomState?.secret) {
   if (
-    !roomState ||
+    !secret ||
     typeof encrypted?.nonce !== 'string' ||
     typeof encrypted?.ciphertext !== 'string'
   ) {
@@ -242,7 +247,7 @@ function decryptBoardPayload(encrypted) {
     const nonce = Buffer.from(encrypted.nonce, 'base64')
     const ciphertext = Buffer.from(encrypted.ciphertext, 'base64')
     const plaintext = Buffer.alloc(ciphertext.length - sodium.crypto_secretbox_MACBYTES)
-    if (!sodium.crypto_secretbox_open_easy(plaintext, ciphertext, nonce, roomState.secret)) {
+    if (!sodium.crypto_secretbox_open_easy(plaintext, ciphertext, nonce, secret)) {
       return null
     }
     return JSON.parse(plaintext.toString())
@@ -261,8 +266,8 @@ function encryptBoardMessage(message) {
   }
 }
 
-function decryptBoardMessage(message) {
-  const payload = decryptBoardPayload(message.encrypted)
+function decryptBoardMessage(message, secret) {
+  const payload = decryptBoardPayload(message.encrypted, secret)
   return payload
     ? {
         type: 'board:message',
@@ -310,6 +315,7 @@ function deriveState() {
   })
   lastTs = Math.max(lastTs, boardState.maxTs)
   boardDigest = null
+  updateOpenBoardAlerts()
   // A display name set on another device arrives with the ops.
   const ownIdentity = identityState?.identity.identityPublicKey.toString('hex')
   const displayName = ownIdentity ? boardState.profiles[ownIdentity] : null
@@ -603,6 +609,151 @@ function columnsExcept(columnId) {
   return boardState.columns.filter((column) => column.id !== columnId)
 }
 
+// Notifications across boards. The UI passes the boards this identity joined;
+// the open one's alerts follow its ops live, the others are checked in the
+// background: opened read-only in a separate store, synced for a short
+// window with whoever is online, read, and closed again.
+const watched = new Map() // board key hex → { invite, name, secret, key, alerts, checkedAt }
+const PEEK_INTERVAL = 3 * 60 * 1000
+const PEEK_WINDOW = 15000
+const PEEK_NO_PEERS = 6000
+const peekSwarm = new Hyperswarm()
+let peekStore = null
+let peekTimer = null
+let peeking = false
+let openAlertsTimer = null
+
+peekSwarm.on('connection', (connection) => {
+  if (!peekStore) return connection.destroy()
+  peekStore.replicate(connection)
+})
+peekSwarm.on('error', (error) => console.error('Board check swarm error', error))
+
+const ownIdentityHex = () => identityState?.identity.identityPublicKey.toString('hex') || null
+
+function sendAlerts() {
+  pipe.write(
+    JSON.stringify({
+      type: messageTypes.boardAlerts,
+      boards: [...watched].map(([key, board]) => ({
+        key,
+        invite: board.invite,
+        name: board.name,
+        alerts: board.alerts,
+        checkedAt: board.checkedAt
+      }))
+    })
+  )
+}
+
+function updateOpenBoardAlerts() {
+  const board = boardDb && watched.get(boardDb.key.toString('hex'))
+  if (!board) return
+  // Ops arrive in bursts; one pass after they settle is enough.
+  clearTimeout(openAlertsTimer)
+  openAlertsTimer = setTimeout(() => {
+    if (!boardDb || watched.get(boardDb.key.toString('hex')) !== board) return
+    board.alerts = boardAlerts([...boardOps.values()], boardState, ownIdentityHex())
+    board.checkedAt = Date.now()
+    if (boardName) board.name = boardName
+    sendAlerts()
+  }, 300)
+}
+
+async function peekBoard(key, board) {
+  peekStore ??= new Corestore(path.join(updaterConfig.dir, 'peek-store'))
+  const db = new Autobee(peekStore.namespace(key), board.key, {
+    apply: applyBoardNodes,
+    optimistic: true
+  })
+  let discovery = null
+  try {
+    await db.ready()
+    discovery = peekSwarm.join(db.discoveryKey, { client: true, server: true })
+    const started = Date.now()
+    while (Date.now() - started < PEEK_WINDOW) {
+      await new Promise((resolve) => setTimeout(resolve, 1500))
+      if (!peekSwarm.connections.size && Date.now() - started > PEEK_NO_PEERS) break
+      await db.update().catch(() => {})
+    }
+    const ops = new Map()
+    let name = ''
+    for await (const entry of db.view.createReadStream()) {
+      try {
+        const stored = JSON.parse(entry.value.toString())
+        if (stored.type === 'board:meta') {
+          name = decryptBoardPayload(stored.encrypted, board.secret)?.boardName || name
+          continue
+        }
+        const message = decryptBoardMessage(stored, board.secret)
+        if (
+          typeof message?.id === 'string' &&
+          !ops.has(message.id) &&
+          OP_TYPES.includes(message.payload?.type) &&
+          verifyBoardMessage(message)
+        ) {
+          ops.set(message.id, message)
+        }
+      } catch {}
+    }
+    const messages = [...ops.values()]
+    board.alerts = boardAlerts(messages, deriveBoard(messages), ownIdentityHex())
+    if (name) board.name = name
+    board.checkedAt = Date.now()
+  } finally {
+    if (discovery) await discovery.destroy().catch(() => {})
+    await db.close().catch(() => {})
+  }
+}
+
+async function peekAll() {
+  if (peeking || !identityState) return
+  peeking = true
+  try {
+    for (const [key, board] of [...watched]) {
+      if (boardDb?.key.toString('hex') === key || !watched.has(key)) continue
+      try {
+        await peekBoard(key, board)
+      } catch (error) {
+        console.error('Board check failed', error)
+      }
+      sendAlerts()
+    }
+  } finally {
+    peeking = false
+  }
+}
+
+function watchBoards(boards) {
+  const keep = new Set()
+  for (const entry of (Array.isArray(boards) ? boards : []).slice(0, 50)) {
+    if (typeof entry?.invite !== 'string') continue
+    const decoded = decodeInvite(entry.invite)
+    if (!decoded.key || decoded.secret.length !== 32) continue
+    const key = decoded.key.toString('hex')
+    keep.add(key)
+    const name = typeof entry.name === 'string' ? entry.name.slice(0, LIMITS.boardName) : ''
+    const known = watched.get(key)
+    if (known) known.name = known.name || name
+    else {
+      watched.set(key, {
+        invite: entry.invite,
+        name,
+        secret: decoded.secret,
+        key: decoded.key,
+        alerts: [],
+        checkedAt: 0
+      })
+    }
+  }
+  for (const key of watched.keys()) if (!keep.has(key)) watched.delete(key)
+  sendAlerts()
+  updateOpenBoardAlerts()
+  clearInterval(peekTimer)
+  peekTimer = keep.size ? setInterval(peekAll, PEEK_INTERVAL) : null
+  if (keep.size) setTimeout(peekAll, 5000)
+}
+
 function handleRoomMessage(peer, message) {
   if (message.type === 'room:hello') {
     pipe.write(JSON.stringify({ type: 'room-debug', status: 'hello-received' }))
@@ -798,6 +949,7 @@ async function startRoom(invite, name) {
     JSON.stringify({
       type: 'room-status',
       status: 'ready',
+      boardKey: boardDb.key.toString('hex'),
       invite: roomState.invite,
       boardName,
       displayName: ownIdentity ? boardState.profiles[ownIdentity] || null : null,
@@ -1054,6 +1206,8 @@ pipe.on('data', async (data) => {
     } else if (msg.type === messageTypes.labelDelete) {
       if (!boardState.labels.some((label) => label.id === msg.labelId)) return
       await sendOwnOp({ type: 'label:delete', labelId: msg.labelId })
+    } else if (msg.type === messageTypes.boardsWatch) {
+      watchBoards(msg.boards)
     } else if (msg.type === messageTypes.boardDescribe) {
       if (typeof msg.description !== 'string') return
       await sendOwnOp({

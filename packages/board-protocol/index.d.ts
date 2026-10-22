@@ -27,6 +27,25 @@ export declare function deriveBoard(
   profiles: Record<string, string>
   maxTs: number
 }
+export type BoardAlert = {
+  id: string
+  kind: 'mention' | 'comment' | 'moved' | 'edited' | 'new-card' | 'due-soon' | 'overdue'
+  cardId: string
+  cardTitle: string
+  author: string | null
+  authorName: string | null
+  at: number
+  where?: 'description' | 'comment'
+  text?: string
+  column?: string | null
+  due?: string
+}
+export declare function boardAlerts(
+  messages: Array<{ id: string; identity: string; payload: Record<string, any> }>,
+  state: ReturnType<typeof deriveBoard>,
+  me: string,
+  options?: { now?: number; since?: number }
+): BoardAlert[]
 export declare function isPosition(value: unknown): boolean
 export declare function positionBetween(a?: string | null, b?: string | null): string
 export declare function positionAt(items: Array<{ position: string }>, index?: number): string
