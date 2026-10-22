@@ -29,16 +29,22 @@ let currentInvite = ''
 let networkStatus = 'waiting'
 let peerCount = 0
 let objects = []
+let columns = []
 let profiles = {}
 let boardSynced = false
 let roomEntered = false
 let identityUnlocked = false
-// Board state re-renders often; keep per-object UI state outside the DOM.
-const expandedComments = new Set()
-const commentDrafts = new Map()
+// Board state re-renders often; keep UI state outside the DOM.
 const seenObjects = new Set()
 const seenComments = new Set()
-const lastScores = new Map()
+let showArchived = false
+let openCardId = null
+// Inline editors survive re-renders: { columnId, text } / { text } / { id, text }.
+let cardComposer = null
+let columnComposer = null
+let renamingColumn = null
+let dragging = null
+let renderDeferred = false
 // Image attachments: bytes live encrypted in each author's Hyperblobs core;
 // the worker fetches them on demand and they are cached here as data URLs.
 const MAX_IMAGES = 4
@@ -58,6 +64,7 @@ const icons = {
   up: '<path d="m18 15-6-6-6 6"/>',
   down: '<path d="m6 9 6 6 6-6"/>',
   right: '<path d="m9 18 6-6-6-6"/>',
+  left: '<path d="m15 18-6-6 6-6"/>',
   image:
     '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/>',
   message: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
@@ -123,19 +130,25 @@ function showBoardManagement() {
   resetBoardUi()
   roomGate.style.display = 'block'
   profileGate.style.display = 'none'
-  boardView.style.display = 'none'
+  showBoard(false)
   document.getElementById('gate-identity').innerHTML = identityHtml(currentIdentity)
   showRoomChoice()
   showRecentBoards()
 }
 
 function resetBoardUi() {
-  expandedComments.clear()
-  commentDrafts.clear()
   seenObjects.clear()
   seenComments.clear()
-  lastScores.clear()
+  cardComposer = null
+  columnComposer = null
+  renamingColumn = null
+  closeCard()
   closeNewObject()
+}
+
+function showBoard(visible) {
+  boardView.style.display = visible ? 'block' : 'none'
+  document.body.classList.toggle('board-open', visible)
 }
 
 async function showRecentBoards() {
@@ -216,26 +229,6 @@ function escape(value) {
   const div = document.createElement('div')
   div.textContent = value ?? ''
   return div.innerHTML
-}
-
-function captureFocus() {
-  const active = document.activeElement
-  if (!active?.dataset?.commentFor) return null
-  return {
-    objectId: active.dataset.commentFor,
-    start: active.selectionStart,
-    end: active.selectionEnd
-  }
-}
-
-function restoreFocus(focus) {
-  if (!focus) return
-  const input = [...boardObjects.querySelectorAll('[data-comment-for]')].find(
-    (element) => element.dataset.commentFor === focus.objectId
-  )
-  if (!input) return
-  input.focus()
-  input.setSelectionRange(focus.start, focus.end)
 }
 
 function renderComment(comment) {
@@ -354,89 +347,531 @@ function renderPendingImages() {
   })
 }
 
-function renderObject(object) {
+const scoreOf = (object) => Object.values(object.votes || {}).reduce((sum, value) => sum + value, 0)
+const cardById = (id) => objects.find((object) => object.id === id)
+// The worker sends cards sorted by column, then position.
+const cardsIn = (columnId) => objects.filter((object) => object.columnId === columnId)
+const visibleCards = (columnId) =>
+  cardsIn(columnId).filter((object) => showArchived || !object.archived)
+
+// The worker places a card by index among all cards of the column, archived
+// ones included; the UI counts only the cards it shows.
+function moveCard(cardId, columnId, visibleIndex) {
+  const all = cardsIn(columnId).filter((object) => object.id !== cardId)
+  const visible = visibleCards(columnId).filter((object) => object.id !== cardId)
+  const index =
+    visibleIndex <= 0
+      ? visible.length
+        ? all.indexOf(visible[0])
+        : all.length
+      : all.indexOf(visible[Math.min(visibleIndex, visible.length) - 1]) + 1
+  send({ type: 'board:card-move', objectId: cardId, columnId, index })
+}
+
+function moveColumn(columnId, index) {
+  send({ type: 'board:column-update', columnId, index })
+}
+
+function renderCard(object) {
   const card = document.createElement('article')
-  card.className = 'card object-card'
+  card.className = `kanban-card${object.archived ? ' archived' : ''}`
   if (!seenObjects.has(object.id)) {
     seenObjects.add(object.id)
     card.classList.add('enter')
   }
-  const votes = object.votes || {}
-  const score = Object.values(votes).reduce((sum, value) => sum + value, 0)
-  const ownVote = votes[currentIdentity] || 0
-  const comments = [...(object.comments || [])].sort(
-    (a, b) => new Date(a.createdAt) - new Date(b.createdAt)
-  )
-  const expanded = expandedComments.has(object.id)
-  const bump = lastScores.has(object.id) && lastScores.get(object.id) !== score
-  lastScores.set(object.id, score)
-
-  card.innerHTML = `<div class="votes">
-      <button class="${ownVote === 1 ? 'voted-up' : ''}" data-vote="1" aria-label="Upvote" aria-pressed="${ownVote === 1}">${icon('up')}</button>
-      <span class="score${bump ? ' bump' : ''}" aria-label="Score">${score}</span>
-      <button class="${ownVote === -1 ? 'voted-down' : ''}" data-vote="-1" aria-label="Downvote" aria-pressed="${ownVote === -1}">${icon('down')}</button>
-    </div>
-    <div>
-      <div class="object-title">${escape(object.title)}</div>
-      <div class="comment-meta">${identityHtml(object.author)}<span class="time">${escape(relativeTime(object.createdAt))}</span></div>
-      <div class="object-body">${escape(object.body)}</div>
-      ${object.images?.length ? '<div class="object-images"></div>' : ''}
-      <button class="ghost comments-toggle" aria-expanded="${expanded}">${icon('message')}<span>${comments.length} ${comments.length === 1 ? 'comment' : 'comments'}</span>${icon('right', 'icon chevron')}</button>
-      <div class="comments-panel${expanded ? ' open' : ''}">
-        ${comments.length ? '<div class="comments"></div>' : ''}
-        <form class="comment-form"><input placeholder="Add a comment" aria-label="Add a comment" /><button>Comment</button></form>
-      </div>
-    </div>`
-
-  if (object.images?.length) renderImages(card, object)
-
-  const commentList = card.querySelector('.comments')
-  for (const comment of comments) commentList.appendChild(renderComment(comment))
-
-  // Step by one: with a vote cast, either arrow first clears it.
-  const vote = (value) =>
-    send({ type: 'board:vote', objectId: object.id, value: ownVote ? 0 : value })
-  card.querySelector('[data-vote="1"]').onclick = () => vote(1)
-  card.querySelector('[data-vote="-1"]').onclick = () => vote(-1)
-
-  const toggle = card.querySelector('.comments-toggle')
-  const panel = card.querySelector('.comments-panel')
-  const input = card.querySelector('.comment-form input')
-  input.dataset.commentFor = object.id
-  input.value = commentDrafts.get(object.id) || ''
-  input.oninput = () => commentDrafts.set(object.id, input.value)
-  toggle.onclick = () => {
-    const open = !expandedComments.has(object.id)
-    if (open) expandedComments.add(object.id)
-    else expandedComments.delete(object.id)
-    toggle.setAttribute('aria-expanded', String(open))
-    panel.classList.toggle('open', open)
-    if (open) input.focus()
-  }
-  card.querySelector('form').onsubmit = (event) => {
+  card.dataset.cardId = object.id
+  card.tabIndex = 0
+  card.draggable = true
+  card.setAttribute('role', 'button')
+  card.setAttribute('aria-label', `${object.title}. Alt+arrow keys move the card.`)
+  const score = scoreOf(object)
+  const comments = object.comments?.length || 0
+  const images = object.images?.length || 0
+  card.innerHTML = `<div class="kanban-card-title">${escape(object.title)}</div>
+    <div class="kanban-card-meta">${[
+      Object.keys(object.votes || {}).length
+        ? `<span title="Score">${icon(score < 0 ? 'down' : 'up')}${score}</span>`
+        : '',
+      comments ? `<span title="Comments">${icon('message')}${comments}</span>` : '',
+      images ? `<span title="Images">${icon('image')}${images}</span>` : '',
+      object.archived ? '<span>archived</span>' : ''
+    ].join('')}</div>`
+  card.onclick = () => openCard(object.id)
+  card.onkeydown = (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault()
+      openCard(object.id)
+      return
+    }
+    if (!event.altKey || !event.key.startsWith('Arrow')) return
     event.preventDefault()
-    const text = input.value.trim()
-    if (text) send({ type: 'board:comment', objectId: object.id, text })
-    input.value = ''
-    commentDrafts.delete(object.id)
+    const visible = visibleCards(object.columnId)
+    const index = visible.findIndex((entry) => entry.id === object.id)
+    const columnIndex = columns.findIndex((column) => column.id === object.columnId)
+    if (event.key === 'ArrowUp' && index > 0) moveCard(object.id, object.columnId, index - 1)
+    if (event.key === 'ArrowDown' && index < visible.length - 1) {
+      moveCard(object.id, object.columnId, index + 1)
+    }
+    const target = columns[columnIndex + (event.key === 'ArrowLeft' ? -1 : 1)]
+    if (target && (event.key === 'ArrowLeft' || event.key === 'ArrowRight')) {
+      moveCard(object.id, target.id, index)
+    }
   }
+  card.ondragstart = (event) => {
+    dragging = { kind: 'card', id: object.id }
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('text/plain', object.id)
+    requestAnimationFrame(() => card.classList.add('dragging'))
+  }
+  card.ondragend = endDrag
   return card
 }
 
-function renderBoard(nextObjects) {
-  // Newest first; worker order follows storage keys, not creation time.
-  objects = [...(nextObjects || [])].sort(
-    (a, b) => (Date.parse(b.createdAt) || 0) - (Date.parse(a.createdAt) || 0)
+function endDrag() {
+  dragging = null
+  for (const marker of document.querySelectorAll('.drop-marker, .column-drop-marker')) {
+    marker.remove()
+  }
+  for (const element of document.querySelectorAll('.dragging')) {
+    element.classList.remove('dragging')
+  }
+  if (renderDeferred) renderBoard()
+}
+
+// Index among the elements matching `selector`, from the pointer position.
+function dropIndex(container, selector, coordinate, axis) {
+  const items = [...container.querySelectorAll(selector)].filter(
+    (element) => !element.classList.contains('dragging')
   )
-  const focus = captureFocus()
-  boardObjects.innerHTML = ''
-  if (!objects.length) {
-    boardObjects.innerHTML =
-      '<div class="card muted prompt">No objects yet. Add the first proposal.</div>'
+  const index = items.findIndex((element) => {
+    const box = element.getBoundingClientRect()
+    return axis === 'y'
+      ? coordinate < box.top + box.height / 2
+      : coordinate < box.left + box.width / 2
+  })
+  return { items, index: index === -1 ? items.length : index }
+}
+
+function placeMarker(container, items, index, className) {
+  let marker = container.querySelector(`:scope > .${className}`)
+  if (!marker) {
+    marker = document.createElement('div')
+    marker.className = className
+  }
+  container.insertBefore(marker, items[index] || container.querySelector(':scope > .add-column'))
+}
+
+function renderComposer({ placeholder, value, onInput, onSubmit, onCancel, submitLabel }) {
+  const form = document.createElement('form')
+  form.className = 'composer'
+  form.innerHTML = `<textarea rows="2" placeholder="${escape(placeholder)}" aria-label="${escape(placeholder)}"></textarea>
+    <div class="row"><button>${escape(submitLabel)}</button><button type="button" class="ghost">Cancel</button></div>`
+  const input = form.querySelector('textarea')
+  input.value = value
+  input.oninput = () => onInput(input.value)
+  input.onkeydown = (event) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault()
+      form.requestSubmit()
+    } else if (event.key === 'Escape') {
+      event.stopPropagation()
+      onCancel()
+    }
+  }
+  form.onsubmit = (event) => {
+    event.preventDefault()
+    if (input.value.trim()) onSubmit(input.value.trim())
+    else input.focus()
+  }
+  form.querySelector('button.ghost').onclick = onCancel
+  return form
+}
+
+function renderColumn(column, index) {
+  const element = document.createElement('section')
+  element.className = 'column'
+  element.dataset.columnId = column.id
+  if (column.color) element.style.setProperty('--column-color', column.color)
+  const cards = visibleCards(column.id)
+
+  const head = document.createElement('header')
+  head.className = 'column-head'
+  head.draggable = !renamingColumn
+  if (renamingColumn?.id === column.id) {
+    const input = document.createElement('input')
+    input.className = 'column-name-input'
+    input.value = renamingColumn.text
+    input.setAttribute('aria-label', 'Column name')
+    input.dataset.focusKey = `rename:${column.id}`
+    input.oninput = () => (renamingColumn.text = input.value)
+    const finish = (save) => {
+      if (!renamingColumn) return
+      const name = renamingColumn.text.trim()
+      renamingColumn = null
+      if (save && name && name !== column.name) {
+        send({ type: 'board:column-update', columnId: column.id, name })
+      }
+      renderBoard()
+    }
+    input.onkeydown = (event) => {
+      if (event.key === 'Enter') finish(true)
+      if (event.key === 'Escape') {
+        event.stopPropagation()
+        finish(false)
+      }
+    }
+    input.onblur = () => finish(true)
+    head.append(input)
+  } else {
+    const name = document.createElement('button')
+    name.className = 'column-name'
+    name.textContent = column.name
+    name.title = 'Rename column'
+    name.onclick = () => {
+      renamingColumn = { id: column.id, text: column.name }
+      renderBoard()
+      document.querySelector(`[data-focus-key="rename:${column.id}"]`)?.select()
+    }
+    head.append(name)
+  }
+  const count = document.createElement('span')
+  count.className = 'column-count'
+  count.textContent = cards.length
+  const tools = document.createElement('div')
+  tools.className = 'column-tools'
+  const tool = (iconName, label, onClick, disabled = false) => {
+    const button = document.createElement('button')
+    button.className = 'ghost'
+    button.innerHTML = icon(iconName)
+    button.setAttribute('aria-label', label)
+    button.title = label
+    button.disabled = disabled
+    button.onclick = onClick
+    tools.append(button)
+    return button
+  }
+  tool('left', 'Move column left', () => moveColumn(column.id, index - 1), index === 0)
+  tool(
+    'right',
+    'Move column right',
+    () => moveColumn(column.id, index + 1),
+    index === columns.length - 1
+  )
+  const remove = tool(
+    'trash',
+    'Delete column (its cards move to the first column)',
+    () => {
+      if (!remove.classList.contains('danger')) {
+        remove.className = 'danger'
+        withIcon(remove, 'trash', 'Delete?')
+        setTimeout(() => remove.isConnected && renderBoard(), 3000)
+        return
+      }
+      send({ type: 'board:column-delete', columnId: column.id })
+    },
+    columns.length < 2
+  )
+  head.append(count, tools)
+  head.ondragstart = (event) => {
+    if (event.target !== head) return
+    dragging = { kind: 'column', id: column.id }
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('text/plain', column.id)
+    requestAnimationFrame(() => element.classList.add('dragging'))
+  }
+  head.ondragend = endDrag
+
+  const list = document.createElement('div')
+  list.className = 'column-cards'
+  if (!cards.length) list.innerHTML = '<div class="column-empty">No cards</div>'
+  for (const object of cards) list.append(renderCard(object))
+  // The whole column takes a dropped card, not just its list of cards.
+  element.ondragover = (event) => {
+    if (dragging?.kind !== 'card') return
+    event.preventDefault()
+    const { items, index: at } = dropIndex(list, '.kanban-card', event.clientY, 'y')
+    placeMarker(list, items, at, 'drop-marker')
+  }
+  element.ondragleave = (event) => {
+    if (!element.contains(event.relatedTarget)) list.querySelector('.drop-marker')?.remove()
+  }
+  element.ondrop = (event) => {
+    if (dragging?.kind !== 'card') return
+    event.preventDefault()
+    const { index: at } = dropIndex(list, '.kanban-card', event.clientY, 'y')
+    moveCard(dragging.id, column.id, at)
+    endDrag()
+  }
+
+  const foot = document.createElement('div')
+  foot.className = 'column-foot'
+  if (cardComposer?.columnId === column.id) {
+    const composer = renderComposer({
+      placeholder: 'Card title',
+      value: cardComposer.text,
+      submitLabel: 'Add card',
+      onInput: (text) => (cardComposer.text = text),
+      onSubmit: (title) => {
+        send({ type: 'board:create', title, body: '', columnId: column.id })
+        cardComposer = { columnId: column.id, text: '' }
+        renderBoard()
+      },
+      onCancel: () => {
+        cardComposer = null
+        renderBoard()
+      }
+    })
+    composer.querySelector('textarea').dataset.focusKey = `card:${column.id}`
+    foot.append(composer)
+  } else {
+    const add = document.createElement('button')
+    add.className = 'ghost'
+    withIcon(add, 'plus', 'Add a card')
+    add.onclick = () => {
+      cardComposer = { columnId: column.id, text: '' }
+      renderBoard()
+      document.querySelector(`[data-focus-key="card:${column.id}"]`)?.focus()
+    }
+    foot.append(add)
+  }
+
+  element.append(head, list, foot)
+  return element
+}
+
+function renderAddColumn() {
+  const element = document.createElement('div')
+  element.className = 'add-column'
+  if (columnComposer) {
+    const composer = renderComposer({
+      placeholder: 'Column name',
+      value: columnComposer.text,
+      submitLabel: 'Add column',
+      onInput: (text) => (columnComposer.text = text),
+      onSubmit: (name) => {
+        send({ type: 'board:column-create', name })
+        columnComposer = { text: '' }
+        renderBoard()
+      },
+      onCancel: () => {
+        columnComposer = null
+        renderBoard()
+      }
+    })
+    composer.querySelector('textarea').dataset.focusKey = 'column'
+    element.append(composer)
+  } else {
+    const add = document.createElement('button')
+    add.className = 'secondary'
+    withIcon(add, 'plus', 'Add a column')
+    add.onclick = () => {
+      columnComposer = { text: '' }
+      renderBoard()
+      document.querySelector('[data-focus-key="column"]')?.focus()
+    }
+    element.append(add)
+  }
+  return element
+}
+
+function renderBoard() {
+  // Rebuilding mid-drag would cancel the drag; catch up when it ends.
+  if (dragging) {
+    renderDeferred = true
     return
   }
-  for (const object of objects) boardObjects.appendChild(renderObject(object))
-  restoreFocus(focus)
+  renderDeferred = false
+  const active = document.activeElement
+  const focus = active?.dataset?.focusKey
+    ? { key: active.dataset.focusKey, start: active.selectionStart, end: active.selectionEnd }
+    : active?.dataset?.cardId
+      ? { cardId: active.dataset.cardId }
+      : null
+  const scrollLeft = boardObjects.scrollLeft
+  const scrollTops = new Map(
+    [...boardObjects.querySelectorAll('.column')].map((element) => [
+      element.dataset.columnId,
+      element.querySelector('.column-cards').scrollTop
+    ])
+  )
+
+  boardObjects.innerHTML = ''
+  columns.forEach((column, index) => boardObjects.append(renderColumn(column, index)))
+  boardObjects.append(renderAddColumn())
+
+  boardObjects.scrollLeft = scrollLeft
+  for (const element of boardObjects.querySelectorAll('.column')) {
+    element.querySelector('.column-cards').scrollTop = scrollTops.get(element.dataset.columnId) || 0
+  }
+  if (focus?.key) {
+    const input = document.querySelector(`[data-focus-key="${focus.key}"]`)
+    input?.focus()
+    input?.setSelectionRange?.(focus.start, focus.end)
+  } else if (focus?.cardId) {
+    document.querySelector(`[data-card-id="${focus.cardId}"]`)?.focus()
+  }
+
+  const archived = objects.filter((object) => object.archived).length
+  const archivedToggle = document.getElementById('archived-toggle')
+  archivedToggle.hidden = !archived && !showArchived
+  archivedToggle.textContent = `${showArchived ? 'Hide' : 'Show'} archived (${archived})`
+  archivedToggle.setAttribute('aria-pressed', String(showArchived))
+  renderColumnOptions(document.getElementById('object-column'))
+  refreshCard()
+}
+
+boardObjects.ondragover = (event) => {
+  if (dragging?.kind !== 'column') return
+  event.preventDefault()
+  const { items, index } = dropIndex(boardObjects, '.column', event.clientX, 'x')
+  placeMarker(boardObjects, items, index, 'column-drop-marker')
+}
+boardObjects.ondrop = (event) => {
+  if (dragging?.kind !== 'column') return
+  event.preventDefault()
+  const { index } = dropIndex(boardObjects, '.column', event.clientX, 'x')
+  moveColumn(dragging.id, index)
+  endDrag()
+}
+
+function renderColumnOptions(select, selected = select.value) {
+  if (document.activeElement === select) return
+  select.innerHTML = columns
+    .map((column) => `<option value="${escape(column.id)}">${escape(column.name)}</option>`)
+    .join('')
+  select.value = columns.some((column) => column.id === selected) ? selected : columns[0]?.id
+}
+
+// Card details: built once per open, then refreshed in place on every
+// board-state so typing in the title, description or comment survives.
+const cardModal = document.getElementById('card-modal')
+const cardTitle = document.getElementById('card-title')
+const cardBody = document.getElementById('card-body')
+const cardColumn = document.getElementById('card-column')
+let cardFocusReturn = null
+
+function openCard(id) {
+  const object = cardById(id)
+  if (!object) return
+  cardFocusReturn = document.activeElement
+  openCardId = id
+  cardTitle.value = object.title
+  cardBody.value = object.body || ''
+  document.getElementById('card-body-actions').hidden = true
+  document.getElementById('card-comment').value = ''
+  const images = document.getElementById('card-images')
+  images.innerHTML = ''
+  if (object.images?.length) renderImages(cardModal, object)
+  images.hidden = !object.images?.length
+  refreshCard()
+  cardModal.classList.add('open')
+  cardTitle.focus()
+}
+
+function closeCard() {
+  if (!openCardId) return
+  openCardId = null
+  cardModal.classList.remove('open')
+  const target = cardFocusReturn?.dataset?.cardId
+  cardFocusReturn = null
+  if (target) document.querySelector(`[data-card-id="${target}"]`)?.focus()
+}
+
+function refreshCard() {
+  if (!openCardId) return
+  const object = cardById(openCardId)
+  if (!object) return closeCard()
+  if (document.activeElement !== cardTitle) cardTitle.value = object.title
+  if (document.getElementById('card-body-actions').hidden) cardBody.value = object.body || ''
+  document.getElementById('card-author').innerHTML =
+    `${identityHtml(object.author)}<span class="time">${escape(relativeTime(object.createdAt))}</span>`
+  renderColumnOptions(cardColumn, object.columnId)
+  document.getElementById('card-archived-badge').hidden = !object.archived
+  document.getElementById('card-archive').textContent = object.archived ? 'Restore' : 'Archive'
+
+  const ownVote = object.votes?.[currentIdentity] || 0
+  document.getElementById('card-score').textContent = scoreOf(object)
+  for (const button of cardModal.querySelectorAll('[data-card-vote]')) {
+    const value = Number(button.dataset.cardVote)
+    button.innerHTML = icon(value === 1 ? 'up' : 'down')
+    button.className = ownVote === value ? (value === 1 ? 'voted-up' : 'voted-down') : ''
+    button.setAttribute('aria-pressed', String(ownVote === value))
+  }
+
+  const list = document.getElementById('card-comments')
+  list.innerHTML = ''
+  const comments = [...(object.comments || [])].sort(
+    (a, b) => new Date(a.createdAt) - new Date(b.createdAt)
+  )
+  for (const comment of comments) list.appendChild(renderComment(comment))
+}
+
+function saveCardTitle() {
+  const object = cardById(openCardId)
+  const title = cardTitle.value.trim()
+  if (!object) return
+  if (title && title !== object.title) {
+    send({ type: 'board:card-update', objectId: object.id, title })
+  } else cardTitle.value = object.title
+}
+
+cardTitle.onkeydown = (event) => {
+  if (event.key === 'Enter') {
+    event.preventDefault()
+    saveCardTitle()
+  }
+}
+cardTitle.onblur = saveCardTitle
+cardBody.oninput = () => {
+  document.getElementById('card-body-actions').hidden = false
+}
+document.getElementById('card-body-save').onclick = () => {
+  const object = cardById(openCardId)
+  if (object && cardBody.value !== (object.body || '')) {
+    send({ type: 'board:card-update', objectId: object.id, body: cardBody.value })
+  }
+  document.getElementById('card-body-actions').hidden = true
+}
+document.getElementById('card-body-cancel').onclick = () => {
+  document.getElementById('card-body-actions').hidden = true
+  refreshCard()
+}
+cardColumn.onchange = () => {
+  if (openCardId) moveCard(openCardId, cardColumn.value, Infinity)
+}
+for (const button of cardModal.querySelectorAll('[data-card-vote]')) {
+  // Step by one: with a vote cast, either arrow first clears it.
+  button.onclick = () => {
+    const object = cardById(openCardId)
+    if (!object) return
+    const ownVote = object.votes?.[currentIdentity] || 0
+    send({
+      type: 'board:vote',
+      objectId: object.id,
+      value: ownVote ? 0 : Number(button.dataset.cardVote)
+    })
+  }
+}
+document.getElementById('card-comment-form').onsubmit = (event) => {
+  event.preventDefault()
+  const input = document.getElementById('card-comment')
+  const text = input.value.trim()
+  if (text && openCardId) send({ type: 'board:comment', objectId: openCardId, text })
+  input.value = ''
+}
+document.getElementById('card-archive').onclick = () => {
+  const object = cardById(openCardId)
+  if (!object) return
+  send({ type: 'board:card-archive', objectId: object.id, archived: !object.archived })
+  if (!object.archived && !showArchived) closeCard()
+}
+document.getElementById('close-card-modal').onclick = closeCard
+cardModal.onclick = (event) => {
+  if (event.target === cardModal) closeCard()
+}
+document.getElementById('archived-toggle').onclick = () => {
+  showArchived = !showArchived
+  renderBoard()
 }
 
 // A joiner whose board has never synced only gets data once another member is
@@ -464,7 +899,7 @@ function setBoardLoading(loading) {
   updateWaiting()
   boardLoading.classList.toggle('visible', loading)
   document.querySelector('.new-object-bar').style.display = loading ? 'none' : 'flex'
-  boardObjects.style.display = loading ? 'none' : 'grid'
+  boardObjects.style.display = loading ? 'none' : 'flex'
   if (loading) closeNewObject()
   updateStatusChip()
 }
@@ -494,7 +929,7 @@ function logout() {
   identityError.innerText = ''
   roomGate.style.display = 'none'
   profileGate.style.display = 'none'
-  boardView.style.display = 'none'
+  showBoard(false)
   identityGate.style.display = 'block'
   if (wasInRoom) send({ type: 'room:leave' })
 }
@@ -550,7 +985,7 @@ bridge.onWorkerIPC(workers.main, (data) => {
       roomEntered = false
       identityGate.style.display = 'block'
       roomGate.style.display = 'none'
-      boardView.style.display = 'none'
+      showBoard(false)
     }
   }
   if (message.type === 'room-status') {
@@ -566,7 +1001,7 @@ bridge.onWorkerIPC(workers.main, (data) => {
       roomGate.style.display = 'none'
       const hasDisplayName = Boolean(message.displayName)
       profileGate.style.display = hasDisplayName ? 'none' : 'block'
-      boardView.style.display = hasDisplayName ? 'block' : 'none'
+      showBoard(hasDisplayName)
       setBoardLoading(!boardSynced)
       if (hasDisplayName) {
         document.getElementById('display-name').value = message.displayName
@@ -612,7 +1047,9 @@ bridge.onWorkerIPC(workers.main, (data) => {
   }
   if (message.type === 'board-state') {
     profiles = message.profiles || {}
-    renderBoard(message.objects)
+    objects = message.objects || []
+    columns = message.columns || []
+    renderBoard()
   }
   if (message.type === 'board-name') {
     document.getElementById('board-name').innerText = message.name
@@ -625,7 +1062,7 @@ bridge.onWorkerIPC(workers.main, (data) => {
     profileError.innerText = ''
     if (!roomEntered) return
     profileGate.style.display = 'none'
-    boardView.style.display = 'block'
+    showBoard(true)
     setBoardLoading(!boardSynced)
   }
   if (message.type === 'board-synced') {
@@ -679,6 +1116,7 @@ document.getElementById('share-invite').onclick = async () => {
 document.addEventListener('keydown', (event) => {
   if (event.key !== 'Escape') return
   if (document.getElementById('image-viewer').classList.contains('open')) closeImageViewer()
+  else if (cardModal.classList.contains('open')) closeCard()
   else if (connectionModal.classList.contains('open')) closeConnectionModal()
   else if (newObjectForm.classList.contains('open')) {
     closeNewObject()
@@ -766,6 +1204,7 @@ newObjectForm.onsubmit = (event) => {
     type: 'board:create',
     title: title.value,
     body: document.getElementById('object-body').value,
+    columnId: document.getElementById('object-column').value,
     images: pendingImages.map(({ url, type, width, height }) => ({
       data: url.slice(url.indexOf(',') + 1),
       type,

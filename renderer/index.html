@@ -23,6 +23,10 @@
         color: var(--text);
         background: var(--bg);
       }
+      /* Elements with their own display (buttons, .row) must still hide. */
+      [hidden] {
+        display: none !important;
+      }
       body {
         margin: 0;
         min-height: 100vh;
@@ -347,42 +351,279 @@
         display: grid;
         animation: rise-in 0.18s ease;
       }
+      body.board-open .container {
+        width: auto;
+        padding: 20px 24px 24px;
+      }
       #board-objects {
-        display: grid;
+        display: flex;
         gap: 12px;
+        align-items: flex-start;
+        overflow-x: auto;
+        padding-bottom: 12px;
+        min-height: 200px;
       }
-      .object-card {
-        display: grid;
-        grid-template-columns: 44px 1fr;
-        gap: 14px;
-      }
-      .object-card.enter,
-      .comment.enter {
-        animation: rise-in 0.22s ease both;
-      }
-      .votes {
+      .column {
+        flex: none;
+        width: 280px;
+        max-height: calc(100vh - 200px);
         display: flex;
         flex-direction: column;
-        align-items: center;
-        gap: 2px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-top: 3px solid var(--column-color, var(--border));
+        border-radius: 12px;
       }
-      .votes button {
+      .column.dragging {
+        opacity: 0.4;
+      }
+      .column-head {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 10px 10px 6px 12px;
+        cursor: grab;
+      }
+      .column-name {
+        flex: 1;
+        min-width: 0;
+        justify-content: flex-start;
+        padding: 4px 6px;
+        margin-left: -6px;
+        background: transparent;
+        color: var(--text);
+        font-weight: 700;
+        text-align: left;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .column-name-input {
+        flex: 1;
+        padding: 4px 6px;
+        font-weight: 700;
+      }
+      .column-count {
+        font-family: var(--mono);
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .column-tools {
+        display: flex;
+        opacity: 0;
+        transition: opacity 0.15s ease;
+      }
+      .column-head:hover .column-tools,
+      .column-head:focus-within .column-tools {
+        opacity: 1;
+      }
+      .column-tools button {
+        padding: 4px;
+      }
+      .column-cards {
+        display: grid;
+        gap: 8px;
+        align-content: start;
+        padding: 4px 10px;
+        min-height: 40px;
+        overflow-y: auto;
+      }
+      .column-empty {
+        padding: 10px;
+        border: 1px dashed var(--border);
+        border-radius: 8px;
+        color: var(--muted);
+        font-size: 13px;
+        text-align: center;
+      }
+      .kanban-card {
+        display: grid;
+        gap: 6px;
+        padding: 10px 12px;
+        background: var(--surface-raised);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        cursor: pointer;
+        text-align: left;
+      }
+      .kanban-card:hover {
+        border-color: #2b3a4d;
+      }
+      .kanban-card.enter {
+        animation: rise-in 0.22s ease both;
+      }
+      .kanban-card.dragging {
+        opacity: 0.4;
+      }
+      .kanban-card.archived {
+        opacity: 0.55;
+        border-style: dashed;
+      }
+      .kanban-card-title {
+        font-weight: 650;
+        line-height: 1.35;
+        overflow-wrap: anywhere;
+      }
+      .kanban-card-meta {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px;
+        font-family: var(--mono);
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .kanban-card-meta:empty {
+        display: none;
+      }
+      .kanban-card-meta span {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .kanban-card-meta .icon {
+        width: 13px;
+        height: 13px;
+      }
+      .drop-marker {
+        height: 3px;
+        border-radius: 2px;
+        background: var(--accent);
+      }
+      .column-drop-marker {
+        flex: none;
+        width: 3px;
+        align-self: stretch;
+        border-radius: 2px;
+        background: var(--accent);
+      }
+      .column-foot {
+        padding: 8px 10px 10px;
+      }
+      .column-foot > button {
+        width: 100%;
+        justify-content: flex-start;
+      }
+      .composer {
+        display: grid;
+        gap: 8px;
+      }
+      .composer textarea {
+        resize: none;
+      }
+      .add-column {
+        flex: none;
+        width: 280px;
+      }
+      .add-column > button {
+        width: 100%;
+        justify-content: flex-start;
+      }
+      .add-column .composer {
+        padding: 10px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+      }
+      select {
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 8px 10px;
+        font: inherit;
+        color: var(--text);
+        background: var(--bg);
+      }
+      #card-modal {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 10;
+        align-items: flex-start;
+        justify-content: center;
+        padding: 48px 20px;
+        overflow-y: auto;
+        background: rgba(3, 6, 10, 0.7);
+        backdrop-filter: blur(4px);
+      }
+      #card-modal.open {
+        display: flex;
+        animation: fade-in 0.15s ease;
+      }
+      .card-detail {
+        display: grid;
+        gap: 16px;
+        width: min(640px, 100%);
+      }
+      .card-detail-head {
+        display: flex;
+        gap: 8px;
+        align-items: flex-start;
+      }
+      #card-title {
+        font-size: 20px;
+        font-weight: 700;
+        border-color: transparent;
+        background: transparent;
+        padding: 6px 8px;
+        margin-left: -8px;
+      }
+      #card-title:hover {
+        border-color: var(--border);
+      }
+      .card-detail-sub {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px;
+        font-size: 14px;
+      }
+      #card-author {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .card-detail-bar {
+        justify-content: space-between;
+      }
+      .card-detail-foot {
+        justify-content: flex-end;
+        padding-top: 12px;
+        border-top: 1px solid var(--border);
+      }
+      .badge {
+        padding: 2px 8px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .badge[hidden] {
+        display: none;
+      }
+      .vote-inline {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .vote-inline button {
         padding: 4px;
         background: transparent;
         color: var(--muted);
-        border-color: transparent;
       }
-      .votes button:hover {
-        color: var(--text);
-        border-color: var(--border);
-      }
-      .votes button.voted-up {
+      .vote-inline button.voted-up {
         background: var(--accent);
         color: var(--accent-ink);
       }
-      .votes button.voted-down {
+      .vote-inline button.voted-down {
         background: var(--magenta);
         color: #1a0315;
+      }
+      .comments:empty {
+        display: none;
+      }
+      .comment.enter {
+        animation: rise-in 0.22s ease both;
       }
       .score {
         font-family: var(--mono);
@@ -392,38 +633,6 @@
       }
       .score.bump {
         animation: bump 0.3s ease;
-      }
-      .object-title {
-        font-size: 17px;
-        font-weight: 700;
-        margin-bottom: 4px;
-      }
-      .object-body {
-        margin: 10px 0 12px;
-        white-space: pre-wrap;
-        line-height: 1.5;
-      }
-      .object-body:empty {
-        display: none;
-      }
-      .comments-toggle {
-        padding: 4px 6px;
-        margin-left: -6px;
-        font-size: 13px;
-      }
-      .comments-toggle .chevron {
-        transition: transform 0.15s ease;
-      }
-      .comments-toggle[aria-expanded='true'] .chevron {
-        transform: rotate(90deg);
-      }
-      .comments-panel {
-        display: none;
-        margin-top: 10px;
-      }
-      .comments-panel.open {
-        display: grid;
-        gap: 10px;
       }
       .comments {
         display: grid;
@@ -716,15 +925,16 @@
         </div>
         <div class="new-object-bar">
           <span class="section-label">Board</span>
-          <button id="new-object-toggle" data-icon="plus" aria-expanded="false">New</button>
+          <div class="row">
+            <button id="archived-toggle" class="ghost" aria-pressed="false">Show archived</button>
+            <button id="new-object-toggle" data-icon="plus" aria-expanded="false">New card</button>
+          </div>
         </div>
         <form id="new-object-form" class="card stack">
-          <h2>Add an object</h2>
-          <input id="object-title" placeholder="Title" /><textarea
-            id="object-body"
-            rows="3"
-            placeholder="Description or proposal"
-          ></textarea>
+          <h2>Add a card</h2>
+          <input id="object-title" placeholder="Title" />
+          <select id="object-column" aria-label="Column"></select
+          ><textarea id="object-body" rows="3" placeholder="Description or proposal"></textarea>
           <div id="image-previews" class="image-previews"></div>
           <input id="object-images" type="file" accept="image/*" multiple hidden />
           <p id="image-error" class="error" role="alert"></p>
@@ -733,7 +943,7 @@
               Attach images
             </button>
             <button type="button" id="object-cancel" class="secondary">Cancel</button>
-            <button type="submit" id="object-add">Add to board</button>
+            <button type="submit" id="object-add">Add card</button>
           </div>
         </form>
         <div id="board-loading" aria-label="Syncing board">
@@ -774,6 +984,53 @@
         </div>
         <div class="row" style="justify-content: flex-end; margin-top: 12px">
           <button id="close-connection-modal" class="ghost">Close</button>
+        </div>
+      </div>
+    </div>
+    <div id="card-modal" role="dialog" aria-modal="true" aria-label="Card details">
+      <div class="modal-card card-detail">
+        <div class="card-detail-head">
+          <input id="card-title" aria-label="Card title" maxlength="200" />
+          <button id="close-card-modal" class="ghost icon-only" aria-label="Close">✕</button>
+        </div>
+        <div class="card-detail-sub">
+          <span id="card-author"></span>
+          <label class="muted"
+            >in
+            <select id="card-column" aria-label="Column"></select
+          ></label>
+          <span id="card-archived-badge" class="badge" hidden>Archived</span>
+        </div>
+        <section class="stack">
+          <h3 class="section-label">Description</h3>
+          <textarea
+            id="card-body"
+            rows="5"
+            placeholder="Add a more detailed description…"
+          ></textarea>
+          <div id="card-body-actions" class="row" hidden>
+            <button id="card-body-save" type="button">Save</button>
+            <button id="card-body-cancel" type="button" class="secondary">Cancel</button>
+          </div>
+        </section>
+        <div id="card-images" class="object-images"></div>
+        <section class="stack">
+          <div class="row card-detail-bar">
+            <h3 class="section-label">Comments</h3>
+            <div class="vote-inline">
+              <button data-card-vote="1" aria-label="Upvote"></button>
+              <span id="card-score" class="score" aria-label="Score">0</span>
+              <button data-card-vote="-1" aria-label="Downvote"></button>
+            </div>
+          </div>
+          <div id="card-comments" class="comments"></div>
+          <form id="card-comment-form" class="comment-form">
+            <input id="card-comment" placeholder="Add a comment" aria-label="Add a comment" />
+            <button>Comment</button>
+          </form>
+        </section>
+        <div class="row card-detail-foot">
+          <button id="card-archive" type="button" class="secondary">Archive</button>
         </div>
       </div>
     </div>
