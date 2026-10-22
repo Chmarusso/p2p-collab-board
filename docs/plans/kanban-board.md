@@ -299,3 +299,19 @@ Phases 2 to 5 can be reordered; phase 1 has to come first.
   new boards now get their own namespace (`board-spaces.json`), legacy boards keep
   working. Leaving a board right after an edit no longer drops the edit, and
   opening/leaving boards no longer race. `npm run test:board-spaces` covers these.
+
+## Phase 7 notes (iOS)
+
+- `apps/mobile/src/board/`: horizontally swiped columns, card faces (cover,
+  labels, due badge, counts), card sheet (column and position, labels, due date,
+  Markdown description with images, gallery, votes, comments with @mentions,
+  archive), Labels / Customize / Filter / Notifications / column sheets, board
+  description, peer changes animated with LayoutAnimation.
+- No new native modules, so it ships over the air: Markdown is rendered from
+  `marked` tokens (raw HTML as text, no remote images, http(s)/mailto links only),
+  images use the existing image picker, moves use "column" chips and up/down
+  instead of drag and drop, theme presets show as solid colors (no gradients
+  without a native module), notifications live in the in-app bell.
+- Shared primitives moved from `App.tsx` to `src/ui.tsx`.
+- Debug builds expose `globalThis.__opencollab` / `__board` for scripted checks
+  through the Hermes inspector; release builds don't.

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import {
   AccessibilityInfo,
   Alert,
@@ -6,6 +6,7 @@ import {
   FlatList,
   Image,
   KeyboardAvoidingView,
+  LayoutAnimation,
   Modal,
   PanResponder,
   Platform,
@@ -21,12 +22,29 @@ import {
 import { Feather } from '@expo/vector-icons'
 import * as SecureStore from 'expo-secure-store'
 import * as Clipboard from 'expo-clipboard'
-import * as ImagePicker from 'expo-image-picker'
-import { ImageManipulator, SaveFormat } from 'expo-image-manipulator'
 import PearRuntime from 'pear-mobile'
 import FramedStream from 'framed-stream'
 import workerBundle from './worker.bundle.js'
 import { messageTypes } from '@opencollab/board-protocol'
+import {
+  BoardImages,
+  Button,
+  CachedImage,
+  FadeIn,
+  FeatherName,
+  IconButton,
+  Identicon,
+  ImageRef,
+  colors,
+  imageKey,
+  mono,
+  reduceMotion,
+  PendingImage,
+  pickPreparedImages,
+  setReduceMotion
+} from './ui'
+import { BoardScreen } from './board/BoardScreen'
+import type { AlertBoard, BoardAlert, BoardData } from './board/model'
 
 const normalizeInvite = (value: string) => {
   const invite = value.trim()
@@ -47,6 +65,15 @@ const { version, upgrade, productName } = require('../package.json') as {
   productName: string
 }
 
+const emptyBoard: BoardData = {
+  objects: [],
+  columns: [],
+  labels: [],
+  theme: { background: null, accent: null },
+  info: { description: '' },
+  profiles: {}
+}
+
 // OTA status, shared by every screen's banner. The worker sends the plain
 // strings 'updating' / 'updated' (pear-mobile updater) and 'pear:updateApplied'.
 type UpdateStatus = '' | 'downloading' | 'installed'
@@ -57,39 +84,11 @@ function setUpdateStatus(status: UpdateStatus) {
   for (const listener of updateListeners) listener(status)
 }
 
-const colors = {
-  bg: '#0A0E14',
-  surface: '#0F1620',
-  surfaceRaised: '#141D29',
-  border: '#1C2633',
-  text: '#C9D4E3',
-  muted: '#6B7A90',
-  accent: '#39FF88',
-  onAccent: '#04110A',
-  info: '#22D3EE',
-  magenta: '#FF4FD8',
-  error: '#FF5C5C'
-}
-const mono = Platform.select({ ios: 'Menlo', default: 'monospace' })
-
-type FeatherName = React.ComponentProps<typeof Feather>['name']
 type BoardComment = { id: string; author: string; text: string; createdAt?: string }
-type ImageRef = {
-  core: string
-  id: { byteOffset: number; blockOffset: number; blockLength: number; byteLength: number }
-  type: string
-  width: number | null
-  height: number | null
-}
-type PendingImage = { uri: string; data: string; type: string; width: number; height: number }
-type CachedImage = { uri?: string; error?: string }
 
 // Image attachments: bytes live encrypted in each author's Hyperblobs core; the
 // worker fetches them on demand and they are cached here as data URIs.
 const MAX_IMAGES = 4
-const MAX_IMAGE_SIDE = 1600
-const MAX_IMAGE_BYTES = 5 * 1024 * 1024
-const imageKey = (ref: ImageRef) => `${ref.core}:${ref.id.blockOffset}:${ref.id.blockLength}`
 
 type BoardObject = {
   id: string
@@ -129,9 +128,6 @@ function describeNetwork(status: string) {
   return status
 }
 
-// Read once at startup and kept current by App; animations check it on mount.
-let reduceMotion = false
-
 export default function App() {
   const [pipe, setPipe] = useState<any>(null)
   const [identityPhrase, setIdentityPhrase] = useState('')
@@ -153,26 +149,36 @@ export default function App() {
   const [imageCache, setImageCache] = useState<Record<string, CachedImage>>({})
   const [viewerUri, setViewerUri] = useState('')
   const imageRequests = useRef(new Set<string>())
-  const [board, setBoard] = useState<BoardObject[]>([])
-  const [profiles, setProfiles] = useState<Record<string, string>>({})
+  const [boardData, setBoardData] = useState<BoardData>(emptyBoard)
+  const profiles = boardData.profiles
+  const [boardKey, setBoardKey] = useState('')
+  const [alertBoards, setAlertBoards] = useState<AlertBoard[]>([])
+  // Notifications read: everything up to `readUntil` (kept in SecureStore, which
+  // only holds small values) plus what was opened this session.
+  const [readUntil, setReadUntil] = useState(0)
+  const [readNow, setReadNow] = useState<Set<string>>(new Set())
+  const [openCardRequest, setOpenCardRequest] = useState<{ cardId: string; nonce: number } | null>(
+    null
+  )
+  const pendingOpen = useRef<{ boardKey: string; cardId: string } | null>(null)
+  const [composerColumn, setComposerColumn] = useState<string | null>(null)
+  // Board moves made here land instantly; only other members' changes animate.
+  const localMoveAt = useRef(0)
+  const workerListeners = useRef(new Set<(message: WorkerMessage) => void>())
   const [roomReady, setRoomReady] = useState(false)
   const [synced, setSynced] = useState(false)
   const [newTitle, setNewTitle] = useState('')
   const [newBody, setNewBody] = useState('')
-  const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({})
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [networkStatus, setNetworkStatus] = useState('Not connected')
   const [peerCount, setPeerCount] = useState(0)
   const [waitedForMembers, setWaitedForMembers] = useState(false)
   const identityKeyRef = useRef('')
+  const currentBoardKey = useRef('')
   const savedPhraseRef = useRef('')
 
   useEffect(() => {
-    AccessibilityInfo.isReduceMotionEnabled().then((value) => (reduceMotion = value))
-    const motion = AccessibilityInfo.addEventListener(
-      'reduceMotionChanged',
-      (value) => (reduceMotion = value)
-    )
+    AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion)
+    const motion = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion)
     const ipc = PearRuntime.run('/worker.bundle', workerBundle, [
       String(!__DEV__),
       version,
@@ -199,6 +205,11 @@ export default function App() {
       if (message.type === messageTypes.identityStatus) {
         if (message.status === 'unlocked') {
           identityKeyRef.current = message.publicKey || ''
+          if (message.publicKey) {
+            SecureStore.getItemAsync(`opencollab.alerts-read-until.${message.publicKey}`).then(
+              (value) => setReadUntil(Number(value) || 0)
+            )
+          }
           setIdentityKey(message.publicKey || '')
           if (message.publicKey) void loadRecentBoards(message.publicKey)
           setIdentityReady(true)
@@ -218,6 +229,8 @@ export default function App() {
         setEntryError('')
         setBoardName(message.boardName || 'OpenCollab')
         setInvitationLink(message.invite || '')
+        setBoardKey(message.boardKey || '')
+        currentBoardKey.current = message.boardKey || ''
         if (message.invite) rememberBoard(message.invite, message.boardName || 'Unnamed board')
         if (message.displayName) {
           setDisplayName(message.displayName)
@@ -227,13 +240,12 @@ export default function App() {
       if (message.type === messageTypes.roomStatus && message.status === 'none') {
         setRoomReady(false)
         setSynced(false)
-        setBoard([])
-        setProfiles({})
+        setBoardData(emptyBoard)
+        setBoardKey('')
         setBoardName('')
         setInvitationLink('')
         setDisplayName('')
         setDisplayNameDraft('')
-        setExpanded({})
         setImageCache({})
         imageRequests.current.clear()
         setEntryMode('choose')
@@ -248,8 +260,21 @@ export default function App() {
         }))
       }
       if (message.type === messageTypes.boardState) {
-        setBoard(message.objects || [])
-        setProfiles(message.profiles || {})
+        if (!reduceMotion && Date.now() - localMoveAt.current > 1500) {
+          LayoutAnimation.configureNext({
+            duration: 220,
+            update: { type: LayoutAnimation.Types.easeInEaseOut }
+          })
+        }
+        setBoardData({
+          objects: message.objects || [],
+          columns: message.columns || [],
+          labels: message.labels || [],
+          theme: message.theme || { background: null, accent: null },
+          info: message.info || { description: '' },
+          profiles: message.profiles || {}
+        })
+        openPendingCard(message.objects || [])
       }
       if (message.type === 'board-name' && message.name) {
         setBoardName(message.name)
@@ -262,6 +287,8 @@ export default function App() {
       if (message.type === 'room-status' && message.status === 'error')
         setEntryError(message.error || 'Something went wrong')
       if (message.type === 'room-debug') setNetworkStatus(describeNetwork(message.status))
+      if (message.type === messageTypes.boardAlerts) setAlertBoards(message.boards || [])
+      for (const listener of workerListeners.current) listener(message)
       if (message.type === 'peer-count') setPeerCount(message.count || 0)
     })
     setPipe(framed)
@@ -286,9 +313,102 @@ export default function App() {
   }, [roomReady, synced])
 
   const send = (message: object) => pipe?.write(JSON.stringify(message))
+
+  // The worker checks every joined board in the background for notifications.
+  useEffect(() => {
+    if (!pipe || !identityReady) return
+    send({
+      type: messageTypes.boardsWatch,
+      boards: recentBoards.map(({ invite, name }) => ({ invite, name }))
+    })
+  }, [pipe, identityReady, recentBoards])
+
+  // Debug builds only: lets scripted checks (Hermes inspector via Metro) drive
+  // the app the way the buttons do. Release builds never set it.
+  useEffect(() => {
+    if (!(globalThis as { __DEV__?: boolean }).__DEV__) return
+    ;(globalThis as Record<string, unknown>).__opencollab = {
+      send,
+      dismissBackup: () => setBackupPhrase(''),
+      state: () => ({
+        identityKey,
+        roomReady,
+        synced,
+        boardKey,
+        boardName,
+        displayName,
+        unreadCount,
+        alertBoards: alertBoards.map((board) => [
+          board.name,
+          board.alerts.length,
+          board.checkedAt > 0
+        ]),
+        data: boardData
+      })
+    }
+  })
+
+  const subscribe = useCallback((listener: (message: WorkerMessage) => void) => {
+    workerListeners.current.add(listener)
+    return () => {
+      workerListeners.current.delete(listener)
+    }
+  }, [])
+
+  const alertId = (board: AlertBoard, alert: BoardAlert) => `${board.key}:${alert.id}`
+  const isRead = useCallback(
+    (board: AlertBoard, alert: BoardAlert) =>
+      alert.at <= readUntil || readNow.has(alertId(board, alert)),
+    [readUntil, readNow]
+  )
+  const unreadCount = alertBoards.reduce(
+    (sum, board) => sum + board.alerts.filter((alert) => !isRead(board, alert)).length,
+    0
+  )
+  const markRead = useCallback(
+    (predicate: (board: AlertBoard, alert: BoardAlert) => boolean) => {
+      const keys = alertBoards.flatMap((board) =>
+        board.alerts
+          .filter((alert) => predicate(board, alert) && !isRead(board, alert))
+          .map((alert) => alertId(board, alert))
+      )
+      if (!keys.length) return
+      const all = alertBoards.every((board) =>
+        board.alerts.every((alert) => predicate(board, alert))
+      )
+      if (all) {
+        // "Mark all read" moves the watermark; nothing else needs remembering.
+        const until = Date.now()
+        setReadUntil(until)
+        void SecureStore.setItemAsync(
+          `opencollab.alerts-read-until.${identityKeyRef.current}`,
+          String(until)
+        )
+      }
+      setReadNow((current) => new Set([...current, ...keys]))
+    },
+    [alertBoards, isRead]
+  )
+
+  function openAlert(board: AlertBoard, alert: BoardAlert) {
+    markRead((b, a) => b.key === board.key && a.id === alert.id)
+    if (board.key === currentBoardKey.current) {
+      setOpenCardRequest({ cardId: alert.cardId, nonce: Date.now() })
+      return
+    }
+    pendingOpen.current = { boardKey: board.key, cardId: alert.cardId }
+    send({ type: messageTypes.roomStart, invite: normalizeInvite(board.invite) })
+  }
+
+  // After switching boards for a notification, open its card once it's there.
+  function openPendingCard(objects: { id: string }[]) {
+    const pending = pendingOpen.current
+    if (!pending || pending.boardKey !== currentBoardKey.current) return
+    if (!objects.some((object) => object.id === pending.cardId)) return
+    pendingOpen.current = null
+    setOpenCardRequest({ cardId: pending.cardId, nonce: Date.now() })
+  }
   const nameFor = (identity: string) => profiles[identity] || shortKey(identity)
-  const score = (item: BoardObject) =>
-    Object.values(item.votes || {}).reduce((sum, vote) => sum + vote, 0)
 
   async function unlock() {
     if (identityPhrase.trim().split(/\s+/).length < 12)
@@ -351,6 +471,9 @@ export default function App() {
 
   function logout() {
     setProfileOpen(false)
+    send({ type: messageTypes.boardsWatch, boards: [] })
+    setAlertBoards([])
+    setReadNow(new Set())
     if (roomReady) send({ type: messageTypes.roomLeave })
     identityKeyRef.current = ''
     setIdentityKey('')
@@ -376,6 +499,7 @@ export default function App() {
       type: messageTypes.boardCreate,
       title: newTitle,
       body: newBody,
+      columnId: composerColumn,
       images: pendingImages.map(({ data, type, width, height }) => ({ data, type, width, height }))
     })
     setNewTitle('')
@@ -401,40 +525,10 @@ export default function App() {
     requestImage(ref)
   }
 
-  // Downscale to MAX_IMAGE_SIDE and re-encode as JPEG to keep transfers small.
   async function pickImages() {
     const remaining = MAX_IMAGES - pendingImages.length
     if (remaining <= 0) return Alert.alert('Image limit', `Up to ${MAX_IMAGES} images per post.`)
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsMultipleSelection: true,
-      selectionLimit: remaining,
-      quality: 1
-    })
-    if (result.canceled) return
-    const prepared: PendingImage[] = []
-    for (const asset of result.assets.slice(0, remaining)) {
-      const scale = Math.min(1, MAX_IMAGE_SIDE / Math.max(asset.width, asset.height))
-      const context = ImageManipulator.manipulate(asset.uri)
-      context.resize({
-        width: Math.round(asset.width * scale),
-        height: Math.round(asset.height * scale)
-      })
-      const rendered = await context.renderAsync()
-      const saved = await rendered.saveAsync({
-        compress: 0.8,
-        format: SaveFormat.JPEG,
-        base64: true
-      })
-      if (!saved.base64 || saved.base64.length * 0.75 > MAX_IMAGE_BYTES) continue
-      prepared.push({
-        uri: `data:image/jpeg;base64,${saved.base64}`,
-        data: saved.base64,
-        type: 'image/jpeg',
-        width: saved.width,
-        height: saved.height
-      })
-    }
+    const prepared = await pickPreparedImages(remaining)
     setPendingImages((current) => [...current, ...prepared].slice(0, MAX_IMAGES))
   }
 
@@ -669,187 +763,62 @@ export default function App() {
       </Screen>
     )
 
-  // Newest first; worker order follows storage keys, not creation time.
-  const newestFirst = [...board].sort(
-    (a, b) => (Date.parse(b.createdAt || '') || 0) - (Date.parse(a.createdAt || '') || 0)
-  )
-
-  const header = (
-    <View style={styles.boardHeader}>
-      <View style={styles.header}>
-        <Text style={styles.title} numberOfLines={1}>
-          {boardName || 'OpenCollab'}
-        </Text>
-        <Pressable
-          style={({ pressed }) => [styles.userPanel, pressed && styles.pressed]}
-          onPress={() => setProfileOpen(true)}
-          accessibilityRole='button'
-          accessibilityLabel='Open profile and connection details'
-        >
-          <Identicon hex={identityKey} size={22} />
-          <Text style={styles.userPanelName} numberOfLines={1}>
-            @{displayName}
-          </Text>
-        </Pressable>
-      </View>
-      <StatusChip peers={peerCount} synced={synced} />
-    </View>
-  )
-
   return (
     <View style={styles.root}>
       <StatusBar barStyle='light-content' />
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <FlatList
-          data={synced ? newestFirst : []}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.list}
-          keyboardShouldPersistTaps='handled'
-          ListHeaderComponent={header}
-          ListEmptyComponent={
-            synced ? (
-              <View style={styles.empty}>
-                <Feather name='inbox' size={28} color={colors.muted} />
-                <Text style={styles.muted}>Nothing here yet. Tap + to add the first object.</Text>
-              </View>
-            ) : (
-              <View style={styles.skeletons}>
-                {/* Not the peer count: other joiners connect too but hold no data. */}
-                {waitedForMembers ? (
-                  <View style={styles.waiting} accessibilityRole='alert'>
-                    <View style={styles.meta}>
-                      <Feather name='users' size={16} color={colors.info} />
-                      <Text style={styles.heading}>Waiting for a board member…</Text>
-                    </View>
-                    <Text style={styles.muted}>
-                      Boards live only on members' devices. This one fills in automatically as soon
-                      as another member opens it — keep OpenCollab open until then.
-                    </Text>
-                  </View>
-                ) : null}
-                <SkeletonCards />
-              </View>
-            )
-          }
-          renderItem={({ item }) => {
-            const myVote = item.votes?.[identityKey] || 0
-            // Persisted order is per writer, not chronological; sort for display.
-            const comments = [...(item.comments || [])].sort(
-              (a, b) => Date.parse(a.createdAt || '') - Date.parse(b.createdAt || '')
-            )
-            const open = !!expanded[item.id]
-            return (
-              <FadeIn>
-                <View style={styles.card}>
-                  <VoteColumn
-                    score={score(item)}
-                    myVote={myVote}
-                    onVote={(value) =>
-                      // Step by one: with a vote cast, either arrow first clears it.
-                      send({
-                        type: messageTypes.boardVote,
-                        objectId: item.id,
-                        value: myVote ? 0 : value
-                      })
-                    }
-                  />
-                  <View style={styles.cardBody}>
-                    <Text style={styles.cardTitle}>{item.title}</Text>
-                    {item.body ? <Text style={styles.cardText}>{item.body}</Text> : null}
-                    {item.images?.length ? (
-                      <BoardImages
-                        images={item.images}
-                        cache={imageCache}
-                        onRequest={requestImage}
-                        onRetry={retryImage}
-                        onOpen={setViewerUri}
-                      />
-                    ) : null}
-                    <View style={styles.meta}>
-                      <Identicon hex={item.author} size={14} />
-                      <Text style={styles.metaText}>{nameFor(item.author)}</Text>
-                      {item.createdAt ? (
-                        <Text style={styles.metaMono}>· {relativeTime(item.createdAt)}</Text>
-                      ) : null}
-                    </View>
-                    <Pressable
-                      style={({ pressed }) => [styles.commentToggle, pressed && styles.pressed]}
-                      onPress={() => setExpanded((current) => ({ ...current, [item.id]: !open }))}
-                      accessibilityRole='button'
-                      accessibilityState={{ expanded: open }}
-                    >
-                      <Feather name='message-square' size={14} color={colors.info} />
-                      <Text style={styles.commentToggleText}>
-                        {comments.length
-                          ? `${comments.length} comment${comments.length === 1 ? '' : 's'}`
-                          : 'Comment'}
-                      </Text>
-                      <Feather
-                        name={open ? 'chevron-up' : 'chevron-down'}
-                        size={14}
-                        color={colors.muted}
-                      />
-                    </Pressable>
-                    {open ? (
-                      <View style={styles.comments}>
-                        {comments.map((comment) => (
-                          <FadeIn key={comment.id}>
-                            <View style={styles.comment}>
-                              <View style={styles.meta}>
-                                <Identicon hex={comment.author} size={12} />
-                                <Text style={styles.commentAuthor}>{nameFor(comment.author)}</Text>
-                                <Text style={styles.metaMono}>
-                                  {relativeTime(comment.createdAt)}
-                                </Text>
-                              </View>
-                              <Text style={styles.cardText}>{comment.text}</Text>
-                            </View>
-                          </FadeIn>
-                        ))}
-                        <View style={styles.commentForm}>
-                          <TextInput
-                            style={[styles.input, styles.flex]}
-                            value={commentDrafts[item.id] || ''}
-                            onChangeText={(text) =>
-                              setCommentDrafts((current) => ({ ...current, [item.id]: text }))
-                            }
-                            placeholder='Add a comment'
-                            placeholderTextColor={colors.muted}
-                          />
-                          <IconButton
-                            icon='send'
-                            label='Send comment'
-                            onPress={() => {
-                              const text = (commentDrafts[item.id] || '').trim()
-                              if (!text) return
-                              send({ type: messageTypes.boardComment, objectId: item.id, text })
-                              setCommentDrafts((current) => ({ ...current, [item.id]: '' }))
-                            }}
-                          />
-                        </View>
-                      </View>
-                    ) : null}
-                  </View>
+      <BoardScreen
+        data={boardData}
+        me={identityKey}
+        displayName={displayName}
+        boardName={boardName}
+        boardKey={boardKey}
+        synced={synced}
+        statusChip={
+          <View style={styles.boardChip}>
+            <StatusChip peers={peerCount} synced={synced} />
+          </View>
+        }
+        loading={
+          <View style={styles.boardLoading}>
+            {/* Not the peer count: other joiners connect too but hold no data. */}
+            {waitedForMembers ? (
+              <View style={styles.waiting} accessibilityRole='alert'>
+                <View style={styles.meta}>
+                  <Feather name='users' size={16} color={colors.info} />
+                  <Text style={styles.heading}>Waiting for a board member…</Text>
                 </View>
-              </FadeIn>
-            )
-          }}
-        />
-      </KeyboardAvoidingView>
+                <Text style={styles.muted}>
+                  Boards live only on members' devices. This one fills in automatically as soon as
+                  another member opens it — keep OpenCollab open until then.
+                </Text>
+              </View>
+            ) : null}
+            <SkeletonCards />
+          </View>
+        }
+        send={send}
+        cache={imageCache}
+        requestImage={requestImage}
+        retryImage={retryImage}
+        openViewer={setViewerUri}
+        openProfile={() => setProfileOpen(true)}
+        onNewCard={(columnId) => {
+          setComposerColumn(columnId)
+          setComposerOpen(true)
+        }}
+        onLocalMove={() => (localMoveAt.current = Date.now())}
+        alertBoards={alertBoards}
+        unreadCount={unreadCount}
+        isRead={isRead}
+        markRead={markRead}
+        onOpenAlert={openAlert}
+        openCardRequest={openCardRequest}
+        subscribe={subscribe}
+        nameFor={nameFor}
+        shortKey={shortKey}
+        relativeTime={relativeTime}
+      />
       <UpdateBanner />
-      {synced ? (
-        <Pressable
-          style={({ pressed }) => [styles.fab, pressed && styles.pressed]}
-          onPress={() => setComposerOpen(true)}
-          accessibilityRole='button'
-          accessibilityLabel='Add an object'
-        >
-          <Feather name='plus' size={26} color={colors.onAccent} />
-        </Pressable>
-      ) : null}
 
       <Modal
         visible={composerOpen}
@@ -864,7 +833,12 @@ export default function App() {
           <Pressable style={styles.flex} onPress={() => setComposerOpen(false)} />
           <View style={styles.sheet}>
             <View style={styles.sheetHandle} />
-            <Text style={styles.heading}>New object</Text>
+            <Text style={styles.heading}>
+              New card
+              {composerColumn
+                ? ` in ${boardData.columns.find((column) => column.id === composerColumn)?.name || 'column'}`
+                : ''}
+            </Text>
             <TextInput
               style={styles.input}
               value={newTitle}
@@ -913,7 +887,7 @@ export default function App() {
             />
             <View style={styles.row}>
               <Button title='Cancel' variant='secondary' onPress={() => setComposerOpen(false)} />
-              <Button title='Add to board' icon='plus' grow onPress={addObject} />
+              <Button title='Add card' icon='plus' grow onPress={addObject} />
             </View>
           </View>
         </KeyboardAvoidingView>
@@ -1052,19 +1026,6 @@ function BlinkingCursor() {
   return <Animated.Text style={[styles.prompt, { opacity }]}>_</Animated.Text>
 }
 
-function FadeIn({ children }: { children: React.ReactNode }) {
-  const progress = useRef(new Animated.Value(reduceMotion ? 1 : 0)).current
-  useEffect(() => {
-    Animated.timing(progress, { toValue: 1, duration: 220, useNativeDriver: true }).start()
-  }, [progress])
-  const translateY = progress.interpolate({ inputRange: [0, 1], outputRange: [8, 0] })
-  return (
-    <Animated.View style={{ opacity: progress, transform: [{ translateY }] }}>
-      {children}
-    </Animated.View>
-  )
-}
-
 function StatusChip({ peers, synced }: { peers: number; synced: boolean }) {
   const pulse = useRef(new Animated.Value(1)).current
   const online = peers > 0
@@ -1117,103 +1078,6 @@ function SkeletonCards() {
           <View style={[styles.skeletonLine, { width: '35%' }]} />
         </Animated.View>
       ))}
-    </View>
-  )
-}
-
-function VoteColumn({
-  score,
-  myVote,
-  onVote
-}: {
-  score: number
-  myVote: number
-  onVote: (value: number) => void
-}) {
-  const scale = useRef(new Animated.Value(1)).current
-  const previous = useRef(score)
-  useEffect(() => {
-    if (previous.current === score) return
-    previous.current = score
-    if (reduceMotion) return
-    scale.setValue(1.35)
-    Animated.spring(scale, { toValue: 1, useNativeDriver: true, friction: 4 }).start()
-  }, [score, scale])
-  return (
-    <View style={styles.votes}>
-      <Pressable
-        onPress={() => onVote(1)}
-        hitSlop={8}
-        accessibilityRole='button'
-        accessibilityLabel='Upvote'
-        accessibilityState={{ selected: myVote === 1 }}
-        style={({ pressed }) => pressed && styles.pressed}
-      >
-        <Feather name='chevron-up' size={24} color={myVote === 1 ? colors.accent : colors.muted} />
-      </Pressable>
-      <Animated.Text
-        style={[
-          styles.score,
-          myVote === 1 && { color: colors.accent },
-          myVote === -1 && { color: colors.magenta },
-          { transform: [{ scale }] }
-        ]}
-      >
-        {score}
-      </Animated.Text>
-      <Pressable
-        onPress={() => onVote(-1)}
-        hitSlop={8}
-        accessibilityRole='button'
-        accessibilityLabel='Downvote'
-        accessibilityState={{ selected: myVote === -1 }}
-        style={({ pressed }) => pressed && styles.pressed}
-      >
-        <Feather
-          name='chevron-down'
-          size={24}
-          color={myVote === -1 ? colors.magenta : colors.muted}
-        />
-      </Pressable>
-    </View>
-  )
-}
-
-// Deterministic 5x5 mirrored grid derived from an identity public key.
-function Identicon({ hex, size }: { hex: string; size: number }) {
-  if (!hex) return <View style={{ width: size, height: size }} />
-  const hue = parseInt(hex.slice(0, 4), 16) % 360
-  const color = `hsl(${hue}, 85%, 62%)`
-  const cell = size / 5
-  const cells: React.ReactNode[] = []
-  for (let row = 0; row < 5; row++) {
-    for (let col = 0; col < 3; col++) {
-      const nibble = parseInt(hex[(row * 3 + col + 4) % hex.length] || '0', 16)
-      if (nibble % 2 === 0) continue
-      for (const x of col === 2 ? [2] : [col, 4 - col]) {
-        cells.push(
-          <View
-            key={`${row}-${x}`}
-            style={{
-              position: 'absolute',
-              left: x * cell,
-              top: row * cell,
-              width: cell,
-              height: cell,
-              backgroundColor: color
-            }}
-          />
-        )
-      }
-    }
-  }
-  return (
-    <View
-      style={[styles.identicon, { width: size, height: size, borderRadius: size / 5 }]}
-      accessibilityElementsHidden
-      importantForAccessibility='no-hide-descendants'
-    >
-      {cells}
     </View>
   )
 }
@@ -1302,114 +1166,10 @@ function SwipeToRemove({
   )
 }
 
-function BoardImages({
-  images,
-  cache,
-  onRequest,
-  onRetry,
-  onOpen
-}: {
-  images: ImageRef[]
-  cache: Record<string, CachedImage>
-  onRequest: (ref: ImageRef) => void
-  onRetry: (ref: ImageRef) => void
-  onOpen: (uri: string) => void
-}) {
-  useEffect(() => {
-    for (const ref of images) onRequest(ref)
-    // Requests are deduplicated in the parent; only re-run for new images.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [images.map(imageKey).join('|')])
-  return (
-    <View style={styles.imageGrid}>
-      {images.map((ref) => {
-        const cached = cache[imageKey(ref)]
-        const ratio = ref.width && ref.height ? ref.width / ref.height : 4 / 3
-        return (
-          <Pressable
-            key={imageKey(ref)}
-            style={[styles.imageSlot, { aspectRatio: images.length === 1 ? ratio : 1 }]}
-            onPress={() => (cached?.uri ? onOpen(cached.uri) : cached?.error ? onRetry(ref) : null)}
-            accessibilityRole='imagebutton'
-            accessibilityLabel={
-              cached?.error ? 'Image unavailable, tap to retry' : 'Attached image'
-            }
-          >
-            {cached?.uri ? (
-              <Image source={{ uri: cached.uri }} style={styles.slotImage} />
-            ) : cached?.error ? (
-              <View style={styles.slotState}>
-                <Feather name='refresh-cw' size={16} color={colors.muted} />
-                <Text style={styles.metaMono}>unavailable · retry</Text>
-              </View>
-            ) : (
-              <View style={styles.slotState}>
-                <Feather name='image' size={18} color={colors.border} />
-              </View>
-            )}
-          </Pressable>
-        )
-      })}
-    </View>
-  )
-}
-
-function IconButton({
-  icon,
-  label,
-  onPress
-}: {
-  icon: FeatherName
-  label: string
-  onPress: () => void
-}) {
-  return (
-    <Pressable
-      style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}
-      onPress={onPress}
-      accessibilityRole='button'
-      accessibilityLabel={label}
-    >
-      <Feather name={icon} size={18} color={colors.onAccent} />
-    </Pressable>
-  )
-}
-
-function Button({
-  title,
-  onPress,
-  icon,
-  grow,
-  variant = 'primary'
-}: {
-  title: string
-  onPress: () => void
-  icon?: FeatherName
-  grow?: boolean
-  variant?: 'primary' | 'secondary' | 'ghost'
-}) {
-  const color =
-    variant === 'primary' ? colors.onAccent : variant === 'ghost' ? colors.muted : colors.accent
-  return (
-    <Pressable
-      style={({ pressed }) => [
-        styles.button,
-        variant === 'secondary' && styles.buttonSecondary,
-        variant === 'ghost' && styles.buttonGhost,
-        grow && styles.flex,
-        pressed && styles.pressed
-      ]}
-      onPress={onPress}
-      accessibilityRole='button'
-    >
-      {icon ? <Feather name={icon} size={16} color={color} /> : null}
-      <Text style={[styles.buttonText, { color }]}>{title}</Text>
-    </Pressable>
-  )
-}
-
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
+  boardChip: { paddingHorizontal: 16 },
+  boardLoading: { paddingHorizontal: 16, gap: 12 },
   flex: { flex: 1 },
   screen: { flexGrow: 1, padding: 20, paddingTop: 64, gap: 14 },
   list: { padding: 16, paddingTop: 64, paddingBottom: 120, gap: 12 },
