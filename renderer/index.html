@@ -565,7 +565,8 @@
         animation: fade-in 150ms var(--ease-out);
       }
       #card-modal.open .card-detail,
-      #mentions-modal.open .modal-card {
+      #mentions-modal.open .modal-card,
+      #labels-modal.open .modal-card {
         animation: pop-in 180ms var(--ease-out);
       }
       .card-detail {
@@ -600,6 +601,10 @@
         display: inline-flex;
         align-items: center;
         gap: 8px;
+      }
+      .card-detail-bar > button.ghost {
+        padding: 0 6px;
+        font-size: 13px;
       }
       .card-detail-bar {
         justify-content: space-between;
@@ -835,38 +840,6 @@
         padding: 0 6px;
         font-size: 11px;
       }
-      .label-editor {
-        display: grid;
-        gap: 6px;
-        padding: 10px;
-        background: var(--surface-raised);
-        border: 1px solid var(--border);
-        border-radius: 10px;
-      }
-      .label-row {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-      }
-      .label-row .label-chip {
-        flex: 1;
-        min-height: 30px;
-        cursor: pointer;
-      }
-      .label-row .check {
-        width: 18px;
-        text-align: center;
-        font-weight: 700;
-      }
-      .label-row button.ghost {
-        padding: 4px;
-      }
-      .label-form {
-        display: grid;
-        gap: 8px;
-        padding-top: 8px;
-        border-top: 1px solid var(--border);
-      }
       .swatches {
         display: flex;
         flex-wrap: wrap;
@@ -897,10 +870,136 @@
           grid-template-columns: 1fr;
         }
       }
-      #card-due-date,
-      #card-due-time {
+      .label-picker {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 6px;
+      }
+      .label-picker .label-list:empty {
+        display: none;
+      }
+      /* Off: outlined in the label's color. On: filled. One click toggles. */
+      .label-toggle {
+        min-height: 28px;
+        padding: 3px 10px;
+        border: 1.5px solid var(--label-color, #8590a2);
+        border-radius: 6px;
+        background: transparent;
+        color: var(--text);
+        font-size: 13px;
+        font-weight: 600;
+      }
+      .label-toggle.on {
+        background: var(--label-color, #8590a2);
+        color: #0b0f14;
+      }
+      .label-new {
+        width: 130px;
+        min-height: 28px;
+        padding: 3px 10px;
+        border-style: dashed;
+        font-size: 13px;
+      }
+      .due-anchor {
+        position: relative;
+        justify-self: start;
+      }
+      .due-button {
+        gap: 6px;
+        padding: 5px 10px;
+        border: 1px dashed var(--border);
+        font-size: 13px;
+      }
+      .due-button.set {
+        border-style: solid;
+        color: var(--text);
+        font-family: var(--mono);
+      }
+      .due-button.soon {
+        border-color: rgba(245, 205, 71, 0.5);
+        color: #f5cd47;
+      }
+      .due-button.overdue {
+        border-color: rgba(248, 113, 104, 0.5);
+        color: #f87168;
+      }
+      .due-popover {
+        position: absolute;
+        top: calc(100% + 6px);
+        left: 0;
+        z-index: 3;
+        display: grid;
+        gap: 10px;
+        width: 240px;
+        padding: 12px;
+        background: var(--surface-raised);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+        transform-origin: top left;
+      }
+      .due-popover .stack {
+        gap: 4px;
+      }
+      #labels-modal {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 12;
+        align-items: flex-start;
+        justify-content: center;
+        padding: 48px 20px;
+        background: rgba(3, 6, 10, 0.7);
+        backdrop-filter: blur(4px);
+      }
+      #labels-modal.open {
+        display: flex;
+        animation: fade-in 150ms var(--ease-out);
+      }
+      .labels-manager {
+        display: grid;
+        gap: 12px;
+      }
+      .labels-list {
+        display: grid;
+        gap: 6px;
+        max-height: 50vh;
+        overflow-y: auto;
+      }
+      .label-manage-row {
+        display: grid;
+        grid-template-columns: auto 1fr 72px auto;
+        align-items: center;
+        gap: 8px;
+      }
+      .label-manage-row input {
+        padding: 6px 8px;
+      }
+      .label-manage-row .usage {
+        text-align: right;
+        font-family: var(--mono);
+        font-size: 12px;
+        white-space: nowrap;
+      }
+      .label-manage-row .swatches {
+        grid-column: 1 / -1;
+        padding: 2px 0 6px;
+      }
+      .label-create {
+        display: grid;
+        gap: 8px;
+        padding-top: 12px;
+        border-top: 1px solid var(--border);
+      }
+      .label-create .row input {
+        flex: 1;
         width: auto;
-        padding: 7px 8px;
+      }
+      .labels-empty {
+        padding: 10px;
+        color: var(--muted);
+        text-align: center;
       }
       .due-badge {
         display: inline-flex;
@@ -1205,11 +1304,16 @@
       /* Disclosure panels and drop markers enter; closing stays instant. */
       #filter-panel,
       #theme-panel,
-      .label-editor,
       .column-colors.entering {
         transition:
           opacity 160ms var(--ease-out),
           transform 160ms var(--ease-out);
+      }
+      /* Anchored to its button, so it grows from there (transform-origin). */
+      .due-popover {
+        transition:
+          opacity 150ms var(--ease-out),
+          transform 150ms var(--ease-out);
       }
       .drop-marker,
       .column-drop-marker {
@@ -1220,10 +1324,13 @@
       @starting-style {
         #filter-panel,
         #theme-panel,
-        .label-editor,
         .column-colors.entering {
           opacity: 0;
           transform: translateY(-4px);
+        }
+        .due-popover {
+          opacity: 0;
+          transform: scale(0.97);
         }
         .drop-marker {
           opacity: 0;
@@ -1244,7 +1351,8 @@
         }
         /* Gentler, not zero: keep the fades, drop the movement. */
         #card-modal.open .card-detail,
-        #mentions-modal.open .modal-card {
+        #mentions-modal.open .modal-card,
+        #labels-modal.open .modal-card {
           animation: fade-in 180ms var(--ease-out) !important;
         }
         .kanban-card:active {
@@ -1342,6 +1450,7 @@
         <div class="new-object-bar">
           <span class="section-label">Board</span>
           <div class="row">
+            <button id="labels-open" class="ghost">Labels</button>
             <button id="theme-toggle" class="ghost" aria-expanded="false">Customize</button>
             <button id="filter-toggle" class="ghost" aria-expanded="false">Filter</button>
             <button id="archived-toggle" class="ghost" aria-pressed="false">Show archived</button>
@@ -1455,22 +1564,45 @@
         </div>
         <div class="card-detail-props">
           <section class="stack">
-            <h3 class="section-label">Labels</h3>
-            <div class="row">
-              <div id="card-labels" class="label-list"></div>
-              <button id="card-labels-edit" type="button" class="ghost" aria-expanded="false">
-                Edit labels
-              </button>
+            <div class="row card-detail-bar">
+              <h3 class="section-label">Labels</h3>
+              <button id="card-labels-manage" type="button" class="ghost">Manage labels</button>
             </div>
-            <div id="label-editor" class="label-editor" hidden></div>
+            <div class="label-picker">
+              <div id="card-labels" class="label-list" role="group" aria-label="Labels"></div>
+              <input
+                id="card-label-new"
+                class="label-new"
+                placeholder="+ New label"
+                maxlength="40"
+                aria-label="New label: type a name and press Enter"
+              />
+            </div>
           </section>
           <section class="stack">
             <h3 class="section-label">Due date</h3>
-            <div class="row">
-              <input id="card-due-date" type="date" aria-label="Due date" />
-              <input id="card-due-time" type="time" aria-label="Due time (optional)" />
-              <button id="card-due-clear" type="button" class="ghost">Clear</button>
-              <span id="card-due-status" class="due-badge" hidden></span>
+            <div class="due-anchor">
+              <button
+                id="card-due-button"
+                type="button"
+                class="ghost due-button"
+                aria-haspopup="dialog"
+                aria-expanded="false"
+              ></button>
+              <form id="due-popover" class="due-popover" role="dialog" aria-label="Due date" hidden>
+                <label class="stack"
+                  ><span class="section-label">Date</span>
+                  <input id="card-due-date" type="date" required
+                /></label>
+                <label class="stack"
+                  ><span class="section-label">Time (optional)</span>
+                  <input id="card-due-time" type="time"
+                /></label>
+                <div class="row">
+                  <button>Save</button>
+                  <button id="card-due-remove" type="button" class="ghost">Remove</button>
+                </div>
+              </form>
             </div>
           </section>
         </div>
@@ -1511,6 +1643,42 @@
         <div class="row card-detail-foot">
           <button id="card-archive" type="button" class="secondary">Archive</button>
         </div>
+      </div>
+    </div>
+    <div id="labels-modal" role="dialog" aria-modal="true" aria-labelledby="labels-title">
+      <div class="modal-card labels-manager">
+        <div class="row card-detail-bar">
+          <h2 id="labels-title">Labels</h2>
+          <button id="close-labels-modal" class="ghost icon-only" aria-label="Close">✕</button>
+        </div>
+        <p class="muted hint">Shared by everyone on this board. Changes apply to every card.</p>
+        <div id="labels-list" class="labels-list"></div>
+        <form id="label-create" class="label-create">
+          <span class="section-label">New label</span>
+          <div class="row">
+            <button
+              id="label-create-color"
+              type="button"
+              class="swatch"
+              aria-label="Pick a color"
+              aria-expanded="false"
+            ></button>
+            <input
+              id="label-create-name"
+              placeholder="Label name"
+              maxlength="40"
+              aria-label="Label name"
+            />
+            <button>Create</button>
+          </div>
+          <div
+            id="label-create-colors"
+            class="swatches"
+            role="group"
+            aria-label="Color"
+            hidden
+          ></div>
+        </form>
       </div>
     </div>
     <div id="mentions-modal" role="dialog" aria-modal="true" aria-labelledby="mentions-title">
