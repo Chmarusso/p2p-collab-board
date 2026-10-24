@@ -234,7 +234,7 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
     AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion)
     const motion = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion)
     const ipc = PearRuntime.run('/worker.bundle', workerBundle, [
-      String(!__DEV__),
+      String(!(globalThis as { __DEV__?: boolean }).__DEV__),
       version,
       upgrade,
       productName
@@ -367,8 +367,9 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
         setDisplayNameDraft(message.displayName)
       }
       if (message.type === messageTypes.boardSynced) setSynced(true)
-      if (message.type === 'room-status' && message.status === 'error')
+      if (message.type === 'room-status' && message.status === 'error') {
         setEntryError(message.error || 'Something went wrong')
+      }
       if (message.type === 'room-debug') setNetworkStatus(describeNetwork(message.status))
       if (message.type === messageTypes.boardAlerts) {
         setAlertBoards(message.boards || [])
@@ -803,7 +804,7 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
     setPendingImages((current) => [...current, ...prepared].slice(0, MAX_IMAGES))
   }
 
-  if (!identityReady)
+  if (!identityReady) {
     return (
       <Screen title='opencollab' cursor>
         <Text style={styles.muted}>
@@ -857,7 +858,8 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
         )}
       </Screen>
     )
-  if (backupPhrase)
+  }
+  if (backupPhrase) {
     return (
       <Screen title='Back up your key'>
         <Text style={styles.muted}>
@@ -882,7 +884,8 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
         />
       </Screen>
     )
-  if (!roomReady && entryMode === 'create')
+  }
+  if (!roomReady && entryMode === 'create') {
     return (
       <Screen title='New board'>
         <Text style={styles.muted}>
@@ -922,7 +925,8 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
         </View>
       </Screen>
     )
-  if (!roomReady && entryMode === 'join')
+  }
+  if (!roomReady && entryMode === 'join') {
     return (
       <Screen title='Join board'>
         <Text style={styles.muted}>
@@ -970,7 +974,8 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
         </View>
       </Screen>
     )
-  if (!roomReady)
+  }
+  if (!roomReady) {
     return (
       <Screen
         title='Boards'
@@ -1026,7 +1031,8 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
         {settings}
       </Screen>
     )
-  if (!displayName)
+  }
+  if (!displayName) {
     return (
       <Screen title={boardName || 'OpenCollab'}>
         <Text style={styles.heading}>Choose your display name</Text>
@@ -1051,6 +1057,7 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
         />
       </Screen>
     )
+  }
 
   return (
     <View style={styles.root}>
