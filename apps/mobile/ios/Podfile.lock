@@ -36,6 +36,8 @@ PODS:
     - Yoga
   - ExpoAsset (55.0.20):
     - ExpoModulesCore
+  - ExpoAudio (55.0.18):
+    - ExpoModulesCore
   - ExpoClipboard (55.0.17):
     - ExpoModulesCore
   - ExpoDomWebView (55.0.6):
@@ -89,6 +91,8 @@ PODS:
     - React-runtimescheduler
     - ReactCommon
   - ExpoSecureStore (15.0.8):
+    - ExpoModulesCore
+  - ExpoVideo (55.0.21):
     - ExpoModulesCore
   - fast_float (8.0.0)
   - FBLazyVector (0.83.2)
@@ -1993,7 +1997,7 @@ PODS:
     - React-RCTFBReactNativeSpec
     - ReactCommon/turbomodule/core
     - SocketRocket
-  - "react-native-bare-kit (0.12.3+02c603)":
+  - "react-native-bare-kit (0.12.3+129992)":
     - boost
     - DoubleConversion
     - fast_float
@@ -2591,6 +2595,7 @@ DEPENDENCIES:
   - EXConstants (from `../../../node_modules/expo-constants/ios`)
   - Expo (from `../../../node_modules/expo`)
   - ExpoAsset (from `../../../node_modules/expo-asset/ios`)
+  - ExpoAudio (from `../../../node_modules/expo-audio/ios`)
   - ExpoClipboard (from `../../../node_modules/expo-clipboard/ios`)
   - "ExpoDomWebView (from `../../../node_modules/@expo/dom-webview/ios`)"
   - ExpoFileSystem (from `../../../node_modules/expo-file-system/ios`)
@@ -2602,6 +2607,7 @@ DEPENDENCIES:
   - ExpoModulesCore (from `../../../node_modules/expo-modules-core`)
   - ExpoModulesJSI (from `../../../node_modules/expo-modules-core`)
   - ExpoSecureStore (from `../../../node_modules/expo-secure-store/ios`)
+  - ExpoVideo (from `../../../node_modules/expo-video/ios`)
   - fast_float (from `../../../node_modules/react-native/third-party-podspecs/fast_float.podspec`)
   - FBLazyVector (from `../../../node_modules/react-native/Libraries/FBLazyVector`)
   - fmt (from `../../../node_modules/react-native/third-party-podspecs/fmt.podspec`)
@@ -2699,6 +2705,8 @@ EXTERNAL SOURCES:
     :path: "../../../node_modules/expo"
   ExpoAsset:
     :path: "../../../node_modules/expo-asset/ios"
+  ExpoAudio:
+    :path: "../../../node_modules/expo-audio/ios"
   ExpoClipboard:
     :path: "../../../node_modules/expo-clipboard/ios"
   ExpoDomWebView:
@@ -2721,6 +2729,8 @@ EXTERNAL SOURCES:
     :path: "../../../node_modules/expo-modules-core"
   ExpoSecureStore:
     :path: "../../../node_modules/expo-secure-store/ios"
+  ExpoVideo:
+    :path: "../../../node_modules/expo-video/ios"
   fast_float:
     :podspec: "../../../node_modules/react-native/third-party-podspecs/fast_float.podspec"
   FBLazyVector:
@@ -2881,6 +2891,7 @@ SPEC CHECKSUMS:
   EXConstants: 49a092f564eb895b79ab416f53ba54f7e6935197
   Expo: 5d8177d99e030d112b7d2b0a3f14dc60db4f4b2b
   ExpoAsset: f3c42967e877b950418c217508ac1c6f32be4f99
+  ExpoAudio: 507b44eb640d1e0e49d55f38d0b153d3b1fd0f2b
   ExpoClipboard: ded290c5207322d41d34da299a0aeda94d6680e3
   ExpoDomWebView: b2e9d601f9cb77d3c97da73234e175b64be91928
   ExpoFileSystem: bdb067c7739d9f7405227154a7280e2d6653bbc8
@@ -2892,6 +2903,7 @@ SPEC CHECKSUMS:
   ExpoModulesCore: 7b3c64e937d0af15ae9f52ce54338008e440e4c7
   ExpoModulesJSI: 1bf2fab061d2c9635ff63b6fcc26747a68af9f12
   ExpoSecureStore: d32f751874a2ceb5aaeebeb3578e165c1ba2b24a
+  ExpoVideo: d060cc8f61ef6ad74b078969478b7242fc121b13
   fast_float: b32c788ed9c6a8c584d114d0047beda9664e7cc6
   FBLazyVector: f1200e6ef6cf24885501668bdbb9eff4cf48843f
   fmt: a40bb5bd0294ea969aaaba240a927bd33d878cdd
@@ -2934,7 +2946,7 @@ SPEC CHECKSUMS:
   React-logger: 49a2029a7c055bf0ef005fec0955c2548fe88f12
   React-Mapbuffer: 2859d1e7202df918c8578db97deb5767b337dff9
   React-microtasksnativemodule: e811b68410bc71e77b91a700b527dc39661f6fc4
-  react-native-bare-kit: 04ad96762557287dfb9036972a05ffc2db06cd00
+  react-native-bare-kit: 7159efb09a28c0dd9892aded44bdfe901bc2c4a9
   React-NativeModulesApple: 5327be5c0d9734f0c6db2219f3c20c13aef13884
   React-networking: 659753d9f58d683f3aee733c542bdae2b23f85d1
   React-oscompat: 173f032a95ee30e92bbd28cd9b4626de0977f828

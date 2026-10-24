@@ -15,6 +15,13 @@ class Session {
       room: null,
       objects: [],
       profiles: {},
+      members: [],
+      columns: [],
+      labels: [],
+      rules: [],
+      theme: { background: null, accent: null },
+      info: { description: '' },
+      alerts: [],
       peers: 0,
       synced: false,
       displayName: null,
@@ -74,8 +81,15 @@ class Session {
     if (message.type === messageTypes.boardState) {
       state.objects = message.objects || []
       state.profiles = message.profiles || {}
+      state.members = message.members || []
+      state.columns = message.columns || []
+      state.labels = message.labels || []
+      state.rules = message.rules || []
+      state.theme = message.theme || state.theme
+      state.info = message.info || state.info
     }
     if (message.type === messageTypes.boardSynced) state.synced = true
+    if (message.type === messageTypes.boardAlerts) state.alerts = message.boards || []
     if (message.type === messageTypes.profileStatus) state.displayName = message.displayName
     if (message.type === 'board-name' && state.room) state.room.boardName = message.name
     if (message.type === 'peer-count') state.peers = message.count || 0
@@ -143,6 +157,12 @@ class Session {
 
   async openBoard(invite, name) {
     this.state.synced = false
+    // Comma-separated blind peer keys; replaces the built-in list (empty clears it).
+    const blindPeers = process.env.OPENCOLLAB_BLIND_PEERS
+    if (blindPeers !== undefined) {
+      const keys = blindPeers.split(',').map((key) => key.trim())
+      this.send({ type: messageTypes.blindPeersSet, keys: keys.filter(Boolean) })
+    }
     this.send({ type: messageTypes.roomStart, invite: invite || null, name })
     const message = await this.wait(
       (message) =>

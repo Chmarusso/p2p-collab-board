@@ -1,0 +1,626 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OpenCollab design system</title>
+    <meta
+      name="description"
+      content="Brand, tokens and every component of the OpenCollab apps and website."
+    />
+    <meta name="theme-color" content="#0a0e14" />
+    <link rel="icon" href="assets/icon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="styles.css" />
+    <style>
+      .ds-head {
+        padding: 72px 0 24px;
+      }
+      .ds-head p {
+        color: var(--muted);
+        max-width: 44em;
+      }
+      .ds-toc {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 20px;
+        margin-top: 20px;
+        font-size: 14px;
+      }
+      .ds-label {
+        display: block;
+        margin: 28px 0 12px;
+        font: 600 12px/1 var(--mono);
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      .ds-label:first-of-type {
+        margin-top: 0;
+      }
+      .ds-frame {
+        padding: 24px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        min-width: 0;
+      }
+      .ds-frame.flush {
+        padding: 0;
+        overflow: hidden;
+      }
+      .ds-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 16px;
+        align-items: center;
+      }
+
+      /* Brand */
+      .ds-icons {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 24px;
+        align-items: flex-end;
+      }
+      .ds-icons figure {
+        margin: 0;
+        text-align: center;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .ds-icons img {
+        display: block;
+        margin: 0 auto 8px;
+      }
+      .ds-og {
+        width: 100%;
+        height: auto;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        display: block;
+      }
+
+      /* The mobile boot splash, rebuilt in CSS: a signal hops between the three peers. */
+      .ds-splash {
+        position: relative;
+        width: 200px;
+        height: 200px;
+        margin: 0 auto;
+      }
+      .ds-splash img {
+        width: 200px;
+        height: 200px;
+        display: block;
+      }
+      .ds-splash i {
+        position: absolute;
+        width: 10.5px;
+        height: 10.5px;
+        margin: -5.25px 0 0 -5.25px;
+        border-radius: 50%;
+        border: 1.5px solid var(--accent);
+        opacity: 0;
+        animation: ds-ping 1400ms cubic-bezier(0.23, 1, 0.32, 1) infinite;
+      }
+      .ds-splash i:nth-child(2) {
+        left: 41.8%;
+        top: 50%;
+      }
+      .ds-splash i:nth-child(3) {
+        left: 50%;
+        top: 63.9%;
+        animation-delay: 238ms;
+      }
+      .ds-splash i:nth-child(4) {
+        left: 58.2%;
+        top: 50%;
+        animation-delay: 476ms;
+      }
+      @keyframes ds-ping {
+        0% {
+          opacity: 0.9;
+          transform: scale(1);
+        }
+        50%,
+        100% {
+          opacity: 0;
+          transform: scale(2.8);
+        }
+      }
+
+      /* Tokens */
+      .ds-swatches {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 12px;
+      }
+      .ds-swatch {
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        overflow: hidden;
+        background: var(--surface);
+        font-size: 13px;
+      }
+      .ds-swatch span {
+        display: block;
+        height: 64px;
+        border-bottom: 1px solid var(--border);
+      }
+      .ds-swatch code {
+        display: block;
+        padding: 8px 10px 0;
+        color: #e6edf6;
+      }
+      .ds-swatch small {
+        display: block;
+        padding: 2px 10px 10px;
+        color: var(--muted);
+        font-family: var(--mono);
+      }
+      .ds-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      .ds-chips span {
+        padding: 3px 9px;
+        border-radius: 6px;
+        font: 700 12px/1.4 var(--sans);
+        color: #0a0e14;
+      }
+      .ds-type > * + * {
+        margin-top: 18px;
+      }
+      .ds-type small {
+        display: block;
+        font: 12px var(--mono);
+        color: var(--muted);
+        margin-bottom: 4px;
+      }
+      .ds-scale {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+        gap: 12px;
+      }
+      .ds-scale div {
+        padding: 16px;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: var(--surface);
+        font-size: 14px;
+        color: var(--muted);
+      }
+      .ds-scale b {
+        display: block;
+        color: #e6edf6;
+        font: 600 14px var(--mono);
+        margin-bottom: 6px;
+      }
+      .ds-radius {
+        display: block;
+        width: 48px;
+        height: 48px;
+        border: 2px solid var(--accent);
+        margin-bottom: 10px;
+      }
+      .ds-ease {
+        display: block;
+        height: 6px;
+        border-radius: 3px;
+        background: var(--border);
+        margin-top: 10px;
+        overflow: hidden;
+      }
+      .ds-ease::after {
+        content: '';
+        display: block;
+        width: 24px;
+        height: 6px;
+        border-radius: 3px;
+        background: var(--accent);
+        animation: ds-slide 1600ms infinite alternate var(--curve);
+      }
+      @keyframes ds-slide {
+        to {
+          transform: translateX(160px);
+        }
+      }
+
+      /* App frames */
+      .ds-iframe {
+        display: block;
+        width: 100%;
+        height: 900px;
+        border: 0;
+      }
+      .ds-phones {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 16px;
+      }
+      .ds-phones img {
+        width: 100%;
+        height: auto;
+        display: block;
+        border-radius: 22px;
+        border: 1px solid var(--border);
+      }
+      .ds-hero .hero {
+        padding: 0;
+      }
+      .ds-nav .nav {
+        position: static;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+      }
+
+      @media (max-width: 900px) {
+        .ds-phones {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .ds-splash i,
+        .ds-ease::after {
+          animation: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="nav">
+      <a class="logo" href="index.html" aria-label="OpenCollab home">
+        <span class="prompt">&gt;</span> opencollab<span class="cursor">_</span>
+      </a>
+      <nav aria-label="Sections">
+        <a href="#brand">Brand</a>
+        <a href="#tokens">Tokens</a>
+        <a href="#website">Website</a>
+        <a href="#desktop">Desktop app</a>
+        <a href="#mobile">Mobile app</a>
+      </nav>
+    </header>
+
+    <main>
+      <section class="ds-head">
+        <p class="eyebrow">Design system</p>
+        <h1>OpenCollab, piece by piece.</h1>
+        <p class="lead">
+          The brand, the tokens and every component of the website and the apps on one page. The
+          desktop components below use the app's own stylesheet, copied by
+          <code>scripts/sync-design-system.mjs</code>.
+        </p>
+      </section>
+
+      <section id="brand" class="section">
+        <h2><span class="hash">#</span> Brand</h2>
+        <span class="ds-label">Icon</span>
+        <div class="ds-frame">
+          <div class="ds-icons">
+            <figure>
+              <img
+                src="assets/icon-512.png"
+                width="128"
+                height="128"
+                alt=""
+                style="border-radius: 28px"
+              />
+              App icon (iOS, Android, Play)
+            </figure>
+            <figure>
+              <img src="assets/icon.svg" width="128" height="128" alt="" />
+              Desktop and web
+            </figure>
+            <figure>
+              <img src="assets/icon.svg" width="48" height="48" alt="" />
+              48 px
+            </figure>
+            <figure>
+              <img src="assets/icon.svg" width="24" height="24" alt="" />
+              24 px
+            </figure>
+            <figure>
+              <span class="logo">
+                <span class="prompt">&gt;</span> opencollab<span class="cursor">_</span>
+              </span>
+              <br />Wordmark
+            </figure>
+          </div>
+        </div>
+        <span class="ds-label">Boot splash (mobile)</span>
+        <div class="ds-frame">
+          <div
+            class="ds-splash"
+            role="img"
+            aria-label="The logo with a signal pulsing between its nodes"
+          >
+            <img src="assets/mark.svg" alt="" />
+            <i></i><i></i><i></i>
+          </div>
+          <p class="ds-note" style="text-align: center; color: var(--muted); margin: 12px 0 0">
+            Shown while the worker starts, at least one round; skipped with Reduce Motion.
+          </p>
+        </div>
+        <span class="ds-label">Social image</span>
+        <img
+          class="ds-og"
+          src="assets/og.jpg"
+          width="1200"
+          height="630"
+          alt="OpenCollab social card"
+        />
+      </section>
+
+      <section id="tokens" class="section">
+        <h2><span class="hash">#</span> Tokens</h2>
+        <span class="ds-label">Colors</span>
+        <div class="ds-swatches">
+          <div class="ds-swatch">
+            <span style="background: #0a0e14"></span><code>--bg</code><small>#0A0E14</small>
+          </div>
+          <div class="ds-swatch">
+            <span style="background: #0f1620"></span><code>--surface</code><small>#0F1620</small>
+          </div>
+          <div class="ds-swatch">
+            <span style="background: #141d29"></span><code>--surface-raised</code
+            ><small>#141D29</small>
+          </div>
+          <div class="ds-swatch">
+            <span style="background: #1c2633"></span><code>--border</code><small>#1C2633</small>
+          </div>
+          <div class="ds-swatch">
+            <span style="background: #c9d4e3"></span><code>--text</code><small>#C9D4E3</small>
+          </div>
+          <div class="ds-swatch">
+            <span style="background: #6b7a90"></span><code>--muted</code><small>#6B7A90</small>
+          </div>
+          <div class="ds-swatch">
+            <span style="background: #39ff88"></span><code>--accent</code><small>#39FF88</small>
+          </div>
+          <div class="ds-swatch">
+            <span style="background: #04110a"></span><code>--accent-ink</code><small>#04110A</small>
+          </div>
+          <div class="ds-swatch">
+            <span style="background: #22d3ee"></span><code>--info</code><small>#22D3EE</small>
+          </div>
+          <div class="ds-swatch">
+            <span style="background: #ff4fd8"></span><code>--magenta</code><small>#FF4FD8</small>
+          </div>
+          <div class="ds-swatch">
+            <span style="background: #f87168"></span><code>--danger</code><small>#F87168</small>
+          </div>
+          <div class="ds-swatch">
+            <span style="background: #f5cd47"></span><code>--warn</code><small>#F5CD47</small>
+          </div>
+        </div>
+        <span class="ds-label">Label palette</span>
+        <div class="ds-chips">
+          <span style="background: #4bce97">green</span>
+          <span style="background: #f5cd47">yellow</span>
+          <span style="background: #fea362">orange</span>
+          <span style="background: #f87168">red</span>
+          <span style="background: #9f8fef">purple</span>
+          <span style="background: #579dff">blue</span>
+          <span style="background: #6cc3e0">sky</span>
+          <span style="background: #94c748">lime</span>
+          <span style="background: #e774bb">pink</span>
+          <span style="background: #8590a2">gray</span>
+        </div>
+        <span class="ds-label">Typography</span>
+        <div class="ds-frame ds-type">
+          <div>
+            <small>h1 · system sans, 800, −0.02em</small>
+            <h1>Team boards with no server</h1>
+          </div>
+          <div>
+            <small>h2</small>
+            <h2 style="margin: 0">Everything a team board needs</h2>
+          </div>
+          <div>
+            <small>h3</small>
+            <h3>Works offline</h3>
+          </div>
+          <div>
+            <small>lead · 18px</small>
+            <p class="lead" style="margin: 0">Your identity is a key on your device.</p>
+          </div>
+          <div>
+            <small>body · 16px</small>
+            <p style="margin: 0">Changes merge the next time two members are online together.</p>
+          </div>
+          <div>
+            <small>mono · eyebrows, counts, code</small>
+            <p class="eyebrow" style="margin: 0">Peer-to-peer · end-to-end encrypted</p>
+          </div>
+        </div>
+        <span class="ds-label">Radius and motion</span>
+        <div class="ds-scale">
+          <div><span class="ds-radius" style="border-radius: 6px"></span><b>6px</b>Label chips</div>
+          <div>
+            <span class="ds-radius" style="border-radius: 10px"></span
+            ><b>10px · --radius</b>Buttons, inputs, cards
+          </div>
+          <div>
+            <span class="ds-radius" style="border-radius: 14px"></span><b>14px</b>Tiles, modals,
+            columns
+          </div>
+          <div>
+            <span class="ds-radius" style="border-radius: 22px"></span><b>22px</b>Phone frames
+          </div>
+          <div>
+            <b>--ease-out</b>cubic-bezier(0.23, 1, 0.32, 1) · entrances, 150–220ms<span
+              class="ds-ease"
+              style="--curve: cubic-bezier(0.23, 1, 0.32, 1)"
+            ></span>
+          </div>
+          <div>
+            <b>--ease-in-out</b>cubic-bezier(0.77, 0, 0.175, 1) · moves on screen<span
+              class="ds-ease"
+              style="--curve: cubic-bezier(0.77, 0, 0.175, 1)"
+            ></span>
+          </div>
+        </div>
+      </section>
+
+      <section id="website" class="section">
+        <h2><span class="hash">#</span> Website</h2>
+        <span class="ds-label">Navigation</span>
+        <div class="ds-nav">
+          <header class="nav">
+            <a class="logo" href="#website"
+              ><span class="prompt">&gt;</span> opencollab<span class="cursor">_</span></a
+            >
+            <nav aria-label="Example">
+              <a href="#website">Screenshots</a><a href="#website">Why P2P</a
+              ><a href="#website">FAQ</a>
+            </nav>
+          </header>
+        </div>
+        <span class="ds-label">Hero copy and buttons</span>
+        <div class="ds-frame ds-hero">
+          <p class="eyebrow">Peer-to-peer · end-to-end encrypted · open source</p>
+          <h1>Team boards with no server in the middle.</h1>
+          <p class="lead">A Kanban board your team shares directly between devices.</p>
+          <div class="actions">
+            <a class="button primary" href="#website">Primary</a>
+            <a class="button" href="#website">Secondary</a>
+          </div>
+          <p class="platforms">macOS · Windows · Linux · iPhone · Terminal</p>
+        </div>
+        <span class="ds-label">Tiles</span>
+        <div class="grid">
+          <article class="tile">
+            <h3>No accounts</h3>
+            <p>Your identity is a key on your device.</p>
+          </article>
+          <article class="tile">
+            <h3>Works offline</h3>
+            <p>Changes merge the next time members meet.</p>
+          </article>
+          <article class="tile">
+            <h3>Install command</h3>
+            <p>Code inside a tile.</p>
+            <pre><code>npx pear install pear://…</code></pre>
+          </article>
+        </div>
+        <span class="ds-label">Feature list</span>
+        <ul class="features">
+          <li><strong>Checklists</strong> Break a card into steps.</li>
+          <li><strong>Live presence</strong> See who's on the board.</li>
+        </ul>
+        <span class="ds-label">Steps</span>
+        <ol class="steps">
+          <li>
+            <span class="step">01</span>
+            <h3>Create your key</h3>
+            <p>The app makes an identity on your device.</p>
+          </li>
+          <li>
+            <span class="step">02</span>
+            <h3>Share the invite</h3>
+            <p>Send the link to your team.</p>
+          </li>
+          <li>
+            <span class="step">03</span>
+            <h3>Devices sync</h3>
+            <p>Encrypted, hole-punched links.</p>
+          </li>
+        </ol>
+        <span class="ds-label">Note</span>
+        <p class="note" style="margin: 0">
+          <strong>The trade-off:</strong> two members have to be online at the same time to sync.
+        </p>
+        <span class="ds-label">FAQ</span>
+        <div class="faq">
+          <details open>
+            <summary>Who can read my board?</summary>
+            <p>Only people holding the invite link.</p>
+          </details>
+          <details>
+            <summary>What if I lose my phone?</summary>
+            <p>Enter your recovery phrase on a new device.</p>
+          </details>
+        </div>
+        <span class="ds-label">Screenshot figure</span>
+        <div class="gallery">
+          <figure class="shot">
+            <img
+              src="assets/screens/desktop-card.jpg"
+              width="1600"
+              height="1000"
+              loading="lazy"
+              alt=""
+            />
+            <figcaption>
+              <strong>Caption title</strong>One line that says what the screen shows.
+            </figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <section id="desktop" class="section">
+        <h2><span class="hash">#</span> Desktop app</h2>
+        <p class="ds-note" style="color: var(--muted); margin: -12px 0 20px">
+          Real markup captured from the running app with demo data, styled by the app's own CSS.
+          <a href="design-system/app.html">Open full page</a>
+        </p>
+        <div class="ds-frame flush">
+          <iframe
+            class="ds-iframe"
+            src="design-system/app.html"
+            title="Desktop app components"
+            loading="lazy"
+          ></iframe>
+        </div>
+      </section>
+
+      <section id="mobile" class="section">
+        <h2><span class="hash">#</span> Mobile app</h2>
+        <p style="color: var(--muted); margin: -12px 0 20px">
+          Same palette (<code>apps/mobile/src/ui.tsx</code>). Pressable elements scale to 0.97 on
+          press in 100ms; cards use 0.98. Sheets slide up from the bottom.
+        </p>
+        <div class="ds-phones">
+          <img
+            src="assets/screens/iphone-board.jpg"
+            width="760"
+            height="1651"
+            loading="lazy"
+            alt="Board"
+          />
+          <img
+            src="assets/screens/iphone-card.jpg"
+            width="760"
+            height="1651"
+            loading="lazy"
+            alt="Card sheet"
+          />
+          <img
+            src="assets/screens/iphone-agenda.jpg"
+            width="760"
+            height="1651"
+            loading="lazy"
+            alt="Agenda"
+          />
+          <img
+            src="assets/screens/iphone-mywork.jpg"
+            width="760"
+            height="1651"
+            loading="lazy"
+            alt="My work"
+          />
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <span class="logo small"
+        ><span class="prompt">&gt;</span> opencollab<span class="cursor">_</span></span
+      >
+      <nav aria-label="Footer">
+        <a href="index.html">Home</a>
+        <a href="https://github.com/Chmarusso/p2p-collab-board">GitHub</a>
+      </nav>
+    </footer>
+  </body>
+</html>

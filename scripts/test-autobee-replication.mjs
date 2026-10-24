@@ -10,8 +10,9 @@ const apply = async (nodes, view, host) => {
   const batch = view.write()
   for (const node of nodes) {
     const operation = JSON.parse(node.value.toString())
-    if (operation.type === 'writer-request')
+    if (operation.type === 'writer-request') {
       await host.addWriter(Buffer.from(operation.writer, 'hex'))
+    }
     batch.tryPut(Buffer.from(`op:${node.key.toString('hex')}:${node.length}`), node.value)
   }
   await batch.flush()

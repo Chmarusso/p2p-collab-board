@@ -12,6 +12,12 @@ The code is small — read it for the wiring; below are only the non-obvious fac
   or positional → packaged app crashes at startup. This also makes Win/Linux deep
   links unreachable (a URL in argv kills the process before the single-instance
   lock; only macOS `'open-url'` works).
+- The renderer has no bundler: it imports browser ES modules straight from
+  `../node_modules/…` (`renderer/markdown.js`). Those packages must be root
+  `dependencies`, not devDependencies, or packaging prunes them and the page fails
+  to load. Card text from peers goes through DOMPurify there; links never navigate
+  the window (`will-navigate` / `setWindowOpenHandler` in `electron/main.js` send
+  http(s)/mailto to the system browser).
 - The worker specifier `'/workers/main.js'` is the worker's **identity** — embedded
   in every IPC channel name; must start with `/`; `pear:startWorker` resolves any
   renderer-supplied specifier with **no allowlist**.
@@ -40,7 +46,16 @@ The code is small — read it for the wiring; below are only the non-obvious fac
 - Per-platform storage dir is chosen in `getWorker()` (dev:
   `<tmpdir>/pear/HelloPear`). Inside: `pear-runtime/corestore`,
   `pear-runtime/next/<length>.<fork>/` (wiped on every updates-enabled launch),
-  `app-storage/` (suggested `pear.storage` for app data).
+  `app-storage/` (suggested `pear.storage` for app data). The worker also keeps
+  `media-cache/` (decrypted copies of videos being played, deleted whenever the
+  board closes) and `exports/` (the last board export written for mobile sharing).
+- Boards live in one long-lived `board-store/` Corestore, each in its own
+  namespace recorded in `board-spaces.json` (board key → namespace). Boards
+  opened before namespaces existed are `"legacy"`: they share the root namespace
+  and therefore one Autobee local writer, so boards created on one device before
+  that fix even share a key. They keep working; don't open two legacy boards at
+  once. Background notification checks read namespaced boards from
+  `board-store/` and legacy ones through a separate `peek-store/`.
 - **A stall is usually the network, not the code, and the two look identical.** An
   update that never arrives, or a peer that never connects, most often means this
   machine is unreachable: `pear seed <link> --json` prints `firewalled` and

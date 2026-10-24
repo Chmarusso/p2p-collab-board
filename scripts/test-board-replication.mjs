@@ -12,7 +12,9 @@ if (secret.length !== 32) throw new Error('Invalid invitation token')
 const keyPair = crypto.keyPair(secret)
 const stores = await Promise.all(
   [1, 2].map(async (peer) => {
-    const store = new Corestore(await fs.mkdtemp(path.join(os.tmpdir(), `opencollab-peer-${peer}-`)))
+    const store = new Corestore(
+      await fs.mkdtemp(path.join(os.tmpdir(), `opencollab-peer-${peer}-`))
+    )
     const core = store.get({ key: keyPair.publicKey, keyPair: crypto.keyPair(secret) })
     await core.ready()
     return { store, core, swarm: new Hyperswarm(), peer }

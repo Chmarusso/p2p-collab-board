@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import {
   AccessibilityInfo,
   Alert,
@@ -6,6 +6,7 @@ import {
   FlatList,
   Image,
   KeyboardAvoidingView,
+  LayoutAnimation,
   Modal,
   PanResponder,
   Platform,
@@ -21,12 +22,34 @@ import {
 import { Feather } from '@expo/vector-icons'
 import * as SecureStore from 'expo-secure-store'
 import * as Clipboard from 'expo-clipboard'
-import * as ImagePicker from 'expo-image-picker'
-import { ImageManipulator, SaveFormat } from 'expo-image-manipulator'
 import PearRuntime from 'pear-mobile'
 import FramedStream from 'framed-stream'
 import workerBundle from './worker.bundle.js'
+import { BootSplash } from './BootSplash'
 import { messageTypes } from '@opencollab/board-protocol'
+import {
+  Avatar,
+  BoardImages,
+  Button,
+  CachedImage,
+  FadeIn,
+  FeatherName,
+  IconButton,
+  Identicon,
+  ImageRef,
+  colors,
+  imageKey,
+  mono,
+  reduceMotion,
+  PendingImage,
+  pickPreparedImages,
+  setReduceMotion
+} from './ui'
+import { BoardScreen } from './board/BoardScreen'
+import { avatarOf, isVideo } from './board/model'
+import type { AlertBoard, BoardAlert, BoardData } from './board/model'
+import { KeychainChoice, SettingsSheet } from './Settings'
+import { DEFAULT_SOUND, SoundName, isSoundName, playSound, soundPrefKey } from './sounds'
 
 const normalizeInvite = (value: string) => {
   const invite = value.trim()
@@ -47,6 +70,18 @@ const { version, upgrade, productName } = require('../package.json') as {
   productName: string
 }
 
+const emptyBoard: BoardData = {
+  objects: [],
+  columns: [],
+  labels: [],
+  theme: { background: null, accent: null },
+  info: { description: '' },
+  profiles: {},
+  owner: null,
+  members: [],
+  rules: []
+}
+
 // OTA status, shared by every screen's banner. The worker sends the plain
 // strings 'updating' / 'updated' (pear-mobile updater) and 'pear:updateApplied'.
 type UpdateStatus = '' | 'downloading' | 'installed'
@@ -57,39 +92,11 @@ function setUpdateStatus(status: UpdateStatus) {
   for (const listener of updateListeners) listener(status)
 }
 
-const colors = {
-  bg: '#0A0E14',
-  surface: '#0F1620',
-  surfaceRaised: '#141D29',
-  border: '#1C2633',
-  text: '#C9D4E3',
-  muted: '#6B7A90',
-  accent: '#39FF88',
-  onAccent: '#04110A',
-  info: '#22D3EE',
-  magenta: '#FF4FD8',
-  error: '#FF5C5C'
-}
-const mono = Platform.select({ ios: 'Menlo', default: 'monospace' })
-
-type FeatherName = React.ComponentProps<typeof Feather>['name']
 type BoardComment = { id: string; author: string; text: string; createdAt?: string }
-type ImageRef = {
-  core: string
-  id: { byteOffset: number; blockOffset: number; blockLength: number; byteLength: number }
-  type: string
-  width: number | null
-  height: number | null
-}
-type PendingImage = { uri: string; data: string; type: string; width: number; height: number }
-type CachedImage = { uri?: string; error?: string }
 
 // Image attachments: bytes live encrypted in each author's Hyperblobs core; the
 // worker fetches them on demand and they are cached here as data URIs.
 const MAX_IMAGES = 4
-const MAX_IMAGE_SIDE = 1600
-const MAX_IMAGE_BYTES = 5 * 1024 * 1024
-const imageKey = (ref: ImageRef) => `${ref.core}:${ref.id.blockOffset}:${ref.id.blockLength}`
 
 type BoardObject = {
   id: string
@@ -109,6 +116,12 @@ type RecentBoard = { invite: string; name: string; joinedAt: number }
 const legacyRecentBoardsKey = 'opencollab.recent-boards'
 const recentBoardsKey = (identity: string) => `opencollab.recent-boards.${identity}`
 
+// The recovery phrase is kept in the Keychain only if the user agreed to it;
+// the choice is remembered. A phrase saved before the choice existed counts as
+// 'saved'.
+const identityPhraseKey = 'opencollab.identity'
+const keychainChoiceKey = 'opencollab.identity-keychain'
+
 const shortKey = (hex: string) => (hex.length > 10 ? `${hex.slice(0, 4)}…${hex.slice(-4)}` : hex)
 
 function relativeTime(iso?: string) {
@@ -120,6 +133,28 @@ function relativeTime(iso?: string) {
   return `${Math.floor(seconds / 86400)}d`
 }
 
+// Which cards show where: ids, columns, order, archived and template flags.
+function placementKey(
+  objects: Array<{
+    id: string
+    columnId?: string
+    position?: string
+    archived?: boolean
+    template?: boolean
+  }>,
+  columns: Array<{ id: string; position?: string }>
+) {
+  return [
+    columns.map((column) => `${column.id}@${column.position}`).join(','),
+    objects
+      .map(
+        (card) =>
+          `${card.id}:${card.columnId}:${card.position}:${card.archived ? 1 : 0}${card.template ? 1 : 0}`
+      )
+      .join(',')
+  ].join('|')
+}
+
 function describeNetwork(status: string) {
   if (status === 'topic-joining') return 'Searching for peers'
   if (status === 'topic-joined') return 'Announced on the network'
@@ -129,10 +164,7 @@ function describeNetwork(status: string) {
   return status
 }
 
-// Read once at startup and kept current by App; animations check it on mount.
-let reduceMotion = false
-
-export default function App() {
+function AppContent({ onBoot }: { onBoot: () => void }) {
   const [pipe, setPipe] = useState<any>(null)
   const [identityPhrase, setIdentityPhrase] = useState('')
   const [identityReady, setIdentityReady] = useState(false)
@@ -148,39 +180,68 @@ export default function App() {
   const [displayNameDraft, setDisplayNameDraft] = useState('')
   const [invitationLink, setInvitationLink] = useState('')
   const [profileOpen, setProfileOpen] = useState(false)
+  const [editProfileOpen, setEditProfileOpen] = useState(false)
   const [composerOpen, setComposerOpen] = useState(false)
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([])
   const [imageCache, setImageCache] = useState<Record<string, CachedImage>>({})
   const [viewerUri, setViewerUri] = useState('')
   const imageRequests = useRef(new Set<string>())
-  const [board, setBoard] = useState<BoardObject[]>([])
-  const [profiles, setProfiles] = useState<Record<string, string>>({})
+  const [boardData, setBoardData] = useState<BoardData>(emptyBoard)
+  const profiles = boardData.profiles
+  const [boardKey, setBoardKey] = useState('')
+  const [alertBoards, setAlertBoards] = useState<AlertBoard[]>([])
+  // Notifications read: everything up to `readUntil` (kept in SecureStore, which
+  // only holds small values) plus what was opened this session.
+  const [readUntil, setReadUntil] = useState(0)
+  const [readNow, setReadNow] = useState<Set<string>>(new Set())
+  const [openCardRequest, setOpenCardRequest] = useState<{ cardId: string; nonce: number } | null>(
+    null
+  )
+  const pendingOpen = useRef<{ boardKey: string; cardId: string } | null>(null)
+  const [composerColumn, setComposerColumn] = useState<string | null>(null)
+  // Board moves made here land instantly; only other members' changes animate.
+  const localMoveAt = useRef(0)
+  const lastPlacement = useRef('')
+  const workerListeners = useRef(new Set<(message: WorkerMessage) => void>())
   const [roomReady, setRoomReady] = useState(false)
   const [synced, setSynced] = useState(false)
   const [newTitle, setNewTitle] = useState('')
   const [newBody, setNewBody] = useState('')
-  const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({})
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const [networkStatus, setNetworkStatus] = useState('Not connected')
   const [peerCount, setPeerCount] = useState(0)
   const [waitedForMembers, setWaitedForMembers] = useState(false)
   const identityKeyRef = useRef('')
+  const currentBoardKey = useRef('')
   const savedPhraseRef = useRef('')
+  // The phrase of the identity being loaded, and of the one now unlocked.
+  const loadingPhraseRef = useRef('')
+  const phraseRef = useRef('')
+  const [keychain, setKeychain] = useState<KeychainChoice>(null)
+  const keychainRef = useRef<KeychainChoice>(null)
+  const [hasSavedPhrase, setHasSavedPhrase] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [sound, setSound] = useState<SoundName>(DEFAULT_SOUND)
+  const soundRef = useRef<SoundName>(DEFAULT_SOUND)
+  const readUntilRef = useRef(0)
+  readUntilRef.current = readUntil
+  // Alert ids already seen per board; a board's first check only sets this,
+  // so opening the app or adding a board doesn't play the sound.
+  const seenAlerts = useRef(new Map<string, Set<string>>())
+  const exportRequest = useRef('')
+  const [exporting, setExporting] = useState(false)
 
   useEffect(() => {
-    AccessibilityInfo.isReduceMotionEnabled().then((value) => (reduceMotion = value))
-    const motion = AccessibilityInfo.addEventListener(
-      'reduceMotionChanged',
-      (value) => (reduceMotion = value)
-    )
+    AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion)
+    const motion = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion)
     const ipc = PearRuntime.run('/worker.bundle', workerBundle, [
-      String(!__DEV__),
+      String(!(globalThis as { __DEV__?: boolean }).__DEV__),
       version,
       upgrade,
       productName
     ])
     const framed = new FramedStream(ipc)
     framed.on('data', (data: Uint8Array) => {
+      onBoot()
       const text = new TextDecoder().decode(data)
       if (text === 'updating') return setUpdateStatus('downloading')
       if (text === 'updated') {
@@ -199,15 +260,24 @@ export default function App() {
       if (message.type === messageTypes.identityStatus) {
         if (message.status === 'unlocked') {
           identityKeyRef.current = message.publicKey || ''
+          if (message.publicKey) {
+            SecureStore.getItemAsync(`opencollab.alerts-read-until.${message.publicKey}`).then(
+              (value) => setReadUntil(Number(value) || 0)
+            )
+          }
           setIdentityKey(message.publicKey || '')
           if (message.publicKey) void loadRecentBoards(message.publicKey)
           setIdentityReady(true)
           if (message.mnemonic) {
+            // Created: the Keychain question comes once the words are backed up.
+            phraseRef.current = message.mnemonic
             setIdentityPhrase(message.mnemonic)
             setBackupPhrase(message.mnemonic)
-            savedPhraseRef.current = message.mnemonic
-            SecureStore.setItemAsync('opencollab.identity', message.mnemonic)
+          } else if (loadingPhraseRef.current) {
+            phraseRef.current = loadingPhraseRef.current
+            offerKeychain(loadingPhraseRef.current)
           }
+          loadingPhraseRef.current = ''
         } else if (message.error) Alert.alert('Identity error', message.error)
       }
       if (message.type === messageTypes.roomStatus && message.status === 'ready') {
@@ -218,6 +288,8 @@ export default function App() {
         setEntryError('')
         setBoardName(message.boardName || 'OpenCollab')
         setInvitationLink(message.invite || '')
+        setBoardKey(message.boardKey || '')
+        currentBoardKey.current = message.boardKey || ''
         if (message.invite) rememberBoard(message.invite, message.boardName || 'Unnamed board')
         if (message.displayName) {
           setDisplayName(message.displayName)
@@ -227,16 +299,31 @@ export default function App() {
       if (message.type === messageTypes.roomStatus && message.status === 'none') {
         setRoomReady(false)
         setSynced(false)
-        setBoard([])
-        setProfiles({})
+        setBoardData(emptyBoard)
+        setBoardKey('')
         setBoardName('')
         setInvitationLink('')
         setDisplayName('')
         setDisplayNameDraft('')
-        setExpanded({})
         setImageCache({})
         imageRequests.current.clear()
         setEntryMode('choose')
+      }
+      if (message.type === 'board-action-error' && message.error) {
+        if (message.requestId && message.requestId === exportRequest.current) {
+          exportRequest.current = ''
+          setExporting(false)
+        }
+        Alert.alert('Not done', message.error)
+      }
+      if (message.type === 'board-export' && message.requestId === exportRequest.current) {
+        exportRequest.current = ''
+        setExporting(false)
+        if (message.path) {
+          Share.share({ url: `file://${encodeURI(message.path)}` }).catch((err) =>
+            Alert.alert('Export', err?.message || 'Could not share the file.')
+          )
+        }
       }
       if (message.type === 'board-image') {
         imageRequests.current.delete(message.key)
@@ -248,8 +335,29 @@ export default function App() {
         }))
       }
       if (message.type === messageTypes.boardState) {
-        setBoard(message.objects || [])
-        setProfiles(message.profiles || {})
+        // Only a change in where cards sit animates; reactions, checklists and
+        // the like would otherwise re-lay out an open card sheet while typing.
+        const layout = placementKey(message.objects || [], message.columns || [])
+        const moved = layout !== lastPlacement.current
+        lastPlacement.current = layout
+        if (moved && !reduceMotion && Date.now() - localMoveAt.current > 1500) {
+          LayoutAnimation.configureNext({
+            duration: 220,
+            update: { type: LayoutAnimation.Types.easeInEaseOut }
+          })
+        }
+        setBoardData({
+          objects: message.objects || [],
+          columns: message.columns || [],
+          labels: message.labels || [],
+          theme: message.theme || { background: null, accent: null },
+          info: message.info || { description: '' },
+          profiles: message.profiles || {},
+          owner: message.owner || null,
+          members: message.members || [],
+          rules: message.rules || []
+        })
+        openPendingCard(message.objects || [])
       }
       if (message.type === 'board-name' && message.name) {
         setBoardName(message.name)
@@ -259,16 +367,23 @@ export default function App() {
         setDisplayNameDraft(message.displayName)
       }
       if (message.type === messageTypes.boardSynced) setSynced(true)
-      if (message.type === 'room-status' && message.status === 'error')
+      if (message.type === 'room-status' && message.status === 'error') {
         setEntryError(message.error || 'Something went wrong')
+      }
       if (message.type === 'room-debug') setNetworkStatus(describeNetwork(message.status))
+      if (message.type === messageTypes.boardAlerts) {
+        setAlertBoards(message.boards || [])
+        chimeForNewAlerts(message.boards || [])
+      }
+      for (const listener of workerListeners.current) listener(message)
       if (message.type === 'peer-count') setPeerCount(message.count || 0)
     })
     setPipe(framed)
-    SecureStore.getItemAsync('opencollab.identity').then((saved) => {
-      if (!saved) return
-      savedPhraseRef.current = saved
-      setIdentityPhrase(saved)
+    void loadSavedIdentity()
+    SecureStore.getItemAsync(soundPrefKey).then((value) => {
+      if (!isSoundName(value)) return
+      soundRef.current = value
+      setSound(value)
     })
     return () => {
       motion.remove()
@@ -286,19 +401,271 @@ export default function App() {
   }, [roomReady, synced])
 
   const send = (message: object) => pipe?.write(JSON.stringify(message))
-  const nameFor = (identity: string) => profiles[identity] || shortKey(identity)
-  const score = (item: BoardObject) =>
-    Object.values(item.votes || {}).reduce((sum, vote) => sum + vote, 0)
 
-  async function unlock() {
-    if (identityPhrase.trim().split(/\s+/).length < 12)
-      return Alert.alert('Identity required', 'Enter a recovery phrase with at least 12 words.')
-    // Unscoped boards belong to the previously saved identity only.
-    if (identityPhrase.trim() !== savedPhraseRef.current)
-      await SecureStore.deleteItemAsync(legacyRecentBoardsKey)
-    await SecureStore.setItemAsync('opencollab.identity', identityPhrase.trim())
-    send({ type: messageTypes.identityLoad, mnemonic: identityPhrase.trim() })
+  // The worker checks every joined board in the background for notifications.
+  useEffect(() => {
+    if (!pipe || !identityReady) return
+    send({
+      type: messageTypes.boardsWatch,
+      boards: recentBoards.map(({ invite, name }) => ({ invite, name }))
+    })
+  }, [pipe, identityReady, recentBoards])
+
+  // Debug builds only: lets scripted checks (Hermes inspector via Metro) drive
+  // the app the way the buttons do. Release builds never set it.
+  useEffect(() => {
+    if (!(globalThis as { __DEV__?: boolean }).__DEV__) return
+    ;(globalThis as Record<string, unknown>).__opencollab = {
+      send,
+      dismissBackup: () => setBackupPhrase(''),
+      subscribe: (listener: (message: WorkerMessage) => void) => {
+        workerListeners.current.add(listener)
+        return () => workerListeners.current.delete(listener)
+      },
+      state: () => ({
+        identityKey,
+        roomReady,
+        synced,
+        boardKey,
+        boardName,
+        displayName,
+        unreadCount,
+        alertBoards: alertBoards.map((board) => [
+          board.name,
+          board.alerts.length,
+          board.checkedAt > 0
+        ]),
+        data: boardData
+      })
+    }
+  })
+
+  const subscribe = useCallback((listener: (message: WorkerMessage) => void) => {
+    workerListeners.current.add(listener)
+    return () => {
+      workerListeners.current.delete(listener)
+    }
+  }, [])
+
+  const alertId = (board: AlertBoard, alert: BoardAlert) => `${board.key}:${alert.id}`
+  const isRead = useCallback(
+    (board: AlertBoard, alert: BoardAlert) =>
+      alert.at <= readUntil || readNow.has(alertId(board, alert)),
+    [readUntil, readNow]
+  )
+  const unreadCount = alertBoards.reduce(
+    (sum, board) => sum + board.alerts.filter((alert) => !isRead(board, alert)).length,
+    0
+  )
+  const markRead = useCallback(
+    (predicate: (board: AlertBoard, alert: BoardAlert) => boolean) => {
+      const keys = alertBoards.flatMap((board) =>
+        board.alerts
+          .filter((alert) => predicate(board, alert) && !isRead(board, alert))
+          .map((alert) => alertId(board, alert))
+      )
+      if (!keys.length) return
+      const all = alertBoards.every((board) =>
+        board.alerts.every((alert) => predicate(board, alert))
+      )
+      if (all) {
+        // "Mark all read" moves the watermark; nothing else needs remembering.
+        const until = Date.now()
+        setReadUntil(until)
+        void SecureStore.setItemAsync(
+          `opencollab.alerts-read-until.${identityKeyRef.current}`,
+          String(until)
+        )
+      }
+      setReadNow((current) => new Set([...current, ...keys]))
+    },
+    [alertBoards, isRead]
+  )
+
+  function openAlert(board: AlertBoard, alert: BoardAlert) {
+    markRead((b, a) => b.key === board.key && a.id === alert.id)
+    openBoardCard(board, alert.cardId)
   }
+
+  // Opens a card on any joined board, switching boards first if needed.
+  function openBoardCard(board: AlertBoard, cardId: string) {
+    if (board.key === currentBoardKey.current) {
+      setOpenCardRequest({ cardId, nonce: Date.now() })
+      return
+    }
+    pendingOpen.current = { boardKey: board.key, cardId }
+    send({ type: messageTypes.roomStart, invite: normalizeInvite(board.invite) })
+  }
+
+  // After switching boards for a notification, open its card once it's there.
+  function openPendingCard(objects: { id: string }[]) {
+    const pending = pendingOpen.current
+    if (!pending || pending.boardKey !== currentBoardKey.current) return
+    if (!objects.some((object) => object.id === pending.cardId)) return
+    pendingOpen.current = null
+    setOpenCardRequest({ cardId: pending.cardId, nonce: Date.now() })
+  }
+  const nameFor = (identity: string) => profiles[identity] || shortKey(identity)
+
+  async function loadSavedIdentity() {
+    let choice = (await SecureStore.getItemAsync(keychainChoiceKey)) as KeychainChoice
+    if (choice === 'protected') {
+      // Reading it asks for Face ID, so that waits for "Unlock saved identity".
+      setKeychainChoice(choice)
+      setHasSavedPhrase(true)
+      return
+    }
+    const saved = await SecureStore.getItemAsync(identityPhraseKey)
+    if (saved && !choice) {
+      choice = 'saved'
+      void SecureStore.setItemAsync(keychainChoiceKey, choice)
+    }
+    setKeychainChoice(choice)
+    if (!saved) return
+    savedPhraseRef.current = saved
+    setHasSavedPhrase(true)
+    setIdentityPhrase(saved)
+  }
+
+  function setKeychainChoice(choice: KeychainChoice) {
+    keychainRef.current = choice
+    setKeychain(choice)
+  }
+
+  // Protected only when the device can ask for Face ID / Touch ID; otherwise a
+  // plain Keychain item, as before.
+  async function savePhrase(phrase: string) {
+    let choice: KeychainChoice = 'saved'
+    try {
+      if (SecureStore.canUseBiometricAuthentication()) {
+        await SecureStore.setItemAsync(identityPhraseKey, phrase, {
+          requireAuthentication: true,
+          authenticationPrompt: 'Save your OpenCollab recovery words'
+        })
+        choice = 'protected'
+      } else await SecureStore.setItemAsync(identityPhraseKey, phrase)
+    } catch {
+      try {
+        await SecureStore.setItemAsync(identityPhraseKey, phrase)
+      } catch (err) {
+        Alert.alert('Not saved', (err as Error)?.message || 'The Keychain refused the phrase.')
+        return
+      }
+    }
+    await SecureStore.setItemAsync(keychainChoiceKey, choice)
+    savedPhraseRef.current = phrase
+    setHasSavedPhrase(true)
+    setKeychainChoice(choice)
+  }
+
+  async function forgetPhrase() {
+    await SecureStore.deleteItemAsync(identityPhraseKey)
+    await SecureStore.setItemAsync(keychainChoiceKey, 'off')
+    savedPhraseRef.current = ''
+    setHasSavedPhrase(false)
+    setKeychainChoice('off')
+  }
+
+  // Asked once; afterwards a new identity follows the choice already made.
+  function offerKeychain(phrase: string) {
+    if (phrase === savedPhraseRef.current) return
+    const choice = keychainRef.current
+    if (choice === 'off') return
+    if (choice === 'saved' || choice === 'protected') return void savePhrase(phrase)
+    Alert.alert(
+      'Save recovery words in the iOS Keychain?',
+      'OpenCollab then opens without asking for them. If you don’t save them, they stay in memory only and you enter them each time you open the app. You can change this later in Settings.',
+      [
+        {
+          text: 'Don’t save',
+          style: 'cancel',
+          onPress: () => {
+            void SecureStore.setItemAsync(keychainChoiceKey, 'off')
+            setKeychainChoice('off')
+          }
+        },
+        { text: 'Save', onPress: () => void savePhrase(phrase) }
+      ]
+    )
+  }
+
+  async function unlock(phrase = identityPhrase.trim()) {
+    if (phrase.split(/\s+/).length < 12) {
+      return Alert.alert('Identity required', 'Enter a recovery phrase with at least 12 words.')
+    }
+    // Unscoped boards belong to the previously saved identity only.
+    if (phrase !== savedPhraseRef.current) await SecureStore.deleteItemAsync(legacyRecentBoardsKey)
+    loadingPhraseRef.current = phrase
+    send({ type: messageTypes.identityLoad, mnemonic: phrase })
+  }
+
+  async function unlockSaved() {
+    if (keychainRef.current !== 'protected') return unlock(savedPhraseRef.current)
+    let saved: string | null = null
+    try {
+      saved = await SecureStore.getItemAsync(identityPhraseKey, {
+        requireAuthentication: true,
+        authenticationPrompt: 'Unlock OpenCollab'
+      })
+    } catch {
+      // Cancelled, or the item was invalidated by a Face ID change.
+      return Alert.alert(
+        'Not unlocked',
+        'Try again, or choose “Use existing identity” and enter your recovery words.'
+      )
+    }
+    if (!saved) {
+      setHasSavedPhrase(false)
+      return Alert.alert('Nothing saved', 'Enter your recovery words to continue.')
+    }
+    savedPhraseRef.current = saved
+    void unlock(saved)
+  }
+
+  function chimeForNewAlerts(boards: AlertBoard[]) {
+    let fresh = false
+    for (const board of boards) {
+      if (!board.checkedAt) continue
+      const seen = seenAlerts.current.get(board.key)
+      if (!seen) {
+        seenAlerts.current.set(board.key, new Set(board.alerts.map((alert) => alert.id)))
+        continue
+      }
+      for (const alert of board.alerts) {
+        if (seen.has(alert.id)) continue
+        seen.add(alert.id)
+        if (alert.at > readUntilRef.current) fresh = true
+      }
+    }
+    if (fresh) playSound(soundRef.current)
+  }
+
+  function chooseSound(next: SoundName) {
+    soundRef.current = next
+    setSound(next)
+    void SecureStore.setItemAsync(soundPrefKey, next)
+    playSound(next)
+  }
+
+  function exportBoard() {
+    if (exportRequest.current) return
+    const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+    exportRequest.current = requestId
+    setExporting(true)
+    send({ type: messageTypes.boardExport, requestId, toFile: true })
+  }
+
+  const settings = settingsOpen ? (
+    <SettingsSheet
+      keychain={keychain}
+      canSave={!!phraseRef.current}
+      onSavePhrase={() => void savePhrase(phraseRef.current)}
+      onForgetPhrase={() => void forgetPhrase()}
+      sound={sound}
+      onSound={chooseSound}
+      onClose={() => setSettingsOpen(false)}
+    />
+  ) : null
 
   async function createIdentity() {
     await SecureStore.deleteItemAsync(legacyRecentBoardsKey)
@@ -344,6 +711,26 @@ export default function App() {
     updateRecentBoards((current) => current.filter((board) => board.invite !== boardInvite))
   }
 
+  const myAvatar = avatarOf(boardData, identityKey)
+
+  // The avatar applies as soon as it is picked; the name waits for Save.
+  function saveProfile() {
+    const name = displayNameDraft.trim()
+    if (name && name !== displayName) send({ type: messageTypes.profileSet, displayName: name })
+    else setDisplayNameDraft(displayName)
+    setEditProfileOpen(false)
+  }
+
+  async function pickAvatar() {
+    // Avatars show small, so they don't need the full size.
+    const [image] = await pickPreparedImages(1, 256)
+    if (!image) return
+    send({
+      type: messageTypes.profileAvatarSet,
+      image: { type: image.type, data: image.data, width: image.width, height: image.height }
+    })
+  }
+
   async function shareInvitation() {
     if (!invitationLink) return
     await Share.share({ message: inviteLink(invitationLink), url: inviteLink(invitationLink) })
@@ -351,6 +738,13 @@ export default function App() {
 
   function logout() {
     setProfileOpen(false)
+    send({ type: messageTypes.boardsWatch, boards: [] })
+    setAlertBoards([])
+    setReadNow(new Set())
+    seenAlerts.current.clear()
+    // A phrase the user chose not to keep doesn't outlive the session.
+    if (!hasSavedPhrase) setIdentityPhrase('')
+    phraseRef.current = ''
     if (roomReady) send({ type: messageTypes.roomLeave })
     identityKeyRef.current = ''
     setIdentityKey('')
@@ -376,6 +770,7 @@ export default function App() {
       type: messageTypes.boardCreate,
       title: newTitle,
       body: newBody,
+      columnId: composerColumn,
       images: pendingImages.map(({ data, type, width, height }) => ({ data, type, width, height }))
     })
     setNewTitle('')
@@ -385,6 +780,7 @@ export default function App() {
   }
 
   function requestImage(ref: ImageRef) {
+    if (isVideo(ref)) return
     const key = imageKey(ref)
     if (imageCache[key]?.uri || imageRequests.current.has(key)) return
     imageRequests.current.add(key)
@@ -401,44 +797,14 @@ export default function App() {
     requestImage(ref)
   }
 
-  // Downscale to MAX_IMAGE_SIDE and re-encode as JPEG to keep transfers small.
   async function pickImages() {
     const remaining = MAX_IMAGES - pendingImages.length
     if (remaining <= 0) return Alert.alert('Image limit', `Up to ${MAX_IMAGES} images per post.`)
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsMultipleSelection: true,
-      selectionLimit: remaining,
-      quality: 1
-    })
-    if (result.canceled) return
-    const prepared: PendingImage[] = []
-    for (const asset of result.assets.slice(0, remaining)) {
-      const scale = Math.min(1, MAX_IMAGE_SIDE / Math.max(asset.width, asset.height))
-      const context = ImageManipulator.manipulate(asset.uri)
-      context.resize({
-        width: Math.round(asset.width * scale),
-        height: Math.round(asset.height * scale)
-      })
-      const rendered = await context.renderAsync()
-      const saved = await rendered.saveAsync({
-        compress: 0.8,
-        format: SaveFormat.JPEG,
-        base64: true
-      })
-      if (!saved.base64 || saved.base64.length * 0.75 > MAX_IMAGE_BYTES) continue
-      prepared.push({
-        uri: `data:image/jpeg;base64,${saved.base64}`,
-        data: saved.base64,
-        type: 'image/jpeg',
-        width: saved.width,
-        height: saved.height
-      })
-    }
+    const prepared = await pickPreparedImages(remaining)
     setPendingImages((current) => [...current, ...prepared].slice(0, MAX_IMAGES))
   }
 
-  if (!identityReady)
+  if (!identityReady) {
     return (
       <Screen title='opencollab' cursor>
         <Text style={styles.muted}>
@@ -446,13 +812,17 @@ export default function App() {
         </Text>
         {identityChoice === 'choose' ? (
           <>
-            {identityPhrase ? (
-              <Button title='Unlock saved identity' icon='unlock' onPress={unlock} />
+            {hasSavedPhrase ? (
+              <Button
+                title='Unlock saved identity'
+                icon='unlock'
+                onPress={() => void unlockSaved()}
+              />
             ) : null}
             <Button
               title='Create new identity'
               icon='key'
-              variant={identityPhrase ? 'secondary' : 'primary'}
+              variant={hasSavedPhrase ? 'secondary' : 'primary'}
               onPress={createIdentity}
             />
             <Button
@@ -482,13 +852,14 @@ export default function App() {
                 variant='secondary'
                 onPress={() => setIdentityChoice('choose')}
               />
-              <Button title='Unlock' icon='unlock' onPress={unlock} grow />
+              <Button title='Unlock' icon='unlock' onPress={() => void unlock()} grow />
             </View>
           </>
         )}
       </Screen>
     )
-  if (backupPhrase)
+  }
+  if (backupPhrase) {
     return (
       <Screen title='Back up your key'>
         <Text style={styles.muted}>
@@ -503,10 +874,18 @@ export default function App() {
             </View>
           ))}
         </View>
-        <Button title="I've written it down" icon='check' onPress={() => setBackupPhrase('')} />
+        <Button
+          title="I've written it down"
+          icon='check'
+          onPress={() => {
+            setBackupPhrase('')
+            offerKeychain(backupPhrase)
+          }}
+        />
       </Screen>
     )
-  if (!roomReady && entryMode === 'create')
+  }
+  if (!roomReady && entryMode === 'create') {
     return (
       <Screen title='New board'>
         <Text style={styles.muted}>
@@ -546,7 +925,8 @@ export default function App() {
         </View>
       </Screen>
     )
-  if (!roomReady && entryMode === 'join')
+  }
+  if (!roomReady && entryMode === 'join') {
     return (
       <Screen title='Join board'>
         <Text style={styles.muted}>
@@ -594,7 +974,8 @@ export default function App() {
         </View>
       </Screen>
     )
-  if (!roomReady)
+  }
+  if (!roomReady) {
     return (
       <Screen
         title='Boards'
@@ -640,10 +1021,18 @@ export default function App() {
         ) : (
           <Text style={styles.muted}>No boards yet. Create one or join with an invitation.</Text>
         )}
+        <Button
+          title='Settings'
+          icon='settings'
+          variant='ghost'
+          onPress={() => setSettingsOpen(true)}
+        />
         <Button title='Log out' icon='log-out' variant='ghost' onPress={logout} />
+        {settings}
       </Screen>
     )
-  if (!displayName)
+  }
+  if (!displayName) {
     return (
       <Screen title={boardName || 'OpenCollab'}>
         <Text style={styles.heading}>Choose your display name</Text>
@@ -668,188 +1057,62 @@ export default function App() {
         />
       </Screen>
     )
-
-  // Newest first; worker order follows storage keys, not creation time.
-  const newestFirst = [...board].sort(
-    (a, b) => (Date.parse(b.createdAt || '') || 0) - (Date.parse(a.createdAt || '') || 0)
-  )
-
-  const header = (
-    <View style={styles.boardHeader}>
-      <View style={styles.header}>
-        <Text style={styles.title} numberOfLines={1}>
-          {boardName || 'OpenCollab'}
-        </Text>
-        <Pressable
-          style={({ pressed }) => [styles.userPanel, pressed && styles.pressed]}
-          onPress={() => setProfileOpen(true)}
-          accessibilityRole='button'
-          accessibilityLabel='Open profile and connection details'
-        >
-          <Identicon hex={identityKey} size={22} />
-          <Text style={styles.userPanelName} numberOfLines={1}>
-            @{displayName}
-          </Text>
-        </Pressable>
-      </View>
-      <StatusChip peers={peerCount} synced={synced} />
-    </View>
-  )
+  }
 
   return (
     <View style={styles.root}>
       <StatusBar barStyle='light-content' />
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <FlatList
-          data={synced ? newestFirst : []}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.list}
-          keyboardShouldPersistTaps='handled'
-          ListHeaderComponent={header}
-          ListEmptyComponent={
-            synced ? (
-              <View style={styles.empty}>
-                <Feather name='inbox' size={28} color={colors.muted} />
-                <Text style={styles.muted}>Nothing here yet. Tap + to add the first object.</Text>
-              </View>
-            ) : (
-              <View style={styles.skeletons}>
-                {/* Not the peer count: other joiners connect too but hold no data. */}
-                {waitedForMembers ? (
-                  <View style={styles.waiting} accessibilityRole='alert'>
-                    <View style={styles.meta}>
-                      <Feather name='users' size={16} color={colors.info} />
-                      <Text style={styles.heading}>Waiting for a board member…</Text>
-                    </View>
-                    <Text style={styles.muted}>
-                      Boards live only on members' devices. This one fills in automatically as soon
-                      as another member opens it — keep OpenCollab open until then.
-                    </Text>
-                  </View>
-                ) : null}
-                <SkeletonCards />
-              </View>
-            )
-          }
-          renderItem={({ item }) => {
-            const myVote = item.votes?.[identityKey] || 0
-            // Persisted order is per writer, not chronological; sort for display.
-            const comments = [...(item.comments || [])].sort(
-              (a, b) => Date.parse(a.createdAt || '') - Date.parse(b.createdAt || '')
-            )
-            const open = !!expanded[item.id]
-            return (
-              <FadeIn>
-                <View style={styles.card}>
-                  <VoteColumn
-                    score={score(item)}
-                    myVote={myVote}
-                    onVote={(value) =>
-                      // Step by one: with a vote cast, either arrow first clears it.
-                      send({
-                        type: messageTypes.boardVote,
-                        objectId: item.id,
-                        value: myVote ? 0 : value
-                      })
-                    }
-                  />
-                  <View style={styles.cardBody}>
-                    <Text style={styles.cardTitle}>{item.title}</Text>
-                    {item.body ? <Text style={styles.cardText}>{item.body}</Text> : null}
-                    {item.images?.length ? (
-                      <BoardImages
-                        images={item.images}
-                        cache={imageCache}
-                        onRequest={requestImage}
-                        onRetry={retryImage}
-                        onOpen={setViewerUri}
-                      />
-                    ) : null}
-                    <View style={styles.meta}>
-                      <Identicon hex={item.author} size={14} />
-                      <Text style={styles.metaText}>{nameFor(item.author)}</Text>
-                      {item.createdAt ? (
-                        <Text style={styles.metaMono}>· {relativeTime(item.createdAt)}</Text>
-                      ) : null}
-                    </View>
-                    <Pressable
-                      style={({ pressed }) => [styles.commentToggle, pressed && styles.pressed]}
-                      onPress={() => setExpanded((current) => ({ ...current, [item.id]: !open }))}
-                      accessibilityRole='button'
-                      accessibilityState={{ expanded: open }}
-                    >
-                      <Feather name='message-square' size={14} color={colors.info} />
-                      <Text style={styles.commentToggleText}>
-                        {comments.length
-                          ? `${comments.length} comment${comments.length === 1 ? '' : 's'}`
-                          : 'Comment'}
-                      </Text>
-                      <Feather
-                        name={open ? 'chevron-up' : 'chevron-down'}
-                        size={14}
-                        color={colors.muted}
-                      />
-                    </Pressable>
-                    {open ? (
-                      <View style={styles.comments}>
-                        {comments.map((comment) => (
-                          <FadeIn key={comment.id}>
-                            <View style={styles.comment}>
-                              <View style={styles.meta}>
-                                <Identicon hex={comment.author} size={12} />
-                                <Text style={styles.commentAuthor}>{nameFor(comment.author)}</Text>
-                                <Text style={styles.metaMono}>
-                                  {relativeTime(comment.createdAt)}
-                                </Text>
-                              </View>
-                              <Text style={styles.cardText}>{comment.text}</Text>
-                            </View>
-                          </FadeIn>
-                        ))}
-                        <View style={styles.commentForm}>
-                          <TextInput
-                            style={[styles.input, styles.flex]}
-                            value={commentDrafts[item.id] || ''}
-                            onChangeText={(text) =>
-                              setCommentDrafts((current) => ({ ...current, [item.id]: text }))
-                            }
-                            placeholder='Add a comment'
-                            placeholderTextColor={colors.muted}
-                          />
-                          <IconButton
-                            icon='send'
-                            label='Send comment'
-                            onPress={() => {
-                              const text = (commentDrafts[item.id] || '').trim()
-                              if (!text) return
-                              send({ type: messageTypes.boardComment, objectId: item.id, text })
-                              setCommentDrafts((current) => ({ ...current, [item.id]: '' }))
-                            }}
-                          />
-                        </View>
-                      </View>
-                    ) : null}
-                  </View>
+      <BoardScreen
+        data={boardData}
+        me={identityKey}
+        displayName={displayName}
+        boardName={boardName}
+        boardKey={boardKey}
+        synced={synced}
+        statusChip={<StatusChip peers={peerCount} synced={synced} />}
+        loading={
+          <View style={styles.boardLoading}>
+            {/* Not the peer count: other joiners connect too but hold no data. */}
+            {waitedForMembers ? (
+              <View style={styles.waiting} accessibilityRole='alert'>
+                <View style={styles.meta}>
+                  <Feather name='users' size={16} color={colors.info} />
+                  <Text style={styles.heading}>Waiting for a board member…</Text>
                 </View>
-              </FadeIn>
-            )
-          }}
-        />
-      </KeyboardAvoidingView>
+                <Text style={styles.muted}>
+                  Boards live only on members' devices. This one fills in automatically as soon as
+                  another member opens it — keep OpenCollab open until then.
+                </Text>
+              </View>
+            ) : null}
+            <SkeletonCards />
+          </View>
+        }
+        send={send}
+        cache={imageCache}
+        requestImage={requestImage}
+        retryImage={retryImage}
+        openViewer={setViewerUri}
+        openProfile={() => setProfileOpen(true)}
+        onNewCard={(columnId) => {
+          setComposerColumn(columnId)
+          setComposerOpen(true)
+        }}
+        onLocalMove={() => (localMoveAt.current = Date.now())}
+        alertBoards={alertBoards}
+        unreadCount={unreadCount}
+        isRead={isRead}
+        markRead={markRead}
+        onOpenAlert={openAlert}
+        onOpenMyCard={(board, card) => openBoardCard(board, card.id)}
+        sound={sound}
+        openCardRequest={openCardRequest}
+        subscribe={subscribe}
+        nameFor={nameFor}
+        shortKey={shortKey}
+        relativeTime={relativeTime}
+      />
       <UpdateBanner />
-      {synced ? (
-        <Pressable
-          style={({ pressed }) => [styles.fab, pressed && styles.pressed]}
-          onPress={() => setComposerOpen(true)}
-          accessibilityRole='button'
-          accessibilityLabel='Add an object'
-        >
-          <Feather name='plus' size={26} color={colors.onAccent} />
-        </Pressable>
-      ) : null}
 
       <Modal
         visible={composerOpen}
@@ -864,7 +1127,12 @@ export default function App() {
           <Pressable style={styles.flex} onPress={() => setComposerOpen(false)} />
           <View style={styles.sheet}>
             <View style={styles.sheetHandle} />
-            <Text style={styles.heading}>New object</Text>
+            <Text style={styles.heading}>
+              New card
+              {composerColumn
+                ? ` in ${boardData.columns.find((column) => column.id === composerColumn)?.name || 'column'}`
+                : ''}
+            </Text>
             <TextInput
               style={styles.input}
               value={newTitle}
@@ -913,7 +1181,7 @@ export default function App() {
             />
             <View style={styles.row}>
               <Button title='Cancel' variant='secondary' onPress={() => setComposerOpen(false)} />
-              <Button title='Add to board' icon='plus' grow onPress={addObject} />
+              <Button title='Add card' icon='plus' grow onPress={addObject} />
             </View>
           </View>
         </KeyboardAvoidingView>
@@ -946,16 +1214,47 @@ export default function App() {
         <Pressable style={styles.modalBackdrop} onPress={() => setProfileOpen(false)}>
           <Pressable style={styles.modalCard} onPress={(event) => event.stopPropagation()}>
             <View style={styles.meta}>
-              <Identicon hex={identityKey} size={36} />
+              <Avatar
+                hex={identityKey}
+                size={36}
+                image={myAvatar}
+                cache={imageCache}
+                requestImage={requestImage}
+              />
               <View>
                 <Text style={styles.heading}>@{displayName}</Text>
                 <Text style={styles.metaMono}>{shortKey(identityKey)}</Text>
               </View>
             </View>
+            <Button
+              title='Edit name & avatar'
+              icon='user'
+              variant='secondary'
+              onPress={() => {
+                setProfileOpen(false)
+                setDisplayNameDraft(displayName)
+                setEditProfileOpen(true)
+              }}
+            />
             <StatusChip peers={peerCount} synced={synced} />
             <Text style={styles.metaMono}>{networkStatus}</Text>
             <Text style={styles.metaMono}>OpenCollab v{version}</Text>
             <Button title='Share invitation' icon='share-2' onPress={shareInvitation} />
+            <Button
+              title={exporting ? 'Exporting…' : 'Export board'}
+              icon='download'
+              variant='secondary'
+              onPress={exportBoard}
+            />
+            <Button
+              title='Settings'
+              icon='settings'
+              variant='secondary'
+              onPress={() => {
+                setProfileOpen(false)
+                setSettingsOpen(true)
+              }}
+            />
             <Button
               title='Switch board'
               icon='repeat'
@@ -970,6 +1269,90 @@ export default function App() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      <Modal
+        visible={editProfileOpen}
+        transparent
+        animationType='fade'
+        onRequestClose={() => setEditProfileOpen(false)}
+      >
+        <KeyboardAvoidingView
+          style={styles.flex}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <Pressable style={styles.modalBackdrop} onPress={() => setEditProfileOpen(false)}>
+            <Pressable style={styles.modalCard} onPress={(event) => event.stopPropagation()}>
+              <Text style={styles.heading}>Edit name & avatar</Text>
+              <View style={styles.avatarEdit}>
+                <Pressable
+                  onPress={pickAvatar}
+                  style={({ pressed }) => pressed && styles.pressed}
+                  accessibilityRole='button'
+                  accessibilityLabel='Change avatar'
+                >
+                  <Avatar
+                    hex={identityKey}
+                    size={96}
+                    image={myAvatar}
+                    cache={imageCache}
+                    requestImage={requestImage}
+                  />
+                  <View style={styles.avatarBadge}>
+                    <Feather name='camera' size={14} color={colors.bg} />
+                  </View>
+                </Pressable>
+                {myAvatar ? (
+                  <Pressable
+                    onPress={() => send({ type: messageTypes.profileAvatarSet, image: null })}
+                    hitSlop={8}
+                    accessibilityRole='button'
+                  >
+                    <Text style={styles.removePhoto}>Remove avatar</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+              <TextInput
+                style={styles.input}
+                value={displayNameDraft}
+                onChangeText={setDisplayNameDraft}
+                onSubmitEditing={saveProfile}
+                placeholder='Display name'
+                placeholderTextColor={colors.muted}
+                maxLength={48}
+                returnKeyType='done'
+                accessibilityLabel='Display name'
+              />
+              <Text style={styles.hint}>Everyone on this board sees your name and avatar.</Text>
+              <View style={styles.row}>
+                <Button
+                  title='Cancel'
+                  variant='ghost'
+                  onPress={() => {
+                    setDisplayNameDraft(displayName)
+                    setEditProfileOpen(false)
+                  }}
+                />
+                <Button title='Save' grow onPress={saveProfile} />
+              </View>
+            </Pressable>
+          </Pressable>
+        </KeyboardAvoidingView>
+      </Modal>
+      {settings}
+    </View>
+  )
+}
+
+export default function App() {
+  // The worker's first message means it's up; the splash hands over then.
+  const [booted, setBooted] = useState(false)
+  const [splashDone, setSplashDone] = useState(false)
+  const boot = useCallback(() => setBooted(true), [])
+  const done = useCallback(() => setSplashDone(true), [])
+  return (
+    <View style={styles.app}>
+      <AppContent onBoot={boot} />
+      {splashDone ? null : <BootSplash ready={booted} onDone={done} />}
     </View>
   )
 }
@@ -1052,19 +1435,6 @@ function BlinkingCursor() {
   return <Animated.Text style={[styles.prompt, { opacity }]}>_</Animated.Text>
 }
 
-function FadeIn({ children }: { children: React.ReactNode }) {
-  const progress = useRef(new Animated.Value(reduceMotion ? 1 : 0)).current
-  useEffect(() => {
-    Animated.timing(progress, { toValue: 1, duration: 220, useNativeDriver: true }).start()
-  }, [progress])
-  const translateY = progress.interpolate({ inputRange: [0, 1], outputRange: [8, 0] })
-  return (
-    <Animated.View style={{ opacity: progress, transform: [{ translateY }] }}>
-      {children}
-    </Animated.View>
-  )
-}
-
 function StatusChip({ peers, synced }: { peers: number; synced: boolean }) {
   const pulse = useRef(new Animated.Value(1)).current
   const online = peers > 0
@@ -1117,103 +1487,6 @@ function SkeletonCards() {
           <View style={[styles.skeletonLine, { width: '35%' }]} />
         </Animated.View>
       ))}
-    </View>
-  )
-}
-
-function VoteColumn({
-  score,
-  myVote,
-  onVote
-}: {
-  score: number
-  myVote: number
-  onVote: (value: number) => void
-}) {
-  const scale = useRef(new Animated.Value(1)).current
-  const previous = useRef(score)
-  useEffect(() => {
-    if (previous.current === score) return
-    previous.current = score
-    if (reduceMotion) return
-    scale.setValue(1.35)
-    Animated.spring(scale, { toValue: 1, useNativeDriver: true, friction: 4 }).start()
-  }, [score, scale])
-  return (
-    <View style={styles.votes}>
-      <Pressable
-        onPress={() => onVote(1)}
-        hitSlop={8}
-        accessibilityRole='button'
-        accessibilityLabel='Upvote'
-        accessibilityState={{ selected: myVote === 1 }}
-        style={({ pressed }) => pressed && styles.pressed}
-      >
-        <Feather name='chevron-up' size={24} color={myVote === 1 ? colors.accent : colors.muted} />
-      </Pressable>
-      <Animated.Text
-        style={[
-          styles.score,
-          myVote === 1 && { color: colors.accent },
-          myVote === -1 && { color: colors.magenta },
-          { transform: [{ scale }] }
-        ]}
-      >
-        {score}
-      </Animated.Text>
-      <Pressable
-        onPress={() => onVote(-1)}
-        hitSlop={8}
-        accessibilityRole='button'
-        accessibilityLabel='Downvote'
-        accessibilityState={{ selected: myVote === -1 }}
-        style={({ pressed }) => pressed && styles.pressed}
-      >
-        <Feather
-          name='chevron-down'
-          size={24}
-          color={myVote === -1 ? colors.magenta : colors.muted}
-        />
-      </Pressable>
-    </View>
-  )
-}
-
-// Deterministic 5x5 mirrored grid derived from an identity public key.
-function Identicon({ hex, size }: { hex: string; size: number }) {
-  if (!hex) return <View style={{ width: size, height: size }} />
-  const hue = parseInt(hex.slice(0, 4), 16) % 360
-  const color = `hsl(${hue}, 85%, 62%)`
-  const cell = size / 5
-  const cells: React.ReactNode[] = []
-  for (let row = 0; row < 5; row++) {
-    for (let col = 0; col < 3; col++) {
-      const nibble = parseInt(hex[(row * 3 + col + 4) % hex.length] || '0', 16)
-      if (nibble % 2 === 0) continue
-      for (const x of col === 2 ? [2] : [col, 4 - col]) {
-        cells.push(
-          <View
-            key={`${row}-${x}`}
-            style={{
-              position: 'absolute',
-              left: x * cell,
-              top: row * cell,
-              width: cell,
-              height: cell,
-              backgroundColor: color
-            }}
-          />
-        )
-      }
-    }
-  }
-  return (
-    <View
-      style={[styles.identicon, { width: size, height: size, borderRadius: size / 5 }]}
-      accessibilityElementsHidden
-      importantForAccessibility='no-hide-descendants'
-    >
-      {cells}
     </View>
   )
 }
@@ -1302,115 +1575,26 @@ function SwipeToRemove({
   )
 }
 
-function BoardImages({
-  images,
-  cache,
-  onRequest,
-  onRetry,
-  onOpen
-}: {
-  images: ImageRef[]
-  cache: Record<string, CachedImage>
-  onRequest: (ref: ImageRef) => void
-  onRetry: (ref: ImageRef) => void
-  onOpen: (uri: string) => void
-}) {
-  useEffect(() => {
-    for (const ref of images) onRequest(ref)
-    // Requests are deduplicated in the parent; only re-run for new images.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [images.map(imageKey).join('|')])
-  return (
-    <View style={styles.imageGrid}>
-      {images.map((ref) => {
-        const cached = cache[imageKey(ref)]
-        const ratio = ref.width && ref.height ? ref.width / ref.height : 4 / 3
-        return (
-          <Pressable
-            key={imageKey(ref)}
-            style={[styles.imageSlot, { aspectRatio: images.length === 1 ? ratio : 1 }]}
-            onPress={() => (cached?.uri ? onOpen(cached.uri) : cached?.error ? onRetry(ref) : null)}
-            accessibilityRole='imagebutton'
-            accessibilityLabel={
-              cached?.error ? 'Image unavailable, tap to retry' : 'Attached image'
-            }
-          >
-            {cached?.uri ? (
-              <Image source={{ uri: cached.uri }} style={styles.slotImage} />
-            ) : cached?.error ? (
-              <View style={styles.slotState}>
-                <Feather name='refresh-cw' size={16} color={colors.muted} />
-                <Text style={styles.metaMono}>unavailable · retry</Text>
-              </View>
-            ) : (
-              <View style={styles.slotState}>
-                <Feather name='image' size={18} color={colors.border} />
-              </View>
-            )}
-          </Pressable>
-        )
-      })}
-    </View>
-  )
-}
-
-function IconButton({
-  icon,
-  label,
-  onPress
-}: {
-  icon: FeatherName
-  label: string
-  onPress: () => void
-}) {
-  return (
-    <Pressable
-      style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}
-      onPress={onPress}
-      accessibilityRole='button'
-      accessibilityLabel={label}
-    >
-      <Feather name={icon} size={18} color={colors.onAccent} />
-    </Pressable>
-  )
-}
-
-function Button({
-  title,
-  onPress,
-  icon,
-  grow,
-  variant = 'primary'
-}: {
-  title: string
-  onPress: () => void
-  icon?: FeatherName
-  grow?: boolean
-  variant?: 'primary' | 'secondary' | 'ghost'
-}) {
-  const color =
-    variant === 'primary' ? colors.onAccent : variant === 'ghost' ? colors.muted : colors.accent
-  return (
-    <Pressable
-      style={({ pressed }) => [
-        styles.button,
-        variant === 'secondary' && styles.buttonSecondary,
-        variant === 'ghost' && styles.buttonGhost,
-        grow && styles.flex,
-        pressed && styles.pressed
-      ]}
-      onPress={onPress}
-      accessibilityRole='button'
-    >
-      {icon ? <Feather name={icon} size={16} color={color} /> : null}
-      <Text style={[styles.buttonText, { color }]}>{title}</Text>
-    </Pressable>
-  )
-}
-
 const styles = StyleSheet.create({
+  app: { flex: 1, backgroundColor: colors.bg },
   root: { flex: 1, backgroundColor: colors.bg },
+  boardLoading: { paddingHorizontal: 16, gap: 12 },
   flex: { flex: 1 },
+  avatarEdit: { alignItems: 'center', gap: 10, paddingVertical: 6 },
+  avatarBadge: {
+    position: 'absolute',
+    right: -2,
+    bottom: -2,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.accent,
+    borderWidth: 2,
+    borderColor: colors.surface
+  },
+  removePhoto: { color: colors.muted, fontSize: 12, textDecorationLine: 'underline' },
   screen: { flexGrow: 1, padding: 20, paddingTop: 64, gap: 14 },
   list: { padding: 16, paddingTop: 64, paddingBottom: 120, gap: 12 },
   boardHeader: { gap: 10, marginBottom: 4 },
