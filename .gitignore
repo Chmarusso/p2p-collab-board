@@ -8,3 +8,10 @@ todo
 # video and Tweet thread production
 video/
 docs/video-script.md
+
+# blind peer data when run from the repo
+apps/blind-peer/storage/
+
+# agent worktrees
+.claude/worktrees/
+apps/mobile/android/

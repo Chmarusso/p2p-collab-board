@@ -14,7 +14,10 @@ const extensions = {
   'image/jpeg': '.jpg',
   'image/png': '.png',
   'image/gif': '.gif',
-  'image/webp': '.webp'
+  'image/webp': '.webp',
+  'video/mp4': '.mp4',
+  'video/quicktime': '.mov',
+  'video/webm': '.webm'
 }
 
 function imageType(file) {

@@ -1,6 +1,18 @@
 // Shared look and small building blocks used by every screen.
 import React, { useEffect, useRef } from 'react'
-import { Animated, Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native'
+import {
+  Animated,
+  Easing,
+  Image,
+  Platform,
+  Pressable,
+  PressableProps,
+  StyleProp,
+  StyleSheet,
+  Text,
+  View,
+  ViewStyle
+} from 'react-native'
 import { Feather } from '@expo/vector-icons'
 import * as ImagePicker from 'expo-image-picker'
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator'
@@ -27,6 +39,7 @@ export type ImageRef = {
   type: string
   width: number | null
   height: number | null
+  name?: string | null
 }
 export type CachedImage = { uri?: string; error?: string }
 export const imageKey = (ref: ImageRef) => `${ref.core}:${ref.id.blockOffset}:${ref.id.blockLength}`
@@ -41,9 +54,12 @@ export type PendingImage = {
 export const MAX_IMAGE_SIDE = 1600
 export const MAX_IMAGE_BYTES = 5 * 1024 * 1024
 
-// Picks up to `limit` photos, downscaled to MAX_IMAGE_SIDE and re-encoded as
-// JPEG to keep transfers small. Anything still over 5 MB is skipped.
-export async function pickPreparedImages(limit: number): Promise<PendingImage[]> {
+// Picks up to `limit` photos, downscaled to `maxSide` and re-encoded as JPEG to
+// keep transfers small. Anything still over 5 MB is skipped.
+export async function pickPreparedImages(
+  limit: number,
+  maxSide = MAX_IMAGE_SIDE
+): Promise<PendingImage[]> {
   if (limit <= 0) return []
   const result = await ImagePicker.launchImageLibraryAsync({
     mediaTypes: ['images'],
@@ -54,7 +70,7 @@ export async function pickPreparedImages(limit: number): Promise<PendingImage[]>
   if (result.canceled) return []
   const prepared: PendingImage[] = []
   for (const asset of result.assets.slice(0, limit)) {
-    const scale = Math.min(1, MAX_IMAGE_SIDE / Math.max(asset.width, asset.height))
+    const scale = Math.min(1, maxSide / Math.max(asset.width, asset.height))
     const context = ImageManipulator.manipulate(asset.uri)
     context.resize({
       width: Math.round(asset.width * scale),
@@ -74,16 +90,67 @@ export async function pickPreparedImages(limit: number): Promise<PendingImage[]>
   return prepared
 }
 
+export const MAX_VIDEO_BYTES = 200 * 1024 * 1024
+export type PickedVideo = {
+  path: string
+  name?: string
+  width?: number
+  height?: number
+  size?: number
+}
+
+// Videos go to the worker as file paths: it streams them into the blob core,
+// so they never pass through JS as base64.
+export async function pickVideos(limit: number): Promise<PickedVideo[]> {
+  if (limit <= 0) return []
+  const result = await ImagePicker.launchImageLibraryAsync({
+    mediaTypes: ['videos'],
+    allowsMultipleSelection: true,
+    selectionLimit: limit
+  })
+  if (result.canceled) return []
+  return result.assets.slice(0, limit).map((asset) => ({
+    path: asset.uri,
+    name: asset.fileName || undefined,
+    width: asset.width || undefined,
+    height: asset.height || undefined,
+    size: asset.fileSize
+  }))
+}
+
 // Read once at startup and kept current by App; animations check it on mount.
 export let reduceMotion = false
 export function setReduceMotion(value: boolean) {
   reduceMotion = value
 }
 
-export function FadeIn({ children }: { children: React.ReactNode }) {
-  const progress = useRef(new Animated.Value(reduceMotion ? 1 : 0)).current
+// Strong ease-out: quick to respond, gentle to settle.
+export const easeOut = Easing.bezier(0.23, 1, 0.32, 1)
+
+// Ids that already showed once. A list mounting again (Board <-> Agenda,
+// reopening a board) shows them at once; only new arrivals fade. `skip` is
+// for a list's first render, which appears whole instead of cascading.
+const seenFades = new Set<string>()
+
+export function FadeIn({
+  children,
+  id,
+  skip
+}: {
+  children: React.ReactNode
+  id?: string
+  skip?: boolean
+}) {
+  const known = skip || (!!id && seenFades.has(id))
+  if (id) seenFades.add(id)
+  const progress = useRef(new Animated.Value(reduceMotion || known ? 1 : 0)).current
   useEffect(() => {
-    Animated.timing(progress, { toValue: 1, duration: 220, useNativeDriver: true }).start()
+    Animated.timing(progress, {
+      toValue: 1,
+      duration: 220,
+      easing: easeOut,
+      useNativeDriver: true
+    }).start()
   }, [progress])
   const translateY = progress.interpolate({ inputRange: [0, 1], outputRange: [8, 0] })
   return (
@@ -129,6 +196,35 @@ export function Identicon({ hex, size }: { hex: string; size: number }) {
     >
       {cells}
     </View>
+  )
+}
+
+// A member's uploaded picture, or their identicon until one loads.
+export function Avatar({
+  hex,
+  size,
+  image,
+  cache,
+  requestImage
+}: {
+  hex: string
+  size: number
+  image: ImageRef | null | undefined
+  cache: Record<string, CachedImage>
+  requestImage: (ref: ImageRef) => void
+}) {
+  const key = image ? imageKey(image) : ''
+  const uri = key ? cache[key]?.uri : undefined
+  useEffect(() => {
+    if (image && !uri) requestImage(image)
+  }, [key, !!uri])
+  if (!uri) return <Identicon hex={hex} size={size} />
+  return (
+    <Image
+      source={{ uri }}
+      style={{ width: size, height: size, borderRadius: size / 2 }}
+      accessibilityIgnoresInvertColors
+    />
   )
 }
 
@@ -184,6 +280,38 @@ export function BoardImages({
   )
 }
 
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable)
+
+// A Pressable that shrinks a little while held and springs back on release.
+// Pressable already waits before press-in, so a scroll that starts on it
+// doesn't flash. With Reduce Motion it dims instead of scaling.
+export function PressableScale({
+  style,
+  scaleTo = 0.97,
+  onPressIn,
+  onPressOut,
+  ...rest
+}: Omit<PressableProps, 'style'> & { style?: StyleProp<ViewStyle>; scaleTo?: number }) {
+  const value = useRef(new Animated.Value(1)).current
+  const to = (target: number, duration: number) =>
+    Animated.timing(value, { toValue: target, duration, easing: easeOut, useNativeDriver: true })
+  const pressedTo = reduceMotion ? 0.7 : scaleTo
+  return (
+    <AnimatedPressable
+      {...rest}
+      onPressIn={(event) => {
+        to(pressedTo, 100).start()
+        onPressIn?.(event)
+      }}
+      onPressOut={(event) => {
+        to(1, 160).start()
+        onPressOut?.(event)
+      }}
+      style={[style, reduceMotion ? { opacity: value } : { transform: [{ scale: value }] }]}
+    />
+  )
+}
+
 export function IconButton({
   icon,
   label,
@@ -194,14 +322,14 @@ export function IconButton({
   onPress: () => void
 }) {
   return (
-    <Pressable
-      style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}
+    <PressableScale
+      style={styles.iconButton}
       onPress={onPress}
       accessibilityRole='button'
       accessibilityLabel={label}
     >
       <Feather name={icon} size={18} color={colors.onAccent} />
-    </Pressable>
+    </PressableScale>
   )
 }
 
@@ -221,20 +349,19 @@ export function Button({
   const color =
     variant === 'primary' ? colors.onAccent : variant === 'ghost' ? colors.muted : colors.accent
   return (
-    <Pressable
-      style={({ pressed }) => [
+    <PressableScale
+      style={[
         styles.button,
         variant === 'secondary' && styles.buttonSecondary,
         variant === 'ghost' && styles.buttonGhost,
-        grow && styles.flex,
-        pressed && styles.pressed
+        grow && styles.flex
       ]}
       onPress={onPress}
       accessibilityRole='button'
     >
       {icon ? <Feather name={icon} size={16} color={color} /> : null}
       <Text style={[styles.buttonText, { color }]}>{title}</Text>
-    </Pressable>
+    </PressableScale>
   )
 }
 
@@ -256,7 +383,6 @@ const styles = StyleSheet.create({
     borderWidth: 1
   },
   buttonGhost: { backgroundColor: 'transparent' },
-  pressed: { opacity: 0.8, transform: [{ scale: 0.97 }] },
   iconButton: {
     width: 46,
     height: 46,

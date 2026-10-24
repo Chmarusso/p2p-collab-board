@@ -1,12 +1,15 @@
-// Board-level screens: labels, theme, filters, notifications and the column
-// menu. Each is a modal sheet; changes go straight to the worker.
-import React, { useState } from 'react'
+// Board-level screens: labels, theme, members, filters, notifications and the
+// column menu. Each is a modal sheet; changes go straight to the worker.
+import React, { useEffect, useState } from 'react'
 import {
+  Alert,
+  Image,
   KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Text,
   TextInput,
@@ -14,7 +17,17 @@ import {
 } from 'react-native'
 import { Feather } from '@expo/vector-icons'
 import { messageTypes } from '@opencollab/board-protocol'
-import { Button, colors, mono } from '../ui'
+import {
+  Avatar,
+  Button,
+  CachedImage,
+  ImageRef,
+  PressableScale,
+  colors,
+  imageKey,
+  mono,
+  pickPreparedImages
+} from '../ui'
 import { Chip } from './CardSheet'
 import {
   ACCENTS,
@@ -26,26 +39,49 @@ import {
   Filters,
   KIND_LABELS,
   LABEL_COLORS,
+  Member,
+  NO_FILTERS,
   alertText,
+  assignable,
+  memberPowers,
   newLabelId
 } from './model'
+
+type WorkerMessage = { type: string; [key: string]: any }
+
+// Fetches an image ref through the shared cache and returns its data URI.
+export function useImageUri(
+  ref: ImageRef | null | undefined,
+  cache: Record<string, CachedImage>,
+  requestImage: (ref: ImageRef) => void
+) {
+  const key = ref ? imageKey(ref) : ''
+  const cached = key ? cache[key] : undefined
+  useEffect(() => {
+    if (ref && !cached) requestImage(ref)
+  }, [key, !!cached])
+  return cached?.uri || null
+}
 
 export function Sheet({
   title,
   onClose,
   children,
-  right
+  right,
+  scroll = true
 }: {
   title: string
   onClose: () => void
   children: React.ReactNode
   right?: React.ReactNode
+  // Off when the content is its own list (FlatList), which must not nest.
+  scroll?: boolean
 }) {
   return (
     <Modal visible animationType='slide' presentationStyle='pageSheet' onRequestClose={onClose}>
       <KeyboardAvoidingView
         style={styles.root}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <View style={styles.head}>
           <Text style={styles.title}>{title}</Text>
@@ -59,9 +95,13 @@ export function Sheet({
             <Feather name='x' size={22} color={colors.muted} />
           </Pressable>
         </View>
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps='handled'>
-          {children}
-        </ScrollView>
+        {scroll ? (
+          <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps='handled'>
+            {children}
+          </ScrollView>
+        ) : (
+          <View style={styles.flex}>{children}</View>
+        )}
       </KeyboardAvoidingView>
     </Modal>
   )
@@ -242,20 +282,105 @@ export function LabelsSheet({
 export function ThemeSheet({
   data,
   send,
+  cache,
+  requestImage,
+  subscribe,
   onClose
 }: {
   data: BoardData
   send: (message: object) => void
+  cache: Record<string, CachedImage>
+  requestImage: (ref: ImageRef) => void
+  subscribe: (listener: (message: WorkerMessage) => void) => () => void
   onClose: () => void
 }) {
   const [custom, setCustom] = useState(
     data.theme.background?.startsWith('#') ? data.theme.background : ''
   )
+  const [uploading, setUploading] = useState<'icon' | 'background' | null>(null)
+  const icon = data.info.icon || null
+  const backgroundImage = data.theme.backgroundImage || null
+  const iconUri = useImageUri(icon, cache, requestImage)
+  const backgroundUri = useImageUri(backgroundImage, cache, requestImage)
+  // The new ref arriving in board-state ends the upload; App shows refusals.
+  const iconKey = icon ? imageKey(icon) : ''
+  const backgroundKey = backgroundImage ? imageKey(backgroundImage) : ''
+  useEffect(() => setUploading((current) => (current === 'icon' ? null : current)), [iconKey])
+  useEffect(
+    () => setUploading((current) => (current === 'background' ? null : current)),
+    [backgroundKey]
+  )
+  useEffect(
+    () =>
+      subscribe((message) => {
+        if (message.type === 'board-action-error') setUploading(null)
+      }),
+    [subscribe]
+  )
   const setTheme = (change: object) => send({ type: messageTypes.themeSet, ...change })
+  const pick = async (kind: 'icon' | 'background') => {
+    // Icons show small, so they don't need the full size.
+    const [image] = await pickPreparedImages(1, kind === 'icon' ? 256 : undefined)
+    if (!image) return
+    setUploading(kind)
+    send({
+      type: kind === 'icon' ? messageTypes.boardIconSet : messageTypes.backgroundImageSet,
+      image: { type: image.type, data: image.data, width: image.width, height: image.height }
+    })
+  }
+  const clear = (kind: 'icon' | 'background') =>
+    send({
+      type: kind === 'icon' ? messageTypes.boardIconSet : messageTypes.backgroundImageSet,
+      image: null
+    })
   return (
     <Sheet title='Customize' onClose={onClose}>
       <Text style={styles.muted}>Everyone on this board sees the same theme.</Text>
-      <Text style={styles.sectionLabel}>Background</Text>
+      <Text style={styles.sectionLabel}>Board icon</Text>
+      <View style={styles.rowCenter}>
+        <View style={styles.iconPreview}>
+          {iconUri ? (
+            <Image source={{ uri: iconUri }} style={styles.fill} />
+          ) : (
+            <Feather name='image' size={18} color={colors.muted} />
+          )}
+        </View>
+        <Button
+          title={uploading === 'icon' ? 'Uploading…' : icon ? 'Change' : 'Choose image'}
+          icon='image'
+          variant='secondary'
+          onPress={() => uploading !== 'icon' && void pick('icon')}
+        />
+        {icon && uploading !== 'icon' ? (
+          <Button title='Remove' variant='ghost' onPress={() => clear('icon')} />
+        ) : null}
+      </View>
+      <Text style={styles.sectionLabel}>Background image</Text>
+      {backgroundImage ? (
+        <View style={styles.backgroundPreview}>
+          {backgroundUri ? (
+            <Image source={{ uri: backgroundUri }} style={styles.fill} resizeMode='cover' />
+          ) : null}
+        </View>
+      ) : null}
+      <View style={styles.rowCenter}>
+        <Button
+          title={
+            uploading === 'background'
+              ? 'Uploading…'
+              : backgroundImage
+                ? 'Change image'
+                : 'Choose image'
+          }
+          icon='image'
+          variant='secondary'
+          onPress={() => uploading !== 'background' && void pick('background')}
+        />
+        {backgroundImage && uploading !== 'background' ? (
+          <Button title='Remove' variant='ghost' onPress={() => clear('background')} />
+        ) : null}
+      </View>
+      <Text style={styles.sectionLabel}>Background color</Text>
       <View style={styles.swatches}>
         <Pressable
           onPress={() => setTheme({ background: null })}
@@ -307,6 +432,138 @@ export function ThemeSheet({
   )
 }
 
+const ROLE_ORDER = { owner: 0, admin: 1, member: 2 }
+
+export function MembersSheet({
+  data,
+  me,
+  send,
+  nameFor,
+  shortKey,
+  status,
+  cache,
+  requestImage,
+  onClose
+}: {
+  data: BoardData
+  me: string
+  send: (message: object) => void
+  nameFor: (identity: string) => string
+  shortKey: (hex: string) => string
+  status?: React.ReactNode
+  cache: Record<string, CachedImage>
+  requestImage: (ref: ImageRef) => void
+  onClose: () => void
+}) {
+  const powers = memberPowers(data, me)
+  const members = [...data.members].sort(
+    (a, b) =>
+      Number(a.banned) - Number(b.banned) ||
+      ROLE_ORDER[a.role] - ROLE_ORDER[b.role] ||
+      (a.name || nameFor(a.identity)).localeCompare(b.name || nameFor(b.identity))
+  )
+  const nameOf = (member: Member) => member.name || nameFor(member.identity)
+  const ban = (member: Member) =>
+    Alert.alert(
+      `Remove ${nameOf(member)}?`,
+      'They can still see the board, because they already hold its key, but everything they change from now on is ignored by everyone. What they added before stays.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: () =>
+            send({ type: messageTypes.memberBan, identity: member.identity, banned: true })
+        }
+      ]
+    )
+  return (
+    <Sheet title='Members' onClose={onClose}>
+      {status}
+      <Text style={styles.muted}>
+        The owner and admins can remove members. A removed member can still see the board, but their
+        changes are ignored.
+      </Text>
+      {members.length ? null : (
+        <Text style={styles.muted}>Nobody has written to this board yet.</Text>
+      )}
+      {members.map((member) => {
+        const canBan = powers.canBan(member)
+        const canRole = powers.canChangeRoles && member.role !== 'owner' && !member.banned
+        return (
+          <View key={member.identity} style={[styles.member, member.banned && styles.banned]}>
+            <View style={styles.rowCenter}>
+              <Avatar
+                hex={member.identity}
+                size={28}
+                image={member.avatar}
+                cache={cache}
+                requestImage={requestImage}
+              />
+              <View style={styles.flex}>
+                <Text style={styles.memberName} numberOfLines={1}>
+                  {nameOf(member)}
+                  {member.identity === me ? ' (you)' : ''}
+                </Text>
+                <Text style={styles.usage}>{shortKey(member.identity)}</Text>
+              </View>
+              {member.banned ? (
+                <Text style={[styles.badge, styles.badgeBanned]}>Banned</Text>
+              ) : member.role === 'owner' ? (
+                <Text style={[styles.badge, styles.badgeOwner]}>Owner</Text>
+              ) : member.role === 'admin' ? (
+                <Text style={[styles.badge, styles.badgeAdmin]}>Admin</Text>
+              ) : null}
+            </View>
+            {member.banned && member.bannedBy ? (
+              <Text style={styles.usage}>Banned by {nameFor(member.bannedBy)}</Text>
+            ) : null}
+            {canRole || canBan ? (
+              <View style={styles.rowCenter}>
+                {canRole ? (
+                  <Button
+                    title={member.role === 'admin' ? 'Remove admin' : 'Make admin'}
+                    icon='shield'
+                    variant='secondary'
+                    onPress={() =>
+                      send({
+                        type: messageTypes.memberRole,
+                        identity: member.identity,
+                        role: member.role === 'admin' ? 'member' : 'admin'
+                      })
+                    }
+                  />
+                ) : null}
+                {canBan && member.banned ? (
+                  <Button
+                    title='Unban'
+                    icon='user-check'
+                    variant='secondary'
+                    onPress={() =>
+                      send({
+                        type: messageTypes.memberBan,
+                        identity: member.identity,
+                        banned: false
+                      })
+                    }
+                  />
+                ) : canBan ? (
+                  <Button
+                    title='Remove from board'
+                    icon='user-x'
+                    variant='ghost'
+                    onPress={() => ban(member)}
+                  />
+                ) : null}
+              </View>
+            ) : null}
+          </View>
+        )
+      })}
+    </Sheet>
+  )
+}
+
 export function FilterSheet({
   data,
   filters,
@@ -331,11 +588,7 @@ export function FilterSheet({
       title='Filter'
       onClose={onClose}
       right={
-        <Pressable
-          onPress={() => setFilters({ labels: [], member: '', due: '' })}
-          hitSlop={8}
-          accessibilityRole='button'
-        >
+        <Pressable onPress={() => setFilters(NO_FILTERS)} hitSlop={8} accessibilityRole='button'>
           <Text style={styles.link}>Clear</Text>
         </Pressable>
       }
@@ -383,6 +636,25 @@ export function FilterSheet({
           />
         ))}
       </View>
+      <Text style={styles.sectionLabel}>Assigned to</Text>
+      <View style={styles.swatches}>
+        <Chip
+          label='Anyone'
+          selected={!filters.assignee}
+          onPress={() => setFilters({ ...filters, assignee: '' })}
+        />
+        {assignable(data, me).map((member) => {
+          const name = member.name || data.profiles[member.identity] || 'Member'
+          return (
+            <Chip
+              key={member.identity}
+              label={member.identity === me ? `${name} (you)` : name}
+              selected={filters.assignee === member.identity}
+              onPress={() => setFilters({ ...filters, assignee: member.identity })}
+            />
+          )
+        })}
+      </View>
       <Text style={styles.sectionLabel}>Due</Text>
       <View style={styles.swatches}>
         {dues.map(([value, label]) => (
@@ -402,6 +674,7 @@ export function ColumnSheet({
   column,
   index,
   count,
+  cards,
   send,
   onLocalMove,
   onClose
@@ -409,12 +682,26 @@ export function ColumnSheet({
   column: Column
   index: number
   count: number
+  // Cards the column shows now, for the WIP limit hint.
+  cards: number
   send: (message: object) => void
   onLocalMove: () => void
   onClose: () => void
 }) {
   const [name, setName] = useState(column.name)
   const [confirm, setConfirm] = useState(false)
+  const [limit, setLimit] = useState(column.wipLimit ? String(column.wipLimit) : '')
+  const [limitError, setLimitError] = useState('')
+  const saveLimit = (value: string) => {
+    const next = value.trim() === '' ? null : Number(value)
+    if (next !== null && !(Number.isInteger(next) && next >= 1 && next <= 999)) {
+      return setLimitError('Use a whole number from 1 to 999, or leave it empty for no limit.')
+    }
+    setLimitError('')
+    if (next !== (column.wipLimit ?? null)) {
+      send({ type: messageTypes.columnUpdate, columnId: column.id, wipLimit: next })
+    }
+  }
   const moveTo = (to: number) => {
     onLocalMove()
     send({ type: messageTypes.columnUpdate, columnId: column.id, index: to })
@@ -442,6 +729,39 @@ export function ColumnSheet({
         none
         onPick={(color) => send({ type: messageTypes.columnUpdate, columnId: column.id, color })}
       />
+      <Text style={styles.sectionLabel}>Work in progress limit</Text>
+      <View style={styles.rowCenter}>
+        <TextInput
+          style={[styles.input, styles.limitInput]}
+          value={limit}
+          onChangeText={(value) => {
+            setLimit(value.replace(/[^0-9]/g, ''))
+            setLimitError('')
+          }}
+          onEndEditing={() => saveLimit(limit)}
+          placeholder='None'
+          placeholderTextColor={colors.muted}
+          keyboardType='number-pad'
+          returnKeyType='done'
+          maxLength={3}
+          accessibilityLabel='Work in progress limit'
+        />
+        {column.wipLimit ? (
+          <Button
+            title='No limit'
+            variant='ghost'
+            onPress={() => {
+              setLimit('')
+              saveLimit('')
+            }}
+          />
+        ) : null}
+      </View>
+      <Text style={styles.hint}>
+        {cards} {cards === 1 ? 'card' : 'cards'} now. The header turns amber at the limit and red
+        above it; moving a card into a full column asks first.
+      </Text>
+      {limitError ? <Text style={styles.error}>{limitError}</Text> : null}
       <Text style={styles.sectionLabel}>Position</Text>
       <View style={styles.rowCenter}>
         <Button
@@ -529,14 +849,11 @@ export function NotificationsSheet({
           {board.alerts.map((alert) => {
             const read = isRead(board, alert)
             return (
-              <Pressable
+              <PressableScale
                 key={alert.id}
                 onPress={() => onOpen(board, alert)}
-                style={({ pressed }) => [
-                  styles.alert,
-                  !read && styles.alertUnread,
-                  pressed && styles.pressed
-                ]}
+                style={[styles.alert, !read && styles.alertUnread]}
+                scaleTo={0.98}
                 accessibilityRole='button'
               >
                 <View style={styles.rowCenter}>
@@ -556,7 +873,7 @@ export function NotificationsSheet({
                     {alert.text}
                   </Text>
                 ) : null}
-              </Pressable>
+              </PressableScale>
             )
           })}
         </View>
@@ -566,7 +883,12 @@ export function NotificationsSheet({
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.surface },
+  root: {
+    flex: 1,
+    backgroundColor: colors.surface,
+    // Android modals are full screen and draw under the status bar.
+    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight || 0 : 0
+  },
   flex: { flex: 1 },
   head: {
     flexDirection: 'row',
@@ -602,6 +924,8 @@ const styles = StyleSheet.create({
   labelRow: { gap: 8 },
   usage: { color: colors.muted, fontFamily: mono, fontSize: 12 },
   usageColumn: { width: 64, textAlign: 'right' },
+  hint: { color: colors.muted, fontSize: 12, lineHeight: 17 },
+  limitInput: { width: 96, textAlign: 'center' },
   delete: {
     minWidth: 34,
     height: 34,
@@ -624,6 +948,50 @@ const styles = StyleSheet.create({
   },
   swatchNone: { borderColor: colors.border },
   swatchSelected: { borderColor: colors.text },
+  fill: { width: '100%', height: '100%' },
+  iconPreview: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.bg
+  },
+  backgroundPreview: {
+    height: 120,
+    borderRadius: 10,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.bg
+  },
+  member: {
+    gap: 8,
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceRaised
+  },
+  banned: { opacity: 0.7, borderStyle: 'dashed' },
+  memberName: { color: colors.text, fontWeight: '700', fontSize: 15 },
+  badge: {
+    fontFamily: mono,
+    fontSize: 11,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    overflow: 'hidden'
+  },
+  badgeOwner: { color: colors.accent, borderColor: colors.accent },
+  badgeAdmin: { color: colors.info, borderColor: colors.info },
+  badgeBanned: { color: colors.error, borderColor: colors.error },
   bgSwatch: { width: 54, height: 40, borderRadius: 8, borderWidth: 2, borderColor: colors.border },
   group: { gap: 8 },
   groupHead: {
@@ -652,8 +1020,8 @@ const styles = StyleSheet.create({
     color: colors.muted
   },
   kind_mention: { color: colors.info },
+  kind_assigned: { color: colors.accent },
   kind_comment: { color: colors.info },
   kind_overdue: { color: '#f87168' },
-  'kind_due-soon': { color: '#f5cd47' },
-  pressed: { opacity: 0.8, transform: [{ scale: 0.98 }] }
+  'kind_due-soon': { color: '#f5cd47' }
 })

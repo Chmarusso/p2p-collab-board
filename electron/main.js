@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, safeStorage, shell } = require('electron')
+const { app, BrowserWindow, dialog, ipcMain, safeStorage, shell } = require('electron')
 const keytar = require('keytar')
 const nodeCrypto = require('crypto')
 const fs = require('fs/promises')
@@ -326,6 +326,24 @@ ipcMain.handle('boards:recent:save', async (evt, identity, board) => {
   await keytar.setPassword(getBoardsKeychainService(), account, JSON.stringify(boards))
   return boards
 })
+// The worker reads videos straight from disk (they can be up to 200 MB), so the
+// renderer gets paths from a native picker rather than the file bytes.
+ipcMain.handle('media:pick-videos', async (evt) => {
+  const result = await dialog.showOpenDialog(BrowserWindow.fromWebContents(evt.sender), {
+    title: 'Attach videos',
+    properties: ['openFile', 'multiSelections'],
+    filters: [{ name: 'Videos', extensions: ['mp4', 'm4v', 'mov', 'webm'] }]
+  })
+  if (result.canceled) return []
+  return Promise.all(
+    result.filePaths.map(async (file) => ({
+      path: file,
+      name: path.basename(file),
+      size: (await fs.stat(file)).size
+    }))
+  )
+})
+
 ipcMain.handle('boards:recent:remove', async (evt, identity, invite) => {
   const account = getBoardsKeychainAccount(identity)
   if (typeof invite !== 'string' || !invite) throw new Error('Invalid board invite')

@@ -46,7 +46,9 @@ The code is small — read it for the wiring; below are only the non-obvious fac
 - Per-platform storage dir is chosen in `getWorker()` (dev:
   `<tmpdir>/pear/HelloPear`). Inside: `pear-runtime/corestore`,
   `pear-runtime/next/<length>.<fork>/` (wiped on every updates-enabled launch),
-  `app-storage/` (suggested `pear.storage` for app data).
+  `app-storage/` (suggested `pear.storage` for app data). The worker also keeps
+  `media-cache/` (decrypted copies of videos being played, deleted whenever the
+  board closes) and `exports/` (the last board export written for mobile sharing).
 - Boards live in one long-lived `board-store/` Corestore, each in its own
   namespace recorded in `board-spaces.json` (board key → namespace). Boards
   opened before namespaces existed are `"legacy"`: they share the root namespace

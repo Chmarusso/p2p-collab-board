@@ -315,3 +315,64 @@ Phases 2 to 5 can be reordered; phase 1 has to come first.
 - Shared primitives moved from `App.tsx` to `src/ui.tsx`.
 - Debug builds expose `globalThis.__opencollab` / `__board` for scripted checks
   through the Hermes inspector; release builds don't.
+
+## Moderation, board media, video, export, sound (2026-10-22)
+
+- **Owner and roles.** The owner is the identity that signed the first op from the
+  board's Autobee bootstrap writer, i.e. the creator's device (`readBoardLog` in the
+  worker; a joiner's `bootstrap.key` is the same key). New boards write a signed
+  `board:claim` op; boards from before this get one the next time the creator opens
+  them, and have no owner until then. `member:role` (owner only) makes admins.
+- **Bans are soft.** `member:ban` from the owner or an admin (an admin can't ban the
+  owner or another admin) lists the op ids of the member it keeps; everything else
+  they sign is dropped by `deriveBoard`, including ops backdated to before the ban.
+  A banned member still holds the board secret and can read it; locking someone out
+  completely needs a new board. Autobee writers are not removed: optimistic
+  writer-requests would re-add them anyway. Demoting an admin voids the bans they
+  issued. Alerts from banned members are dropped.
+- **Board icon and background image.** `board:info.icon` and
+  `board:theme.backgroundImage` are image refs in the uploader's blob core (5 MB,
+  same as card images). The background image is dimmed under the board.
+- **Videos** share a card's attachment set (12 per card): MP4, MOV or WebM up to
+  200 MB, checked by magic bytes. The host passes a file path (desktop: native
+  picker in the main process; iOS: image picker), the worker streams it into the
+  blob core and plays it back from a decrypted copy in `media-cache/`, emptied on
+  board close. Videos are never card covers. Old clients drop video refs.
+- **Export.** `board:export` returns the board as JSON (cards, columns, labels,
+  theme, members, profiles; attachments as refs). No invite and no secret.
+  Desktop saves it as a download; iOS shares a file.
+- **Notification sound.** Off / Chime / Pop / Ding per device (desktop:
+  `localStorage`), played once per batch of new alerts, never for a board's first
+  check. The WAVs come from `scripts/make-sounds.mjs`.
+- Not verified end to end: a ban between two real peers. Two workers on this
+  machine connect but never sync, on unchanged `HEAD` too (`test:kanban-peers`
+  times out), so the ban is covered by reducer tests (`test:kanban`) and the
+  owner path by the worker test.
+
+## Checklists, assignees, reactions, presence, activity, WIP, views, links, estimates, automation (2026-10-23)
+
+- **New ops** (all signed, LWW like the rest): `card:checklist` (one register set per
+  item, so ticking one item and renaming another never conflict), `reaction` (per
+  member, emoji and target; a fixed set of eight emoji), `card:link` (`blocks` /
+  `relates`, per target and kind), `estimate` (per member), `rule:upsert` /
+  `rule:delete`. `card:update` gained `assignees`, `points`, `revealEstimates`,
+  `template`; `column:upsert` gained `wipLimit`; `create` can carry `assignees` and
+  initial `checklist` items. Old clients drop the new op types and ignore the new
+  fields.
+- **Derived only:** `blockedBy` (open cards that block this one; "open" = not archived
+  and not in the last column), `updatedAt` (latest stamp of anything but reactions and
+  estimates; drives card aging), activity (`boardActivity`) and flow stats
+  (`boardStats`) straight from the op log, and "My work" (`myCards`, carried as `mine`
+  in `board-alerts` for every watched board).
+- **Rules run where they're triggered.** The worker that sends a card move or create
+  also signs the rule's effects, so a trigger fires once however many members are
+  online, and effects never trigger further rules. Scheduled rules create one card per
+  day/week/month with id `recur:<rule>:<period>`; `deriveBoard` keeps the earliest
+  create of a duplicated id, so two members creating it at once converge on one card.
+- **Presence** (`board:presence`) is gossiped between connected peers every 10 s,
+  encrypted with the board secret, expires after 30 s and is never written to the log.
+  It is not signed: a member could fake someone else's "typing…", nothing more.
+- **Estimates are hidden in the UI only.** Every member can decrypt every op, so
+  planning-poker values are not secret from a determined member.
+- **Board templates** (Sprint, Bug triage, Personal) rename the existing columns in
+  order, add the missing ones, delete only empty extra columns and add missing labels.

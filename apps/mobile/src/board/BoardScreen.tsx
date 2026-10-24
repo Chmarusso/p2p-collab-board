@@ -1,8 +1,9 @@
 // The Kanban board on a phone: columns side by side, one screen wide each,
 // swiped horizontally. Cards open a full sheet; board settings live in sheets
 // reached from the toolbar.
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
+  ActionSheetIOS,
   Dimensions,
   Image,
   KeyboardAvoidingView,
@@ -17,31 +18,48 @@ import {
 } from 'react-native'
 import { Feather } from '@expo/vector-icons'
 import { messageTypes } from '@opencollab/board-protocol'
-import { Button, CachedImage, FadeIn, Identicon, ImageRef, colors, imageKey, mono } from '../ui'
+import { Avatar, Button, CachedImage, FadeIn, ImageRef, PressableScale, colors, mono } from '../ui'
+import { SoundName } from '../sounds'
+import { ActivitySheet } from './Activity'
+import { Agenda } from './Agenda'
+import { AvatarStack } from './CardExtras'
+import { CardFace } from './CardFace'
 import { CardSheet } from './CardSheet'
 import { Markdown } from './Markdown'
+import { MyWorkSheet } from './MyWork'
+import { BoardTemplatesSheet, RulesSheet } from './Rules'
+import { StatsSheet } from './Stats'
 import {
   ColumnSheet,
   FilterSheet,
   LabelsSheet,
+  MembersSheet,
   NotificationsSheet,
   Sheet,
-  ThemeSheet
+  ThemeSheet,
+  useImageUri
 } from './Panels'
 import {
   AlertBoard,
   BoardAlert,
   BoardData,
   Card,
+  avatarOf,
   Column,
   Filters,
-  MAX_LABELS_ON_CARD,
+  MyCard,
+  NO_FILTERS,
+  PresencePeer,
   backgroundColor,
-  dueInfo,
+  doneColumnOf,
   filterCount,
   inkOn,
   matchesFilters,
-  scoreOf
+  memberPowers,
+  pointsOf,
+  requestId,
+  templatesOf,
+  wipState
 } from './model'
 
 type WorkerMessage = { type: string; [key: string]: any }
@@ -68,6 +86,8 @@ type Props = {
   isRead: (board: AlertBoard, alert: BoardAlert) => boolean
   markRead: (predicate: (board: AlertBoard, alert: BoardAlert) => boolean) => void
   onOpenAlert: (board: AlertBoard, alert: BoardAlert) => void
+  onOpenMyCard: (board: AlertBoard, card: MyCard) => void
+  sound: SoundName
   openCardRequest: { cardId: string; nonce: number } | null
   subscribe: (listener: (message: WorkerMessage) => void) => () => void
   nameFor: (identity: string) => string
@@ -79,28 +99,70 @@ const screenWidth = Dimensions.get('window').width
 const COLUMN_WIDTH = Math.min(340, screenWidth - 48)
 const COLUMN_GAP = 12
 
-type SheetName = 'labels' | 'theme' | 'filter' | 'notifications' | 'description' | null
+type SheetName =
+  | 'settings'
+  | 'labels'
+  | 'theme'
+  | 'members'
+  | 'filter'
+  | 'notifications'
+  | 'description'
+  | 'activity'
+  | 'stats'
+  | 'rules'
+  | 'templates'
+  | 'mywork'
+  | 'more'
+  | null
 
 export function BoardScreen(props: Props) {
   const { data, send, me } = props
   const [openCardId, setOpenCardId] = useState<string | null>(null)
   const [sheet, setSheet] = useState<SheetName>(null)
   const [columnMenu, setColumnMenu] = useState<string | null>(null)
-  const [filters, setFilters] = useState<Filters>({ labels: [], member: '', due: '' })
+  const [filters, setFilters] = useState<Filters>(NO_FILTERS)
+  const [view, setView] = useState<'board' | 'agenda'>('board')
+  const [peers, setPeers] = useState<PresencePeer[]>([])
+  // The column a "From template…" picker adds to.
+  const [templateColumn, setTemplateColumn] = useState<string | null>(null)
+  const templateRequest = useRef('')
   const [showArchived, setShowArchived] = useState(false)
   const [descriptionOpen, setDescriptionOpen] = useState(false)
   const [descriptionDraft, setDescriptionDraft] = useState('')
   const [drafts, setDrafts] = useState<Record<string, string>>({})
   const [columnDraft, setColumnDraft] = useState('')
 
+  // Cards on screen when a board first fills in appear at once; later
+  // arrivals fade in.
+  const settled = useRef(false)
+  useEffect(() => {
+    settled.current = false
+  }, [props.boardKey])
+  useEffect(() => {
+    if (props.synced && data.objects.length) settled.current = true
+  })
   // A different board starts clean.
   useEffect(() => {
     setOpenCardId(null)
     setSheet(null)
-    setFilters({ labels: [], member: '', due: '' })
+    setFilters(NO_FILTERS)
     setShowArchived(false)
     setDescriptionOpen(false)
+    setPeers([])
+    setTemplateColumn(null)
   }, [props.boardKey])
+  // Who else is here; a card made from a template opens once it exists.
+  useEffect(
+    () =>
+      props.subscribe((message) => {
+        if (message.type === messageTypes.boardPresence) setPeers(message.peers || [])
+        if (message.type === 'card-created' && message.requestId === templateRequest.current) {
+          templateRequest.current = ''
+          setOpenCardId(message.objectId)
+        }
+      }),
+    [props.subscribe]
+  )
   // A notification asked for a card (possibly after switching boards).
   useEffect(() => {
     if (props.openCardRequest) {
@@ -132,10 +194,16 @@ export function BoardScreen(props: Props) {
     data.objects.filter(
       (card) =>
         card.columnId === columnId &&
+        !card.template &&
         (showArchived || !card.archived) &&
         matchesFilters(card, filters)
     )
-  const archivedCount = data.objects.filter((card) => card.archived).length
+  const archivedCount = data.objects.filter((card) => card.archived && !card.template).length
+  const templates = templatesOf(data)
+  const doneId = doneColumnOf(data)
+  const viewersOf = (cardId: string) => peers.filter((peer) => peer.cardId === cardId).length
+  const mineCount = props.alertBoards.reduce((sum, board) => sum + (board.mine?.length || 0), 0)
+  const assignedToMe = !!me && filters.assignee === me
   const activeFilters = filterCount(filters)
   const unreadMentionCards = useMemo(
     () =>
@@ -150,8 +218,13 @@ export function BoardScreen(props: Props) {
     [props.alertBoards, props.boardKey, props.isRead]
   )
   const background = backgroundColor(data.theme)
+  const backgroundUri = useImageUri(data.theme.backgroundImage, props.cache, props.requestImage)
+  const iconUri = useImageUri(data.info.icon, props.cache, props.requestImage)
   const accent = data.theme.accent || colors.accent
-  const ink = background ? inkOn(background) : colors.text
+  // Text over a photo sits on a dark scrim, so it is always light.
+  const ink = backgroundUri ? '#ffffff' : background ? inkOn(background) : colors.text
+  const powers = memberPowers(data, me)
+  const activeMembers = data.members.filter((member) => !member.banned).length
   const openCard = data.objects.find((card) => card.id === openCardId) || null
   const menuColumnIndex = data.columns.findIndex((column) => column.id === columnMenu)
 
@@ -161,6 +234,56 @@ export function BoardScreen(props: Props) {
     send({ type: messageTypes.boardCreate, title, body: '', columnId })
     setDrafts((current) => ({ ...current, [columnId]: '' }))
   }
+  // Everything past the view switch, "Assigned to me" and Filter.
+  const moreActions: Array<[string, () => void]> = [
+    [mineCount ? `My work (${mineCount})` : 'My work', () => setSheet('mywork')],
+    [activeMembers ? `Members (${activeMembers})` : 'Members', () => setSheet('members')],
+    ...(archivedCount || showArchived
+      ? [
+          [
+            `${showArchived ? 'Hide' : 'Show'} archived (${archivedCount})`,
+            () => setShowArchived(!showArchived)
+          ] as [string, () => void]
+        ]
+      : []),
+    ['Activity', () => setSheet('activity')],
+    ['Stats', () => setSheet('stats')],
+    [data.rules?.length ? `Rules (${data.rules.length})` : 'Rules', () => setSheet('rules')]
+  ]
+  const openMore = () => {
+    if (Platform.OS !== 'ios') return setSheet('more')
+    ActionSheetIOS.showActionSheetWithOptions(
+      {
+        options: [...moreActions.map(([label]) => label), 'Cancel'],
+        cancelButtonIndex: moreActions.length
+      },
+      (index) => moreActions[index]?.[1]()
+    )
+  }
+  const fromTemplate = (templateId: string, columnId: string) => {
+    templateRequest.current = requestId()
+    send({
+      type: messageTypes.cardFromTemplate,
+      templateId,
+      columnId,
+      requestId: templateRequest.current
+    })
+    setTemplateColumn(null)
+  }
+  const renderCard = (card: Card, context?: string) => (
+    <CardFace
+      card={card}
+      data={data}
+      me={me}
+      cache={props.cache}
+      requestImage={props.requestImage}
+      mentioned={unreadMentionCards.has(card.id)}
+      viewers={viewersOf(card.id)}
+      done={card.columnId === doneId}
+      context={context}
+      onPress={() => setOpenCardId(card.id)}
+    />
+  )
   const addColumn = () => {
     const name = columnDraft.trim()
     if (!name) return
@@ -168,180 +291,308 @@ export function BoardScreen(props: Props) {
     setColumnDraft('')
   }
 
+  // Header, description and toolbar: above the columns, or atop the agenda list.
+  const top = (
+    <View style={styles.top}>
+      <View style={styles.header}>
+        {iconUri ? (
+          <Image
+            source={{ uri: iconUri }}
+            style={styles.boardIcon}
+            accessibilityIgnoresInvertColors
+          />
+        ) : null}
+        <Text style={[styles.title, { color: ink }]} numberOfLines={2}>
+          {props.boardName || 'OpenCollab'}
+        </Text>
+        <PressableScale
+          style={[styles.bell, props.unreadCount > 0 && { borderColor: accent }]}
+          onPress={() => setSheet('notifications')}
+          accessibilityRole='button'
+          accessibilityLabel={`Notifications, ${props.unreadCount} unread`}
+        >
+          <Feather name='bell' size={18} color={props.unreadCount ? accent : colors.muted} />
+          {props.unreadCount ? (
+            <Text style={[styles.bellCount, { color: accent }]}>
+              {props.unreadCount > 99 ? '99+' : props.unreadCount}
+            </Text>
+          ) : null}
+        </PressableScale>
+        <PressableScale
+          style={[styles.bell]}
+          onPress={() => setSheet('settings')}
+          accessibilityRole='button'
+          accessibilityLabel='Board settings'
+        >
+          <Feather name='settings' size={18} color={colors.muted} />
+        </PressableScale>
+        <PressableScale
+          style={[styles.user]}
+          onPress={props.openProfile}
+          accessibilityRole='button'
+          accessibilityLabel='Open profile and connection details'
+        >
+          <Avatar
+            hex={me}
+            size={22}
+            image={avatarOf(data, me)}
+            cache={props.cache}
+            requestImage={props.requestImage}
+          />
+          <Text style={[styles.userName, { color: accent }]} numberOfLines={1}>
+            @{props.displayName}
+          </Text>
+        </PressableScale>
+      </View>
+
+      {peers.length ? (
+        <FadeIn>
+          <View style={styles.online} accessibilityLabel={`${peers.length} online now`}>
+            <AvatarStack
+              identities={peers.map((peer) => peer.identity)}
+              data={data}
+              size={22}
+              max={5}
+              cache={props.cache}
+              requestImage={props.requestImage}
+            />
+            <View style={styles.onlineDot} />
+            <Text style={styles.onlineText} numberOfLines={1}>
+              {peers.length === 1
+                ? `${peers[0].name || props.nameFor(peers[0].identity)} is online`
+                : `${peers.length} online now`}
+            </Text>
+          </View>
+        </FadeIn>
+      ) : null}
+
+      {powers.banned ? (
+        <View style={styles.bannedBanner} accessibilityRole='alert'>
+          <Feather name='user-x' size={16} color={colors.error} />
+          <Text style={styles.bannedText}>
+            You were removed from this board. You can still see it, but your changes are ignored by
+            everyone.
+          </Text>
+        </View>
+      ) : null}
+
+      {data.info.description ? (
+        <Pressable
+          style={styles.description}
+          onPress={() => setDescriptionOpen(true)}
+          accessibilityRole='button'
+          accessibilityLabel='Board description'
+        >
+          <Markdown text={data.info.description} numberOfLines={2} />
+        </Pressable>
+      ) : (
+        <Pressable
+          onPress={() => {
+            setDescriptionDraft('')
+            setSheet('description')
+          }}
+          accessibilityRole='button'
+        >
+          <Text style={styles.addDescription}>+ Add a board description</Text>
+        </Pressable>
+      )}
+
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.toolbar}
+      >
+        <View style={styles.segment} accessibilityRole='tablist'>
+          {(['board', 'agenda'] as const).map((name) => (
+            <Pressable
+              key={name}
+              onPress={() => setView(name)}
+              hitSlop={6}
+              style={[styles.segmentItem, view === name && { backgroundColor: accent }]}
+              accessibilityRole='tab'
+              accessibilityState={{ selected: view === name }}
+            >
+              <Feather
+                name={name === 'board' ? 'columns' : 'calendar'}
+                size={14}
+                color={view === name ? inkOn(accent) : colors.text}
+              />
+              <Text style={[styles.toolText, view === name && { color: inkOn(accent) }]}>
+                {name === 'board' ? 'Board' : 'Agenda'}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+        <ToolButton
+          icon='user-check'
+          label='Assigned to me'
+          active={assignedToMe}
+          accent={accent}
+          onPress={() => setFilters({ ...filters, assignee: assignedToMe ? '' : me })}
+        />
+        <ToolButton
+          icon='filter'
+          label={activeFilters ? `Filter (${activeFilters})` : 'Filter'}
+          active={activeFilters > 0}
+          accent={accent}
+          onPress={() => setSheet('filter')}
+        />
+        <ToolButton
+          icon='more-horizontal'
+          label={mineCount ? `More · ${mineCount} mine` : 'More'}
+          active={showArchived}
+          accent={accent}
+          onPress={openMore}
+        />
+      </ScrollView>
+    </View>
+  )
+
   return (
     <View style={[styles.root, background ? { backgroundColor: background } : null]}>
-      <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps='handled'>
-        <View style={styles.header}>
-          <Text style={[styles.title, { color: ink }]} numberOfLines={2}>
-            {props.boardName || 'OpenCollab'}
-          </Text>
-          <Pressable
-            style={({ pressed }) => [
-              styles.bell,
-              props.unreadCount > 0 && { borderColor: accent },
-              pressed && styles.pressed
-            ]}
-            onPress={() => setSheet('notifications')}
-            accessibilityRole='button'
-            accessibilityLabel={`Notifications, ${props.unreadCount} unread`}
-          >
-            <Feather name='bell' size={18} color={props.unreadCount ? accent : colors.muted} />
-            {props.unreadCount ? (
-              <Text style={[styles.bellCount, { color: accent }]}>
-                {props.unreadCount > 99 ? '99+' : props.unreadCount}
-              </Text>
-            ) : null}
-          </Pressable>
-          <Pressable
-            style={({ pressed }) => [styles.user, pressed && styles.pressed]}
-            onPress={props.openProfile}
-            accessibilityRole='button'
-            accessibilityLabel='Open profile and connection details'
-          >
-            <Identicon hex={me} size={22} />
-            <Text style={[styles.userName, { color: accent }]} numberOfLines={1}>
-              @{props.displayName}
-            </Text>
-          </Pressable>
-        </View>
-
-        {data.info.description ? (
-          <Pressable
-            style={styles.description}
-            onPress={() => setDescriptionOpen(true)}
-            accessibilityRole='button'
-            accessibilityLabel='Board description'
-          >
-            <Markdown text={data.info.description} numberOfLines={2} />
-          </Pressable>
-        ) : (
-          <Pressable
-            onPress={() => {
-              setDescriptionDraft('')
-              setSheet('description')
-            }}
-            accessibilityRole='button'
-          >
-            <Text style={styles.addDescription}>+ Add a board description</Text>
-          </Pressable>
-        )}
-        {props.statusChip}
-
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.toolbar}
-        >
-          <ToolButton icon='tag' label='Labels' onPress={() => setSheet('labels')} />
-          <ToolButton icon='droplet' label='Customize' onPress={() => setSheet('theme')} />
-          <ToolButton
-            icon='filter'
-            label={activeFilters ? `Filter (${activeFilters})` : 'Filter'}
-            active={activeFilters > 0}
-            accent={accent}
-            onPress={() => setSheet('filter')}
+      {backgroundUri ? (
+        <>
+          <Image
+            source={{ uri: backgroundUri }}
+            style={StyleSheet.absoluteFill}
+            resizeMode='cover'
+            accessibilityIgnoresInvertColors
           />
-          {archivedCount || showArchived ? (
-            <ToolButton
-              icon='archive'
-              label={`${showArchived ? 'Hide' : 'Show'} archived (${archivedCount})`}
-              active={showArchived}
-              accent={accent}
-              onPress={() => setShowArchived(!showArchived)}
-            />
-          ) : null}
-        </ScrollView>
-
-        {!props.synced ? (
-          props.loading
-        ) : (
-          <ScrollView
-            horizontal
-            snapToInterval={COLUMN_WIDTH + COLUMN_GAP}
-            decelerationRate='fast'
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.columns}
-            keyboardShouldPersistTaps='handled'
-          >
-            {data.columns.map((column) => {
-              const cards = visible(column.id)
-              return (
-                <View
-                  key={column.id}
-                  style={[styles.column, column.color ? { borderTopColor: column.color } : null]}
-                  accessibilityLabel={`${column.name}, ${cards.length} cards`}
-                >
-                  <View style={styles.columnHead}>
-                    <Text style={styles.columnName} numberOfLines={1}>
-                      {column.name}
-                    </Text>
-                    <Text style={styles.columnCount}>{cards.length}</Text>
-                    <Pressable
-                      onPress={() => setColumnMenu(column.id)}
-                      hitSlop={10}
-                      accessibilityRole='button'
-                      accessibilityLabel={`Column options for ${column.name}`}
-                    >
-                      <Feather name='more-horizontal' size={18} color={colors.muted} />
-                    </Pressable>
-                  </View>
-                  {cards.length ? null : <Text style={styles.noCards}>No cards</Text>}
-                  {cards.map((card) => (
-                    <FadeIn key={card.id}>
-                      <CardFace
-                        card={card}
-                        data={data}
-                        cache={props.cache}
-                        requestImage={props.requestImage}
-                        mentioned={unreadMentionCards.has(card.id)}
-                        onPress={() => setOpenCardId(card.id)}
+          <View style={[StyleSheet.absoluteFill, styles.scrim]} />
+        </>
+      ) : null}
+      {props.synced && view === 'agenda' ? (
+        <Agenda
+          header={top}
+          cards={data.objects.filter(
+            (card) =>
+              !card.template &&
+              !card.archived &&
+              card.columnId !== doneId &&
+              matchesFilters(card, filters)
+          )}
+          renderCard={(card) =>
+            renderCard(card, data.columns.find((column) => column.id === card.columnId)?.name)
+          }
+        />
+      ) : (
+        <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps='handled'>
+          {top}
+          {!props.synced ? (
+            props.loading
+          ) : (
+            <ScrollView
+              horizontal
+              snapToInterval={COLUMN_WIDTH + COLUMN_GAP}
+              decelerationRate='fast'
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.columns}
+              keyboardShouldPersistTaps='handled'
+            >
+              {data.columns.map((column) => {
+                const cards = visible(column.id)
+                // WIP counts every open card, whatever the filter hides.
+                const open = data.objects.filter(
+                  (card) => card.columnId === column.id && !card.archived && !card.template
+                )
+                const wip = wipState(open.length, column.wipLimit)
+                const points = pointsOf(open)
+                return (
+                  <View
+                    key={column.id}
+                    style={[
+                      styles.column,
+                      column.color ? { borderTopColor: column.color } : null,
+                      wip === 'over' && styles.columnOver
+                    ]}
+                    accessibilityLabel={`${column.name}, ${cards.length} cards${column.wipLimit ? `, limit ${column.wipLimit}${wip === 'over' ? ', over the limit' : wip === 'full' ? ', at the limit' : ''}` : ''}`}
+                  >
+                    <View style={styles.columnHead}>
+                      <Text style={styles.columnName} numberOfLines={1}>
+                        {column.name}
+                      </Text>
+                      {points ? <Text style={styles.columnPoints}>{points} pts</Text> : null}
+                      <Text
+                        style={[
+                          styles.columnCount,
+                          wip && styles.wipBadge,
+                          wip === 'full' && styles.wipFull,
+                          wip === 'over' && styles.wipOver
+                        ]}
+                      >
+                        {column.wipLimit ? `${open.length}/${column.wipLimit}` : cards.length}
+                      </Text>
+                      <Pressable
+                        onPress={() => setColumnMenu(column.id)}
+                        hitSlop={10}
+                        accessibilityRole='button'
+                        accessibilityLabel={`Column options for ${column.name}`}
+                      >
+                        <Feather name='more-horizontal' size={18} color={colors.muted} />
+                      </Pressable>
+                    </View>
+                    {cards.length ? null : <Text style={styles.noCards}>No cards</Text>}
+                    {cards.map((card) => (
+                      <FadeIn key={card.id} id={card.id} skip={!settled.current}>
+                        {renderCard(card)}
+                      </FadeIn>
+                    ))}
+                    <View style={styles.addRow}>
+                      <TextInput
+                        style={styles.addInput}
+                        value={drafts[column.id] || ''}
+                        onChangeText={(value) =>
+                          setDrafts((current) => ({ ...current, [column.id]: value }))
+                        }
+                        onSubmitEditing={() => addCard(column.id)}
+                        placeholder='+ Add a card'
+                        placeholderTextColor={colors.muted}
+                        returnKeyType='done'
+                        blurOnSubmit={false}
+                        accessibilityLabel={`Add a card to ${column.name}`}
                       />
-                    </FadeIn>
-                  ))}
-                  <View style={styles.addRow}>
-                    <TextInput
-                      style={styles.addInput}
-                      value={drafts[column.id] || ''}
-                      onChangeText={(value) =>
-                        setDrafts((current) => ({ ...current, [column.id]: value }))
-                      }
-                      onSubmitEditing={() => addCard(column.id)}
-                      placeholder='+ Add a card'
-                      placeholderTextColor={colors.muted}
-                      returnKeyType='done'
-                      blurOnSubmit={false}
-                      accessibilityLabel={`Add a card to ${column.name}`}
-                    />
-                    <Pressable
-                      onPress={() => props.onNewCard(column.id)}
-                      hitSlop={8}
-                      style={styles.addMore}
-                      accessibilityRole='button'
-                      accessibilityLabel='New card with description and images'
-                    >
-                      <Feather name='image' size={16} color={colors.muted} />
-                    </Pressable>
+                      <Pressable
+                        onPress={() => props.onNewCard(column.id)}
+                        hitSlop={8}
+                        style={styles.addMore}
+                        accessibilityRole='button'
+                        accessibilityLabel='New card with description and images'
+                      >
+                        <Feather name='image' size={16} color={colors.muted} />
+                      </Pressable>
+                      {templates.length ? (
+                        <Pressable
+                          onPress={() => setTemplateColumn(column.id)}
+                          hitSlop={8}
+                          style={styles.addMore}
+                          accessibilityRole='button'
+                          accessibilityLabel='From template…'
+                        >
+                          <Feather name='copy' size={16} color={colors.muted} />
+                        </Pressable>
+                      ) : null}
+                    </View>
                   </View>
-                </View>
-              )
-            })}
-            <View style={[styles.column, styles.addColumn]}>
-              <Text style={styles.columnName}>Add a column</Text>
-              <TextInput
-                style={styles.addInput}
-                value={columnDraft}
-                onChangeText={setColumnDraft}
-                onSubmitEditing={addColumn}
-                placeholder='Column name'
-                placeholderTextColor={colors.muted}
-                maxLength={60}
-                returnKeyType='done'
-              />
-              <Button title='Add column' icon='plus' variant='secondary' onPress={addColumn} />
-            </View>
-          </ScrollView>
-        )}
-      </ScrollView>
+                )
+              })}
+              <View style={[styles.column, styles.addColumn]}>
+                <Text style={styles.columnName}>Add a column</Text>
+                <TextInput
+                  style={styles.addInput}
+                  value={columnDraft}
+                  onChangeText={setColumnDraft}
+                  onSubmitEditing={addColumn}
+                  placeholder='Column name'
+                  placeholderTextColor={colors.muted}
+                  maxLength={60}
+                  returnKeyType='done'
+                />
+                <Button title='Add column' icon='plus' variant='secondary' onPress={addColumn} />
+              </View>
+            </ScrollView>
+          )}
+        </ScrollView>
+      )}
 
       {openCard ? (
         <CardSheet
@@ -362,13 +613,154 @@ export function BoardScreen(props: Props) {
           subscribe={props.subscribe}
           nameFor={props.nameFor}
           relativeTime={props.relativeTime}
+          peers={peers}
+          sound={props.sound}
+          onOpenCard={setOpenCardId}
         />
+      ) : null}
+      {sheet === 'settings' ? (
+        <Sheet title='Board settings' onClose={() => setSheet(null)}>
+          <MenuRow
+            icon='edit-2'
+            label='Edit board'
+            onPress={() => {
+              setDescriptionDraft(data.info.description)
+              setSheet('description')
+            }}
+          />
+          <MenuRow icon='tag' label='Labels' onPress={() => setSheet('labels')} />
+          <MenuRow icon='droplet' label='Customize' onPress={() => setSheet('theme')} />
+          <MenuRow icon='zap' label='Automation rules' onPress={() => setSheet('rules')} />
+          <MenuRow
+            icon='layout'
+            label='Start from a template'
+            onPress={() => setSheet('templates')}
+          />
+        </Sheet>
+      ) : null}
+      {sheet === 'more' ? (
+        <Sheet title='More' onClose={() => setSheet(null)}>
+          {moreActions.map(([label, run]) => (
+            <MenuRow
+              key={label}
+              icon='chevron-right'
+              label={label}
+              onPress={() => {
+                setSheet(null)
+                run()
+              }}
+            />
+          ))}
+        </Sheet>
+      ) : null}
+      {sheet === 'rules' ? (
+        <RulesSheet
+          data={data}
+          me={me}
+          send={send}
+          nameFor={props.nameFor}
+          onClose={() => setSheet(null)}
+        />
+      ) : null}
+      {sheet === 'templates' ? (
+        <BoardTemplatesSheet send={send} onClose={() => setSheet(null)} />
+      ) : null}
+      {sheet === 'activity' ? (
+        <ActivitySheet
+          data={data}
+          send={send}
+          subscribe={props.subscribe}
+          nameFor={props.nameFor}
+          cache={props.cache}
+          requestImage={props.requestImage}
+          onOpenCard={(cardId) => {
+            setSheet(null)
+            setOpenCardId(cardId)
+          }}
+          onClose={() => setSheet(null)}
+        />
+      ) : null}
+      {sheet === 'stats' ? (
+        <StatsSheet
+          data={data}
+          send={send}
+          subscribe={props.subscribe}
+          nameFor={props.nameFor}
+          accent={accent}
+          onClose={() => setSheet(null)}
+        />
+      ) : null}
+      {sheet === 'mywork' ? (
+        <MyWorkSheet
+          boards={props.alertBoards}
+          currentKey={props.boardKey}
+          onOpen={(board, card) => {
+            setSheet(null)
+            props.onOpenMyCard(board, card)
+          }}
+          onClose={() => setSheet(null)}
+        />
+      ) : null}
+      {templateColumn ? (
+        <Sheet title='From template' onClose={() => setTemplateColumn(null)}>
+          <Text style={styles.hint}>
+            Adds a copy to{' '}
+            {data.columns.find((column) => column.id === templateColumn)?.name || 'the column'}:
+            title, description, labels, assignees, points and checklist.
+          </Text>
+          {templates.map((template) => (
+            <View key={template.id} style={styles.templateRow}>
+              <PressableScale
+                onPress={() => fromTemplate(template.id, templateColumn)}
+                style={[styles.templateMain]}
+                accessibilityRole='button'
+                accessibilityLabel={`New card from ${template.title}`}
+              >
+                <Feather name='copy' size={16} color={colors.muted} />
+                <Text style={styles.menuText} numberOfLines={2}>
+                  {template.title}
+                </Text>
+              </PressableScale>
+              <Pressable
+                onPress={() => {
+                  setTemplateColumn(null)
+                  setOpenCardId(template.id)
+                }}
+                style={styles.templateEdit}
+                accessibilityRole='button'
+                accessibilityLabel={`Edit template ${template.title}`}
+              >
+                <Text style={styles.link}>Edit</Text>
+              </Pressable>
+            </View>
+          ))}
+        </Sheet>
       ) : null}
       {sheet === 'labels' ? (
         <LabelsSheet data={data} send={send} onClose={() => setSheet(null)} />
       ) : null}
       {sheet === 'theme' ? (
-        <ThemeSheet data={data} send={send} onClose={() => setSheet(null)} />
+        <ThemeSheet
+          data={data}
+          send={send}
+          cache={props.cache}
+          requestImage={props.requestImage}
+          subscribe={props.subscribe}
+          onClose={() => setSheet(null)}
+        />
+      ) : null}
+      {sheet === 'members' ? (
+        <MembersSheet
+          data={data}
+          me={me}
+          send={send}
+          nameFor={props.nameFor}
+          shortKey={props.shortKey}
+          status={props.statusChip}
+          cache={props.cache}
+          requestImage={props.requestImage}
+          onClose={() => setSheet(null)}
+        />
       ) : null}
       {sheet === 'filter' ? (
         <FilterSheet
@@ -450,135 +842,16 @@ export function BoardScreen(props: Props) {
           column={data.columns[menuColumnIndex] as Column}
           index={menuColumnIndex}
           count={data.columns.length}
+          cards={
+            data.objects.filter(
+              (card) => card.columnId === columnMenu && !card.archived && !card.template
+            ).length
+          }
           send={send}
           onLocalMove={props.onLocalMove}
           onClose={() => setColumnMenu(null)}
         />
       ) : null}
-    </View>
-  )
-}
-
-function CardFace({
-  card,
-  data,
-  cache,
-  requestImage,
-  mentioned,
-  onPress
-}: {
-  card: Card
-  data: BoardData
-  cache: Record<string, CachedImage>
-  requestImage: (ref: ImageRef) => void
-  mentioned: boolean
-  onPress: () => void
-}) {
-  const cover = card.images?.[0]
-  const cached = cover ? cache[imageKey(cover)] : undefined
-  useEffect(() => {
-    if (cover && !cached) requestImage(cover)
-  }, [cover && imageKey(cover), !!cached])
-  const labels = (card.labelIds || [])
-    .map((id) => data.labels.find((label) => label.id === id))
-    .filter((label): label is NonNullable<typeof label> => !!label)
-  const due = dueInfo(card.dueDate)
-  const score = scoreOf(card)
-  const votes = Object.keys(card.votes || {}).length
-  return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.card,
-        card.archived && styles.archived,
-        pressed && styles.cardPressed
-      ]}
-      accessibilityRole='button'
-      accessibilityLabel={card.title}
-    >
-      {cover ? (
-        <View style={styles.cover}>
-          {cached?.uri ? <Image source={{ uri: cached.uri }} style={styles.fill} /> : null}
-        </View>
-      ) : null}
-      {labels.length ? (
-        <View style={styles.labels}>
-          {labels.slice(0, MAX_LABELS_ON_CARD).map((label) => (
-            <Text
-              key={label.id}
-              style={[styles.label, { backgroundColor: label.color || '#8590a2' }]}
-              numberOfLines={1}
-            >
-              {label.name}
-            </Text>
-          ))}
-          {labels.length > MAX_LABELS_ON_CARD ? (
-            <Text style={[styles.label, styles.labelMore]}>
-              +{labels.length - MAX_LABELS_ON_CARD}
-            </Text>
-          ) : null}
-        </View>
-      ) : null}
-      <Text style={styles.cardTitle} numberOfLines={4}>
-        {card.title}
-      </Text>
-      <View style={styles.cardMeta}>
-        {due ? (
-          <View
-            style={[
-              styles.due,
-              due.status === 'overdue' && styles.dueOverdue,
-              due.status === 'soon' && styles.dueSoon
-            ]}
-          >
-            <Feather
-              name='clock'
-              size={11}
-              color={
-                due.status === 'overdue'
-                  ? '#f87168'
-                  : due.status === 'soon'
-                    ? '#f5cd47'
-                    : colors.muted
-              }
-            />
-            <Text
-              style={[
-                styles.metaMono,
-                due.status === 'overdue' && styles.overdueText,
-                due.status === 'soon' && styles.soonText
-              ]}
-            >
-              {due.text}
-            </Text>
-          </View>
-        ) : null}
-        {votes ? (
-          <Meta icon={score < 0 ? 'chevron-down' : 'chevron-up'} text={String(score)} />
-        ) : null}
-        {card.body?.trim() ? <Meta icon='align-left' /> : null}
-        {card.comments?.length ? (
-          <Meta icon='message-square' text={String(card.comments.length)} />
-        ) : null}
-        {card.images?.length ? <Meta icon='image' text={String(card.images.length)} /> : null}
-        {mentioned ? <Text style={styles.mentioned}>@</Text> : null}
-        {card.archived ? <Text style={styles.metaMono}>archived</Text> : null}
-      </View>
-    </Pressable>
-  )
-}
-
-function Meta({
-  icon,
-  text
-}: {
-  icon: React.ComponentProps<typeof Feather>['name']
-  text?: string
-}) {
-  return (
-    <View style={styles.metaItem}>
-      <Feather name={icon} size={12} color={colors.muted} />
-      {text ? <Text style={styles.metaMono}>{text}</Text> : null}
     </View>
   )
 }
@@ -597,19 +870,33 @@ function ToolButton({
   accent?: string
 }) {
   return (
-    <Pressable
+    <PressableScale
       onPress={onPress}
-      style={({ pressed }) => [
-        styles.tool,
-        active && accent ? { borderColor: accent } : null,
-        pressed && styles.pressed
-      ]}
+      style={[styles.tool, active && accent ? { borderColor: accent } : null]}
       accessibilityRole='button'
       accessibilityState={{ selected: !!active }}
     >
       <Feather name={icon} size={14} color={active && accent ? accent : colors.text} />
       <Text style={[styles.toolText, active && accent ? { color: accent } : null]}>{label}</Text>
-    </Pressable>
+    </PressableScale>
+  )
+}
+
+function MenuRow({
+  icon,
+  label,
+  onPress
+}: {
+  icon: React.ComponentProps<typeof Feather>['name']
+  label: string
+  onPress: () => void
+}) {
+  return (
+    <PressableScale onPress={onPress} style={[styles.menuRow]} accessibilityRole='button'>
+      <Feather name={icon} size={18} color={colors.text} />
+      <Text style={styles.menuText}>{label}</Text>
+      <Feather name='chevron-right' size={18} color={colors.muted} />
+    </PressableScale>
   )
 }
 
@@ -617,7 +904,22 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
   fill: { width: '100%', height: '100%' },
   page: { paddingTop: 64, paddingBottom: 120, gap: 12 },
+  top: { gap: 12 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 16 },
+  scrim: { backgroundColor: 'rgba(5, 8, 12, 0.55)' },
+  boardIcon: { width: 34, height: 34, borderRadius: 8 },
+  bannedBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginHorizontal: 16,
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: colors.error,
+    backgroundColor: 'rgba(255, 92, 92, 0.12)'
+  },
+  bannedText: { color: colors.text, flex: 1, lineHeight: 19 },
   title: { flex: 1, fontSize: 26, fontWeight: '700', color: colors.text },
   bell: {
     flexDirection: 'row',
@@ -648,6 +950,18 @@ const styles = StyleSheet.create({
   addDescription: { color: colors.muted, paddingHorizontal: 16 },
   description: { paddingHorizontal: 16 },
   toolbar: { gap: 8, paddingHorizontal: 16 },
+  menuRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 14,
+    height: 52,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceRaised
+  },
+  menuText: { flex: 1, color: colors.text, fontSize: 16, fontWeight: '600' },
   tool: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -681,6 +995,49 @@ const styles = StyleSheet.create({
   },
   columnName: { flex: 1, color: colors.text, fontWeight: '700', fontSize: 15 },
   columnCount: { color: colors.muted, fontFamily: mono, fontSize: 12 },
+  columnPoints: { color: colors.info, fontFamily: mono, fontSize: 11 },
+  columnOver: { borderColor: 'rgba(248, 113, 104, 0.6)' },
+  wipBadge: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: 999, overflow: 'hidden' },
+  wipFull: { color: '#f5cd47', backgroundColor: 'rgba(245, 205, 71, 0.16)' },
+  wipOver: { color: '#f87168', backgroundColor: 'rgba(248, 113, 104, 0.18)', fontWeight: '700' },
+  online: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16 },
+  onlineDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.accent },
+  onlineText: { color: colors.muted, fontSize: 13, flexShrink: 1 },
+  segment: {
+    flexDirection: 'row',
+    padding: 2,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface
+  },
+  segmentItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    minHeight: 36,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999
+  },
+  link: { color: colors.info, fontWeight: '600', fontSize: 14 },
+  templateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceRaised
+  },
+  templateMain: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 14,
+    minHeight: 52
+  },
+  templateEdit: { paddingHorizontal: 14, minHeight: 52, justifyContent: 'center' },
   noCards: {
     color: colors.muted,
     textAlign: 'center',
@@ -700,7 +1057,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceRaised,
     overflow: 'hidden'
   },
-  cardPressed: { transform: [{ scale: 0.98 }] },
   archived: { opacity: 0.55, borderStyle: 'dashed' },
   cover: {
     height: 120,
@@ -750,7 +1106,6 @@ const styles = StyleSheet.create({
     color: colors.text
   },
   addMore: { width: 36, height: 40, alignItems: 'center', justifyContent: 'center' },
-  pressed: { opacity: 0.8, transform: [{ scale: 0.97 }] },
   hint: { color: colors.muted, fontSize: 12 },
   descriptionInput: {
     minHeight: 160,

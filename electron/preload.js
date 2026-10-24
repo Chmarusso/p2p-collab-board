@@ -43,5 +43,6 @@ contextBridge.exposeInMainWorld('bridge', {
   recentBoardsList: (identity) => ipcRenderer.invoke('boards:recent:list', identity),
   recentBoardsSave: (identity, board) => ipcRenderer.invoke('boards:recent:save', identity, board),
   recentBoardsRemove: (identity, invite) =>
-    ipcRenderer.invoke('boards:recent:remove', identity, invite)
+    ipcRenderer.invoke('boards:recent:remove', identity, invite),
+  pickVideos: () => ipcRenderer.invoke('media:pick-videos')
 })

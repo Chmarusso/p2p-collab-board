@@ -3,6 +3,8 @@ const Hyperswarm = require('hyperswarm')
 const Corestore = require('corestore')
 const Autobee = require('autobee')
 const Hyperblobs = require('hyperblobs')
+const BlindPeering = require('blind-peering')
+const Wakeup = require('protomux-wakeup')
 const Identity = require('keet-identity-key')
 const crypto = require('hypercore-crypto')
 const sodium = require('sodium-native')
@@ -17,9 +19,17 @@ const {
   normalizeInvite,
   deriveBoard,
   boardAlerts,
+  boardActivity,
+  boardStats,
+  myCards,
+  cleanRule,
   positionAt,
+  REACTIONS,
+  LINK_KINDS,
   OP_TYPES,
-  LIMITS
+  ROLES,
+  LIMITS,
+  BLIND_PEERS
 } = require('@opencollab/board-protocol')
 
 const argv = (index) => Bare.argv[index + (isBareKit ? 0 : 2)]
@@ -53,6 +63,9 @@ const legacyIdentityFile = path.join(updaterConfig.dir, 'identity-mnemonic.txt')
 // derived from these (see board-protocol/board.js), never merged from peers.
 let boardOps = new Map()
 let boardState = deriveBoard([])
+// The identity that signed the first op from the board's bootstrap writer, i.e.
+// the device that created the board. Moderation (roles, bans) anchors on it.
+let boardOwner = null
 let boardDigest = null
 let reportedDisplayName = null
 // Proof → hash of what it verified, so re-reading the log skips the crypto.
@@ -73,6 +86,14 @@ const MAX_IMAGES = 4
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024
 const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
 const IMAGE_FETCH_TIMEOUT = 20000
+// Videos share the card's attachment set with images. They are streamed from
+// a file into the blob core and played from a decrypted copy in mediaCacheDir,
+// which is emptied whenever the board closes.
+const VIDEO_TYPES = ['video/mp4', 'video/quicktime', 'video/webm']
+const MAX_VIDEO_BYTES = 200 * 1024 * 1024
+const BLOB_BLOCK = 64 * 1024
+const mediaCacheDir = path.join(updaterConfig.dir, 'media-cache')
+const mediaCache = new Map() // media key → Promise<path>
 
 function derivePasswordKey(password, salt) {
   const key = Buffer.alloc(sodium.crypto_secretbox_KEYBYTES)
@@ -197,9 +218,11 @@ pear.updater.on('updated', () => pipe.write('updated'))
 
 goodbye(async () => {
   clearInterval(peekTimer)
+  await clearMediaCache()
   await peekSwarm.destroy()
   if (peekStore) await peekStore.close()
   await chatSwarm.destroy()
+  if (blindPeering) await blindPeering.close()
   await replicationSwarm.destroy()
   await swarm.destroy()
   await Promise.allSettled([...pendingAppends])
@@ -216,9 +239,20 @@ function sendPeerCount() {
 }
 
 function sendBoardState() {
-  const { objects, profiles, columns, labels, theme, info } = boardState
+  const { objects, profiles, columns, labels, theme, info, owner, members, rules } = boardState
   pipe.write(
-    JSON.stringify({ type: 'board-state', objects, profiles, columns, labels, theme, info })
+    JSON.stringify({
+      type: 'board-state',
+      objects,
+      profiles,
+      columns,
+      labels,
+      theme,
+      info,
+      owner,
+      members,
+      rules
+    })
   )
 }
 
@@ -310,10 +344,11 @@ function opsDigest() {
   return boardDigest
 }
 
+const mediaList = (list) =>
+  Array.isArray(list) ? list.filter(isMediaRef).slice(0, MAX_IMAGES) : []
+
 function deriveState() {
-  boardState = deriveBoard([...boardOps.values()], {
-    images: (list) => (Array.isArray(list) ? list.filter(isImageRef).slice(0, MAX_IMAGES) : [])
-  })
+  boardState = deriveBoard([...boardOps.values()], { images: mediaList, owner: boardOwner })
   lastTs = Math.max(lastTs, boardState.maxTs)
   boardDigest = null
   updateOpenBoardAlerts()
@@ -335,31 +370,44 @@ function ingest(message) {
   return true
 }
 
-async function loadBoard() {
-  if (!boardDb) return
-  await boardDb.ready()
+// Reads a board's verified ops, its name and its owner from the Autobee view.
+// View keys are `op:<writer>:<length>`, so the bootstrap writer's entries come
+// in append order and the first verified one names the owner.
+async function readBoardLog(db, secret) {
+  const bootstrap = db.bootstrap.key.toString('hex')
   const ops = new Map()
-  for await (const entry of boardDb.view.createReadStream()) {
+  let name = ''
+  let owner = null
+  for await (const entry of db.view.createReadStream()) {
     try {
       const stored = JSON.parse(entry.value.toString())
       if (stored.type === 'board:meta') {
-        const metadata = decryptBoardPayload(stored.encrypted)
-        if (metadata?.boardName) boardName = metadata.boardName
-      } else {
-        const message = decryptBoardMessage(stored)
-        if (
-          typeof message?.id === 'string' &&
-          !ops.has(message.id) &&
-          OP_TYPES.includes(message.payload?.type) &&
-          verifyBoardMessage(message)
-        ) {
-          ops.set(message.id, message)
-        }
+        name = decryptBoardPayload(stored.encrypted, secret)?.boardName || name
+        continue
+      }
+      const message = decryptBoardMessage(stored, secret)
+      if (
+        typeof message?.id === 'string' &&
+        !ops.has(message.id) &&
+        OP_TYPES.includes(message.payload?.type) &&
+        verifyBoardMessage(message)
+      ) {
+        ops.set(message.id, message)
+        if (!owner && entry.key.toString().split(':')[1] === bootstrap) owner = message.identity
       }
     } catch {
       console.error('Invalid persisted board operation')
     }
   }
+  return { ops, name, owner }
+}
+
+async function loadBoard() {
+  if (!boardDb) return
+  await boardDb.ready()
+  const { ops, name, owner } = await readBoardLog(boardDb, roomState?.secret)
+  if (name) boardName = name
+  if (owner) boardOwner = owner
   // Ops received live but not yet in the view stay, after the persisted ones.
   for (const [id, message] of boardOps) if (!ops.has(id)) ops.set(id, message)
   boardOps = ops
@@ -505,22 +553,40 @@ function blobEncryption() {
   return { key }
 }
 
-function isImageRef(ref) {
+const isVideo = (ref) => VIDEO_TYPES.includes(ref?.type)
+
+function isMediaRef(ref) {
+  const video = isVideo(ref)
   return (
     typeof ref?.core === 'string' &&
     /^[0-9a-f]{64}$/.test(ref.core) &&
-    IMAGE_TYPES.includes(ref.type) &&
+    (video || IMAGE_TYPES.includes(ref.type)) &&
     ['byteOffset', 'blockOffset', 'blockLength', 'byteLength'].every(
       (field) => Number.isSafeInteger(ref.id?.[field]) && ref.id[field] >= 0
     ) &&
     ref.id.byteLength > 0 &&
-    ref.id.byteLength <= MAX_IMAGE_BYTES
+    ref.id.byteLength <= (video ? MAX_VIDEO_BYTES : MAX_IMAGE_BYTES) &&
+    (ref.name === undefined || ref.name === null || typeof ref.name === 'string')
   )
 }
 
 const imageKey = (ref) => `${ref.core}:${ref.id.blockOffset}:${ref.id.blockLength}`
 
-async function readImage(ref) {
+// Every media ref the open board shows: card attachments, icon, background, avatars.
+function boardMediaRefs() {
+  const { info, theme, members } = boardState
+  return [
+    ...boardState.objects.flatMap((object) => object.images || []),
+    ...(info.icon ? [info.icon] : []),
+    ...(theme.backgroundImage ? [theme.backgroundImage] : []),
+    ...members.flatMap((member) => (member.avatar ? [member.avatar] : []))
+  ]
+}
+
+const findMediaRef = (ref) =>
+  isMediaRef(ref) ? boardMediaRefs().find((known) => imageKey(known) === imageKey(ref)) : null
+
+async function blobsOf(ref) {
   let blobs = ref.core === blobsCore.key.toString('hex') ? boardBlobs : remoteBlobs.get(ref.core)
   if (!blobs) {
     const core = boardStore.get({ key: Buffer.from(ref.core, 'hex'), encryption: blobEncryption() })
@@ -528,7 +594,115 @@ async function readImage(ref) {
     blobs = new Hyperblobs(core)
     remoteBlobs.set(ref.core, blobs)
   }
-  return blobs.get(ref.id, { timeout: IMAGE_FETCH_TIMEOUT })
+  return blobs
+}
+
+async function readImage(ref) {
+  return (await blobsOf(ref)).get(ref.id, { timeout: IMAGE_FETCH_TIMEOUT })
+}
+
+// MP4 and QuickTime files carry an `ftyp` box at byte 4, WebM starts with the
+// EBML magic. Only those are accepted, so a file path can't upload anything else.
+function videoTypeOf(head) {
+  if (head.length >= 12 && head.toString('latin1', 4, 8) === 'ftyp') {
+    return head.toString('latin1', 8, 10) === 'qt' ? 'video/quicktime' : 'video/mp4'
+  }
+  const ebml = [0x1a, 0x45, 0xdf, 0xa3]
+  if (head.length >= 4 && ebml.every((byte, i) => head[i] === byte)) return 'video/webm'
+  return null
+}
+
+// Streams a video file into this member's blob core; returns its ref.
+async function storeVideo(file, onProgress) {
+  if (typeof file?.path !== 'string' || !file.path) throw new Error('No video file')
+  const local = decodeURIComponent(file.path.replace(/^file:\/\//, ''))
+  const handle = await fs.promises.open(local, 'r')
+  try {
+    const { size } = await handle.stat()
+    if (!size) throw new Error('The video is empty')
+    if (size > MAX_VIDEO_BYTES) throw new Error('Videos can be up to 200 MB')
+    const head = Buffer.alloc(12)
+    await handle.read(head, 0, head.length, 0)
+    const type = videoTypeOf(head)
+    if (!type) throw new Error('Only MP4, MOV and WebM videos can be attached')
+    const stream = boardBlobs.createWriteStream()
+    const done = new Promise((resolve, reject) => {
+      stream.once('error', reject)
+      stream.once('close', resolve)
+    })
+    let position = 0
+    let reported = 0
+    try {
+      while (position < size) {
+        const chunk = Buffer.alloc(Math.min(BLOB_BLOCK, size - position))
+        const { bytesRead } = await handle.read(chunk, 0, chunk.length, position)
+        if (!bytesRead) break
+        position += bytesRead
+        if (!stream.write(chunk.subarray(0, bytesRead))) {
+          await new Promise((resolve) => stream.once('drain', resolve))
+        }
+        if (position - reported >= 4 * 1024 * 1024) {
+          reported = position
+          onProgress(position, size)
+        }
+      }
+      stream.end()
+    } catch (err) {
+      stream.destroy(err)
+      throw err
+    }
+    await done
+    const name = typeof file.name === 'string' ? file.name.slice(0, 120) : null
+    return {
+      core: blobsCore.key.toString('hex'),
+      id: stream.id,
+      type,
+      width: Number.isSafeInteger(file.width) ? file.width : null,
+      height: Number.isSafeInteger(file.height) ? file.height : null,
+      name
+    }
+  } finally {
+    await handle.close()
+  }
+}
+
+// Writes a decrypted copy of a video to the cache and returns its path, so the
+// UI can play (and seek) it from disk instead of receiving it over IPC.
+function cachedMedia(ref) {
+  const key = imageKey(ref)
+  if (!mediaCache.has(key)) {
+    const extension = { 'video/webm': 'webm', 'video/quicktime': 'mov' }[ref.type] || 'mp4'
+    const hash = Buffer.alloc(16)
+    sodium.crypto_generichash(hash, Buffer.from(key))
+    const file = path.join(mediaCacheDir, `${hash.toString('hex')}.${extension}`)
+    const job = (async () => {
+      await fs.promises.mkdir(mediaCacheDir, { recursive: true })
+      const blobs = await blobsOf(ref)
+      const partial = file + '.part'
+      const handle = await fs.promises.open(partial, 'w')
+      try {
+        let position = 0
+        for await (const block of blobs.createReadStream(ref.id, {
+          timeout: IMAGE_FETCH_TIMEOUT
+        })) {
+          await handle.write(block, 0, block.length, position)
+          position += block.length
+        }
+      } finally {
+        await handle.close()
+      }
+      await fs.promises.rename(partial, file)
+      return file
+    })()
+    job.catch(() => mediaCache.delete(key))
+    mediaCache.set(key, job)
+  }
+  return mediaCache.get(key)
+}
+
+async function clearMediaCache() {
+  mediaCache.clear()
+  await fs.promises.rm(mediaCacheDir, { recursive: true, force: true }).catch(() => {})
 }
 
 async function storeImages(images) {
@@ -604,6 +778,39 @@ const uniqueId = (identity) =>
   `${identity.slice(0, 12)}-${Date.now()}-${String(idSequence++ % 1e6).padStart(6, '0')}${crypto.randomBytes(3).toString('hex')}`
 
 const cardById = (id) => boardState.objects.find((object) => object.id === id)
+const memberOf = (identity) => boardState.members.find((member) => member.identity === identity)
+
+// Board actions the worker refuses get a reply, so the UI can say why.
+function replyError(msg, error) {
+  pipe.write(
+    JSON.stringify({
+      type: 'board-action-error',
+      action: msg.type,
+      requestId: msg.requestId,
+      error
+    })
+  )
+}
+
+// Everything on the board as plain JSON. No invite or secret: the file is safe
+// to share, and attachments stay references to the members' encrypted blobs.
+function boardExport() {
+  const { objects, columns, labels, theme, info, profiles, owner, members } = boardState
+  return {
+    format: 'opencollab-board',
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    board: { key: boardDb.key.toString('hex'), name: boardName, description: info.description },
+    owner,
+    members,
+    profiles,
+    columns,
+    labels,
+    theme,
+    icon: info.icon,
+    cards: objects
+  }
+}
 const columnById = (id) => boardState.columns.find((column) => column.id === id)
 
 function cardsIn(columnId, exceptId = null) {
@@ -700,6 +907,7 @@ function sendAlerts() {
         invite: board.invite,
         name: board.name,
         alerts: board.alerts,
+        mine: board.mine || [],
         checkedAt: board.checkedAt
       }))
     })
@@ -714,6 +922,7 @@ function updateOpenBoardAlerts() {
   openAlertsTimer = setTimeout(() => {
     if (!boardDb || watched.get(boardDb.key.toString('hex')) !== board) return
     board.alerts = boardAlerts([...boardOps.values()], boardState, ownIdentityHex())
+    board.mine = myCards(boardState, ownIdentityHex())
     board.checkedAt = Date.now()
     if (boardName) board.name = boardName
     sendAlerts()
@@ -745,28 +954,11 @@ async function peekBoard(key, board) {
       await new Promise((resolve) => setTimeout(resolve, 1500))
       if (!swarm.connections.size && Date.now() - started > PEEK_NO_PEERS) break
     }
-    const ops = new Map()
-    let name = ''
-    for await (const entry of db.view.createReadStream()) {
-      try {
-        const stored = JSON.parse(entry.value.toString())
-        if (stored.type === 'board:meta') {
-          name = decryptBoardPayload(stored.encrypted, board.secret)?.boardName || name
-          continue
-        }
-        const message = decryptBoardMessage(stored, board.secret)
-        if (
-          typeof message?.id === 'string' &&
-          !ops.has(message.id) &&
-          OP_TYPES.includes(message.payload?.type) &&
-          verifyBoardMessage(message)
-        ) {
-          ops.set(message.id, message)
-        }
-      } catch {}
-    }
+    const { ops, name, owner } = await readBoardLog(db, board.secret)
     const messages = [...ops.values()]
-    board.alerts = boardAlerts(messages, deriveBoard(messages), ownIdentityHex())
+    const state = deriveBoard(messages, { owner })
+    board.alerts = boardAlerts(messages, state, ownIdentityHex())
+    board.mine = myCards(state, ownIdentityHex())
     if (name) board.name = name
     board.checkedAt = Date.now()
   } finally {
@@ -812,6 +1004,7 @@ function watchBoards(boards) {
         secret: decoded.secret,
         key: decoded.key,
         alerts: [],
+        mine: [],
         checkedAt: 0
       })
     }
@@ -822,6 +1015,264 @@ function watchBoards(boards) {
   clearInterval(peekTimer)
   peekTimer = keep.size ? setInterval(peekAll, PEEK_INTERVAL) : null
   if (keep.size) setTimeout(peekAll, 5000)
+}
+
+// Presence: who has the board open, which card they're looking at, whether
+// they're typing. Ephemeral, so it travels between connected peers only and
+// is never written to the log. Encrypted with the board secret like ops; not
+// signed, since a wrong "typing…" costs nothing.
+const PRESENCE_HEARTBEAT = 10000
+const PRESENCE_TTL = 30000
+const presence = new Map() // identity → { cardId, typing, at, peer }
+let ownPresence = { cardId: null, typing: false }
+let presenceTimer = null
+
+function presenceMessage() {
+  const identity = ownIdentityHex()
+  if (!identity || !roomState) return null
+  return {
+    type: 'board:presence',
+    encrypted: encryptBoardPayload({ identity, ...ownPresence })
+  }
+}
+
+function broadcastPresence() {
+  const message = presenceMessage()
+  if (!message) return
+  const data = JSON.stringify(message) + '\n'
+  for (const peer of chatConnections.values()) {
+    if (peer.authenticated) peer.connection.write(data)
+  }
+}
+
+function sendPresence() {
+  const now = Date.now()
+  for (const [identity, entry] of presence) {
+    if (now - entry.at > PRESENCE_TTL) presence.delete(identity)
+  }
+  pipe.write(
+    JSON.stringify({
+      type: messageTypes.boardPresence,
+      peers: [...presence]
+        .map(([identity, entry]) => ({
+          identity,
+          name: boardState.profiles[identity] || null,
+          cardId: entry.cardId,
+          typing: entry.typing,
+          at: entry.at
+        }))
+        .sort((a, b) => (a.identity < b.identity ? -1 : 1))
+    })
+  )
+}
+
+function receivePresence(peer, payload) {
+  const identity = payload?.identity
+  if (typeof identity !== 'string' || !/^[0-9a-f]{64}$/.test(identity)) return
+  if (identity === ownIdentityHex()) return
+  const cardId =
+    typeof payload.cardId === 'string' && payload.cardId.length <= 80 ? payload.cardId : null
+  presence.set(identity, { cardId, typing: payload.typing === true, at: Date.now(), peer })
+  sendPresence()
+}
+
+function dropPresence(peer) {
+  let changed = false
+  for (const [identity, entry] of presence) {
+    if (entry.peer === peer) changed = presence.delete(identity) || changed
+  }
+  if (changed) sendPresence()
+}
+
+// Local calendar date, the format due dates use.
+function isoDate(date) {
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
+}
+
+// Rules run on the device of the member whose action triggered them, signed as
+// that member, so each trigger fires once however many peers are online.
+// Effects of a rule never trigger other rules.
+async function runRules(kind, cardId) {
+  const card = cardById(cardId)
+  if (!card || card.archived) return
+  const matching = boardState.rules.filter(
+    (rule) =>
+      rule.enabled &&
+      rule.trigger.kind === kind &&
+      (rule.trigger.columnId === null || rule.trigger.columnId === card.columnId)
+  )
+  if (!matching.length) return
+  const me = ownIdentityHex()
+  const labelIds = new Set(card.labelIds)
+  const assignees = new Set(card.assignees)
+  let dueInDays = null
+  let completeChecklist = false
+  let archive = false
+  for (const { actions } of matching) {
+    for (const id of actions.labelIds) labelIds.add(id)
+    for (const identity of actions.assignees) assignees.add(identity)
+    if (actions.assignActor && me) assignees.add(me)
+    if (actions.dueInDays !== null) dueInDays = actions.dueInDays
+    completeChecklist ||= actions.completeChecklist
+    archive ||= actions.archive
+  }
+  const update = { type: 'card:update', objectId: card.id }
+  if (labelIds.size !== card.labelIds.length) {
+    update.labelIds = [...labelIds].slice(0, LIMITS.labels)
+  }
+  if (assignees.size !== card.assignees.length) {
+    update.assignees = [...assignees].slice(0, LIMITS.assignees)
+  }
+  if (dueInDays !== null) {
+    update.dueDate = isoDate(new Date(Date.now() + dueInDays * 24 * 3600 * 1000))
+  }
+  if (Object.keys(update).length > 2) await sendOwnOp(update)
+  if (completeChecklist) {
+    for (const item of card.checklist.filter((entry) => !entry.done)) {
+      await sendOwnOp({ type: 'card:checklist', objectId: card.id, itemId: item.id, done: true })
+    }
+  }
+  if (archive) await sendOwnOp({ type: 'card:archive', objectId: card.id, archived: true })
+}
+
+function periodKey(every, now = new Date()) {
+  if (every === 'day') return isoDate(now)
+  if (every === 'month') return isoDate(now).slice(0, 7)
+  // Weeks start on Monday.
+  const monday = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate() - ((now.getDay() + 6) % 7)
+  )
+  return `w${isoDate(monday)}`
+}
+
+// Scheduled rules make one card per period. The card id comes from the rule
+// and the period, so members creating it at the same time end up with one
+// card (deriveBoard keeps the earliest create of an id).
+const RECURRING_INTERVAL = 10 * 60 * 1000
+let recurringTimer = null
+let schedulesRunning = false
+async function runSchedules() {
+  if (schedulesRunning || !boardDb || !identityState) return
+  schedulesRunning = true
+  try {
+    for (const rule of boardState.rules) {
+      if (!rule.enabled || rule.trigger.kind !== 'schedule' || !rule.card) continue
+      const id = `recur:${rule.id.replace(/^rule:/, '')}:${periodKey(rule.trigger.every)}`
+      if (cardById(id)) continue
+      await createCard(id, {
+        ...rule.card,
+        columnId: rule.trigger.columnId,
+        labelIds: rule.actions.labelIds,
+        assignees: rule.actions.assignees,
+        ...(rule.actions.dueInDays !== null && {
+          dueDate: isoDate(new Date(Date.now() + rule.actions.dueInDays * 24 * 3600 * 1000))
+        })
+      })
+    }
+  } finally {
+    schedulesRunning = false
+  }
+}
+
+async function createCard(id, fields) {
+  const identity = await unlockedIdentity()
+  const columnId = boardState.columns.some((column) => column.id === fields.columnId)
+    ? fields.columnId
+    : boardState.columns[0].id
+  await sendOwnOp({
+    type: 'create',
+    object: {
+      id,
+      title: String(fields.title || '')
+        .trim()
+        .slice(0, LIMITS.title),
+      body: typeof fields.body === 'string' ? fields.body.trim() : '',
+      author: identity,
+      createdAt: new Date().toISOString(),
+      images: fields.images || [],
+      votes: {},
+      comments: [],
+      columnId,
+      position: positionAt(cardsIn(columnId)),
+      labelIds: Array.isArray(fields.labelIds) ? fields.labelIds : [],
+      dueDate: fields.dueDate ?? null,
+      mentions: Array.isArray(fields.mentions) ? fields.mentions : [],
+      ...(Array.isArray(fields.assignees) &&
+        fields.assignees.length && {
+          assignees: fields.assignees
+        }),
+      ...(typeof fields.points === 'number' && { points: fields.points }),
+      ...(Array.isArray(fields.checklist) &&
+        fields.checklist.length && {
+          checklist: fields.checklist.map((text) => ({ id: newId('item'), text, done: false }))
+        })
+    }
+  })
+  return id
+}
+
+// Starter boards. Applying one renames the existing columns in order, adds the
+// missing ones, removes empty extras and adds labels the board doesn't have.
+const BOARD_TEMPLATES = Object.freeze({
+  sprint: {
+    columns: ['Backlog', 'To do', 'In progress', 'Review', 'Done'],
+    labels: [
+      ['bug', '#e5484d'],
+      ['feature', '#3e63dd'],
+      ['chore', '#8b8d98']
+    ]
+  },
+  bugs: {
+    columns: ['Reported', 'Triaged', 'Fixing', 'Verifying', 'Closed'],
+    labels: [
+      ['critical', '#e5484d'],
+      ['major', '#f76b15'],
+      ['minor', '#ffc53d']
+    ]
+  },
+  personal: {
+    columns: ['Inbox', 'Today', 'This week', 'Waiting', 'Done'],
+    labels: [
+      ['home', '#30a46c'],
+      ['work', '#3e63dd'],
+      ['health', '#d6409f']
+    ]
+  }
+})
+
+async function applyBoardTemplate(name) {
+  const template = BOARD_TEMPLATES[name]
+  if (!template) throw new Error('Unknown template')
+  const existing = [...boardState.columns]
+  for (let i = 0; i < template.columns.length; i++) {
+    if (existing[i]) {
+      if (existing[i].name !== template.columns[i]) {
+        await sendOwnOp({
+          type: 'column:upsert',
+          columnId: existing[i].id,
+          name: template.columns[i]
+        })
+      }
+    } else {
+      await sendOwnOp({
+        type: 'column:upsert',
+        columnId: newId('col'),
+        name: template.columns[i],
+        position: positionAt(boardState.columns)
+      })
+    }
+  }
+  for (const column of existing.slice(template.columns.length)) {
+    if (!cardsIn(column.id).length) await sendOwnOp({ type: 'column:delete', columnId: column.id })
+  }
+  const names = new Set(boardState.labels.map((label) => label.name.toLowerCase()))
+  for (const [labelName, color] of template.labels) {
+    if (names.has(labelName)) continue
+    await sendOwnOp({ type: 'label:upsert', labelId: newId('label'), name: labelName, color })
+  }
 }
 
 function handleRoomMessage(peer, message) {
@@ -850,6 +1301,7 @@ function handleRoomMessage(peer, message) {
       pipe.write(JSON.stringify({ type: 'room-debug', status: 'authenticated' }))
       sendPeerCount()
       writeConnection(peer.connection, encryptBoardOps())
+      writeConnection(peer.connection, presenceMessage())
     } else {
       pipe.write(JSON.stringify({ type: 'room-debug', status: 'authentication-failed' }))
       peer.connection.destroy()
@@ -888,6 +1340,9 @@ function handleRoomMessage(peer, message) {
     const decrypted = decryptBoardMessage(message)
     if (decrypted) sendBoardMessage(decrypted)
   }
+  if (peer.authenticated && message.type === 'board:presence') {
+    receivePresence(peer, decryptBoardPayload(message.encrypted))
+  }
 }
 
 chatSwarm.on('connection', (connection) => {
@@ -918,6 +1373,7 @@ chatSwarm.on('connection', (connection) => {
 
   connection.on('close', () => {
     chatConnections.delete(connection)
+    dropPresence(peer)
     sendPeerCount()
   })
   connection.on('error', () => {
@@ -981,7 +1437,8 @@ async function startRoom(invite, name) {
   boardDb = new Autobee(space.store, decoded.key, {
     apply: applyBoardNodes,
     optimistic: true,
-    update: onBoardUpdate
+    update: onBoardUpdate,
+    wakeup
   })
   await boardDb.ready()
   if (!decoded.key) await rememberSpace(boardDb.key.toString('hex'), space.id)
@@ -1006,6 +1463,13 @@ async function startRoom(invite, name) {
   }
   await loadBoard()
   if (!invite) await persistBoardMetadata()
+  // The creator's device signs a first op, which makes its identity the owner.
+  // Boards made before roles get it the next time the creator opens them.
+  if (!boardOwner && boardDb.bootstrap.key.toString('hex') === boardDb.local.key.toString('hex')) {
+    await sendOwnOp({ type: 'board:claim' })
+    boardOwner = ownIdentityHex()
+    deriveState()
+  }
   // Restore the locally persisted board immediately. A remote snapshot can
   // arrive later and merge additional objects/profiles into this state.
   sendBoardState()
@@ -1013,6 +1477,7 @@ async function startRoom(invite, name) {
     client: true,
     server: true
   })
+  mirrorBoard()
   pipe.write(JSON.stringify({ type: 'room-debug', status: 'topic-joining' }))
   replicationDiscovery
     .flushed()
@@ -1037,10 +1502,49 @@ async function startRoom(invite, name) {
     })
   )
   if (!invite || boardOps.size > 0) sendBoardSynced()
+  presenceTimer = setInterval(() => {
+    broadcastPresence()
+    sendPresence()
+  }, PRESENCE_HEARTBEAT)
+  recurringTimer = setInterval(() => runSchedules().catch(() => {}), RECURRING_INTERVAL)
+  // Give a joiner a moment to sync, so it sees cards others already made.
+  setTimeout(() => runSchedules().catch(() => {}), invite ? 20000 : 1000)
   roomSyncTimer = setInterval(() => {
     broadcastDigest()
     refreshBoard()
   }, 1000)
+}
+
+// Blind peers keep an encrypted copy of the open board (its log and this device's
+// attachments) online while every member is offline. They hold no board secret,
+// so they store and serve the data without being able to read it.
+let blindPeerKeys = [...BLIND_PEERS]
+let blindPeering = null
+// Shared by the open board and the blind peers: a blind peer uses it to tell a
+// joiner which members' logs it holds, so the joiner can fetch them from it.
+const wakeup = new Wakeup()
+
+function mirrorBoard() {
+  if (!blindPeerKeys.length || !boardDb) return
+  // Bound to the store it was made with; boardSpace() may have replaced it.
+  if (blindPeering && blindPeering.store !== boardStore) {
+    blindPeering.close().catch(() => {})
+    blindPeering = null
+  }
+  try {
+    if (!blindPeering) {
+      blindPeering = new BlindPeering(replicationSwarm.dht, boardStore, {
+        blindPeers: blindPeerKeys.map((key) => ({ key })),
+        wakeup,
+        client: { name: 'opencollab', version: updaterConfig.version }
+      })
+    }
+    blindPeering.addAutobaseBackground(boardDb)
+    if (blobsCore) blindPeering.addCoreBackground(blobsCore)
+  } catch (err) {
+    // A malformed key only costs the mirror, never the board.
+    pipe.write(JSON.stringify({ type: 'room-debug', status: `blind-peer-error: ${err.message}` }))
+  }
 }
 
 // Tears down the open board without notifying the UI. startRoom calls this
@@ -1053,6 +1557,12 @@ async function closeRoom() {
   }
   for (const peer of chatConnections.values()) peer.connection.destroy()
   chatConnections.clear()
+  presence.clear()
+  ownPresence = { cardId: null, typing: false }
+  clearInterval(presenceTimer)
+  presenceTimer = null
+  clearInterval(recurringTimer)
+  recurringTimer = null
   if (replicationDiscovery) {
     await replicationDiscovery.destroy()
     replicationDiscovery = null
@@ -1071,8 +1581,10 @@ async function closeRoom() {
   boardUpdateInFlight = null
   boardOps = new Map()
   boardState = deriveBoard([])
+  boardOwner = null
   boardDigest = null
   reportedDisplayName = null
+  await clearMediaCache()
   verifiedOps.clear()
   boardName = ''
 }
@@ -1171,33 +1683,24 @@ pipe.on('data', async (data) => {
     ) {
       const identity = await unlockedIdentity()
       const images = boardBlobs ? await storeImages(msg.images) : []
-      const columnId = boardState.columns.some((column) => column.id === msg.columnId)
-        ? msg.columnId
-        : boardState.columns[0].id
-      await sendOwnOp({
-        type: 'create',
-        object: {
-          id: uniqueId(identity),
-          title: msg.title.trim().slice(0, LIMITS.title),
-          body: typeof msg.body === 'string' ? msg.body.trim() : '',
-          author: identity,
-          createdAt: new Date().toISOString(),
-          images,
-          votes: {},
-          comments: [],
-          columnId,
-          position: positionAt(cardsIn(columnId)),
-          labelIds: Array.isArray(msg.labelIds) ? msg.labelIds : [],
-          dueDate: msg.dueDate ?? null,
-          mentions: Array.isArray(msg.mentions) ? msg.mentions : []
-        }
+      const id = await createCard(uniqueId(identity), {
+        title: msg.title,
+        body: msg.body,
+        images,
+        columnId: msg.columnId,
+        labelIds: msg.labelIds,
+        dueDate: msg.dueDate,
+        mentions: msg.mentions,
+        assignees: msg.assignees,
+        checklist: Array.isArray(msg.checklist)
+          ? msg.checklist.filter((text) => typeof text === 'string' && text.trim())
+          : undefined
       })
+      await runRules('create', id)
     } else if (msg.type === 'board:image') {
-      // Only fetch images referenced by a post on the open board.
-      const ref = boardState.objects
-        .flatMap((object) => object.images || [])
-        .find((image) => isImageRef(msg.ref) && imageKey(image) === imageKey(msg.ref))
-      if (!ref || !boardBlobs) return
+      // Only fetch images the open board references.
+      const ref = findMediaRef(msg.ref)
+      if (!ref || isVideo(ref) || !boardBlobs) return
       try {
         const data = await readImage(ref)
         pipe.write(
@@ -1239,7 +1742,8 @@ pipe.on('data', async (data) => {
     } else if (msg.type === messageTypes.cardUpdate) {
       if (!cardById(msg.objectId)) return
       const payload = { type: 'card:update', objectId: msg.objectId }
-      for (const field of ['title', 'body', 'dueDate', 'labelIds', 'mentions']) {
+      const fields = ['title', 'body', 'dueDate', 'labelIds', 'mentions', 'assignees', 'points']
+      for (const field of [...fields, 'revealEstimates', 'template']) {
         if (msg[field] !== undefined) payload[field] = msg[field]
       }
       if (typeof payload.title === 'string') {
@@ -1249,12 +1753,14 @@ pipe.on('data', async (data) => {
     } else if (msg.type === messageTypes.cardMove) {
       const card = cardById(msg.objectId)
       if (!card || !columnById(msg.columnId)) return
+      const from = card.columnId
       await sendOwnOp({
         type: 'card:move',
         objectId: card.id,
         columnId: msg.columnId,
         position: positionAt(cardsIn(msg.columnId, card.id), msg.index)
       })
+      if (from !== msg.columnId) await runRules('enter', card.id)
     } else if (msg.type === messageTypes.cardArchive) {
       if (!cardById(msg.objectId) || typeof msg.archived !== 'boolean') return
       await sendOwnOp({ type: 'card:archive', objectId: msg.objectId, archived: msg.archived })
@@ -1274,6 +1780,7 @@ pipe.on('data', async (data) => {
         columnId: msg.columnId,
         ...(typeof msg.name === 'string' && { name: msg.name.trim().slice(0, LIMITS.columnName) }),
         ...(msg.color !== undefined && { color: msg.color }),
+        ...(msg.wipLimit !== undefined && { wipLimit: msg.wipLimit }),
         ...(msg.index !== undefined && {
           position: positionAt(columnsExcept(msg.columnId), msg.index)
         })
@@ -1325,6 +1832,235 @@ pipe.on('data', async (data) => {
         ...(msg.background !== undefined && { background: msg.background }),
         ...(msg.accent !== undefined && { accent: msg.accent })
       })
+    } else if (msg.type === messageTypes.blindPeersSet && Array.isArray(msg.keys)) {
+      blindPeerKeys = msg.keys.filter((key) => typeof key === 'string' && key.trim())
+      if (blindPeering) {
+        await blindPeering.close()
+        blindPeering = null
+      }
+      mirrorBoard()
+    } else if (msg.type === messageTypes.profileAvatarSet) {
+      // `image` null clears it; otherwise it is stored like a card image.
+      const [ref = null] = msg.image === null || !boardBlobs ? [] : await storeImages([msg.image])
+      if (msg.image !== null && !ref) {
+        return replyError(msg, 'Use a JPEG, PNG, WebP or GIF image up to 5 MB')
+      }
+      await sendOwnOp({ type: 'profile', avatar: ref })
+    } else if (
+      msg.type === messageTypes.boardIconSet ||
+      msg.type === messageTypes.backgroundImageSet
+    ) {
+      // `image` null clears it; otherwise it is stored like a card image.
+      const [ref = null] = msg.image === null || !boardBlobs ? [] : await storeImages([msg.image])
+      if (msg.image !== null && !ref) {
+        return replyError(msg, 'Use a JPEG, PNG, WebP or GIF image up to 5 MB')
+      }
+      await sendOwnOp(
+        msg.type === messageTypes.boardIconSet
+          ? { type: 'board:info', icon: ref }
+          : { type: 'board:theme', backgroundImage: ref }
+      )
+    } else if (msg.type === messageTypes.cardMediaAdd) {
+      // Videos come as file paths (from the host's file picker), not bytes.
+      const card = cardById(msg.objectId)
+      const room = LIMITS.images - (card?.images?.length || 0)
+      const files = (Array.isArray(msg.files) ? msg.files : []).slice(0, Math.max(0, room))
+      const refs = []
+      let error = !card ? 'The card is gone' : room > 0 ? null : 'This card is full'
+      for (const file of boardBlobs ? files : []) {
+        try {
+          refs.push(
+            await storeVideo(file, (bytes, total) =>
+              pipe.write(
+                JSON.stringify({
+                  type: 'card-media-progress',
+                  requestId: msg.requestId,
+                  bytes,
+                  total
+                })
+              )
+            )
+          )
+        } catch (err) {
+          error = err.code === 'ENOENT' ? 'The video file is gone' : err.message
+        }
+      }
+      if (refs.length) await sendOwnOp({ type: 'card:image', objectId: card.id, images: refs })
+      pipe.write(
+        JSON.stringify({
+          type: 'card-media-added',
+          requestId: msg.requestId,
+          keys: refs.map(imageKey),
+          error: refs.length ? null : error || 'Could not store the video'
+        })
+      )
+    } else if (msg.type === messageTypes.boardMedia) {
+      const ref = findMediaRef(msg.ref)
+      if (!ref || !isVideo(ref) || !boardBlobs) return
+      const key = imageKey(ref)
+      try {
+        const file = await cachedMedia(ref)
+        pipe.write(JSON.stringify({ type: 'board-media', key, path: file }))
+      } catch (err) {
+        pipe.write(JSON.stringify({ type: 'board-media', key, error: err.code || err.message }))
+      }
+    } else if (msg.type === messageTypes.memberRole) {
+      if (!boardOwner || ownIdentityHex() !== boardOwner) {
+        return replyError(msg, 'Only the board owner can change roles')
+      }
+      const member = memberOf(msg.identity)
+      if (!member || member.role === 'owner' || !ROLES.includes(msg.role)) return
+      await sendOwnOp({ type: 'member:role', identity: member.identity, role: msg.role })
+    } else if (msg.type === messageTypes.memberBan) {
+      const me = memberOf(ownIdentityHex())
+      const member = memberOf(msg.identity)
+      if (!member || typeof msg.banned !== 'boolean') return
+      if (!me || me.role === 'member' || me.banned) {
+        return replyError(msg, 'Only the owner or an admin can remove members')
+      }
+      if (member.role === 'owner' || (me.role === 'admin' && member.role === 'admin')) {
+        return replyError(
+          msg,
+          `You can't remove ${member.role === 'owner' ? 'the owner' : 'an admin'}`
+        )
+      }
+      // The ban keeps what they wrote so far; anything they sign later is ignored.
+      const keep = msg.banned
+        ? [...boardOps.values()]
+            .filter((op) => op.identity === member.identity)
+            .map((op) => op.id)
+            .slice(-LIMITS.banKeep)
+        : []
+      await sendOwnOp({ type: 'member:ban', identity: member.identity, banned: msg.banned, keep })
+    } else if (msg.type === messageTypes.checklistSet) {
+      // No itemId adds an item; `index` places a new or moved item.
+      const card = cardById(msg.objectId)
+      if (!card) return
+      const known = card.checklist.find((item) => item.id === msg.itemId)
+      if (msg.itemId !== undefined && !known) return
+      const text =
+        typeof msg.text === 'string' ? msg.text.trim().slice(0, LIMITS.checklistText) : ''
+      if (!known && !text) return
+      if (!known && card.checklist.length >= LIMITS.checklist) {
+        return replyError(msg, 'This checklist is full')
+      }
+      const others = card.checklist.filter((item) => item.id !== msg.itemId)
+      await sendOwnOp({
+        type: 'card:checklist',
+        objectId: card.id,
+        itemId: known ? known.id : newId('item'),
+        ...(text && { text }),
+        ...(typeof msg.done === 'boolean' && { done: msg.done }),
+        ...(msg.deleted === true && { deleted: true }),
+        ...((!known || msg.index !== undefined) && { position: positionAt(others, msg.index) })
+      })
+    } else if (msg.type === messageTypes.reactionSet) {
+      const card = cardById(msg.objectId)
+      if (!card || !REACTIONS.includes(msg.emoji) || typeof msg.on !== 'boolean') return
+      if (msg.commentId && !card.comments.some((comment) => comment.id === msg.commentId)) return
+      await sendOwnOp({
+        type: 'reaction',
+        objectId: card.id,
+        ...(msg.commentId && { commentId: msg.commentId }),
+        emoji: msg.emoji,
+        on: msg.on
+      })
+    } else if (msg.type === messageTypes.linkSet) {
+      if (!cardById(msg.objectId) || !cardById(msg.targetId) || msg.objectId === msg.targetId) {
+        return
+      }
+      if (!LINK_KINDS.includes(msg.kind) || typeof msg.linked !== 'boolean') return
+      await sendOwnOp({
+        type: 'card:link',
+        objectId: msg.objectId,
+        targetId: msg.targetId,
+        kind: msg.kind,
+        linked: msg.linked
+      })
+    } else if (msg.type === messageTypes.estimateSet) {
+      const value = msg.value === null ? null : Number(msg.value)
+      if (!cardById(msg.objectId)) return
+      if (value !== null && !(value >= 0 && value <= LIMITS.points)) return
+      await sendOwnOp({ type: 'estimate', objectId: msg.objectId, value })
+    } else if (msg.type === messageTypes.ruleUpsert) {
+      const rule = cleanRule(msg.rule)
+      if (!rule) return replyError(msg, 'That rule is incomplete')
+      const valid = typeof msg.ruleId === 'string' && /^rule:[0-9a-f]{12}$/.test(msg.ruleId)
+      if (!valid && boardState.rules.length >= LIMITS.rules) {
+        return replyError(msg, 'This board has too many rules')
+      }
+      await sendOwnOp({ type: 'rule:upsert', ruleId: valid ? msg.ruleId : newId('rule'), rule })
+      if (rule.trigger.kind === 'schedule') await runSchedules()
+    } else if (msg.type === messageTypes.ruleDelete) {
+      if (!boardState.rules.some((rule) => rule.id === msg.ruleId)) return
+      await sendOwnOp({ type: 'rule:delete', ruleId: msg.ruleId })
+    } else if (msg.type === messageTypes.templateApply) {
+      if (!boardDb) return replyError(msg, 'Open a board first')
+      if (!BOARD_TEMPLATES[msg.template]) return replyError(msg, 'Unknown template')
+      await applyBoardTemplate(msg.template)
+    } else if (msg.type === messageTypes.cardFromTemplate) {
+      const template = cardById(msg.templateId)
+      if (!template) return replyError(msg, 'That template is gone')
+      const identity = await unlockedIdentity()
+      const id = await createCard(uniqueId(identity), {
+        title: typeof msg.title === 'string' && msg.title.trim() ? msg.title : template.title,
+        body: template.body,
+        columnId: msg.columnId ?? template.columnId,
+        labelIds: template.labelIds,
+        assignees: template.assignees,
+        points: template.points ?? undefined,
+        checklist: template.checklist.map((item) => item.text)
+      })
+      await runRules('create', id)
+      pipe.write(JSON.stringify({ type: 'card-created', requestId: msg.requestId, objectId: id }))
+    } else if (msg.type === messageTypes.activityGet) {
+      const cardId = typeof msg.cardId === 'string' ? msg.cardId : null
+      pipe.write(
+        JSON.stringify({
+          type: messageTypes.boardActivity,
+          requestId: msg.requestId,
+          cardId,
+          entries: boardActivity([...boardOps.values()], boardState, {
+            cardId,
+            limit: Number.isSafeInteger(msg.limit) ? msg.limit : 100
+          })
+        })
+      )
+    } else if (msg.type === messageTypes.statsGet) {
+      pipe.write(
+        JSON.stringify({
+          type: messageTypes.boardStats,
+          requestId: msg.requestId,
+          stats: boardStats([...boardOps.values()], boardState)
+        })
+      )
+    } else if (msg.type === messageTypes.presenceSet) {
+      ownPresence = {
+        cardId: typeof msg.cardId === 'string' && msg.cardId.length <= 80 ? msg.cardId : null,
+        typing: msg.typing === true
+      }
+      broadcastPresence()
+    } else if (msg.type === messageTypes.boardExport) {
+      if (!boardDb) return replyError(msg, 'Open a board before exporting it')
+      const data = boardExport()
+      let file = null
+      if (msg.toFile) {
+        // Mobile shares a file; desktop saves the JSON itself.
+        const dir = path.join(updaterConfig.dir, 'exports')
+        await fs.promises.rm(dir, { recursive: true, force: true }).catch(() => {})
+        await fs.promises.mkdir(dir, { recursive: true })
+        const slug = (boardName || 'board').replace(/[^\w-]+/g, '-').slice(0, 40) || 'board'
+        file = path.join(dir, `${slug}-${data.exportedAt.slice(0, 10)}.json`)
+        await fs.promises.writeFile(file, JSON.stringify(data, null, 2))
+      }
+      pipe.write(
+        JSON.stringify({
+          type: 'board-export',
+          requestId: msg.requestId,
+          data: file ? null : data,
+          path: file
+        })
+      )
     }
   } catch {
     console.log(message)

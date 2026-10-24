@@ -1,5 +1,6 @@
 const board = require('./board')
 const alerts = require('./alerts')
+const activity = require('./activity')
 
 const messageTypes = Object.freeze({
   identityLoad: 'identity:load',
@@ -7,6 +8,8 @@ const messageTypes = Object.freeze({
   roomStart: 'room:start',
   roomLeave: 'room:leave',
   profileSet: 'profile:set',
+  profileAvatarSet: 'profile:avatar-set',
+  blindPeersSet: 'blind-peers:set',
   boardCreate: 'board:create',
   boardVote: 'board:vote',
   boardComment: 'board:comment',
@@ -23,12 +26,38 @@ const messageTypes = Object.freeze({
   boardsWatch: 'boards:watch',
   boardAlerts: 'board-alerts',
   cardImagesAdd: 'board:card-images-add',
+  cardMediaAdd: 'board:card-media-add',
+  boardMedia: 'board:media',
+  boardIconSet: 'board:icon-set',
+  backgroundImageSet: 'board:background-image-set',
+  memberRole: 'board:member-role',
+  memberBan: 'board:member-ban',
+  boardExport: 'board:export',
+  checklistSet: 'board:checklist-set',
+  reactionSet: 'board:reaction-set',
+  linkSet: 'board:link-set',
+  estimateSet: 'board:estimate-set',
+  ruleUpsert: 'board:rule-upsert',
+  ruleDelete: 'board:rule-delete',
+  templateApply: 'board:template-apply',
+  cardFromTemplate: 'board:card-from-template',
+  activityGet: 'board:activity',
+  statsGet: 'board:stats',
+  presenceSet: 'board:presence-set',
+  boardActivity: 'board-activity',
+  boardStats: 'board-stats',
+  boardPresence: 'board-presence',
   identityStatus: 'identity-status',
   roomStatus: 'room-status',
   boardState: 'board-state',
   boardSynced: 'board-synced',
   profileStatus: 'profile-status'
 })
+
+// Blind peers that keep encrypted copies of every board online (see apps/blind-peer).
+// Add your deployed blind peer's public key here; hosts can override the list at
+// runtime with `blindPeersSet`.
+const BLIND_PEERS = Object.freeze([])
 
 function command(type, fields = {}) {
   return { type, ...fields }
@@ -49,4 +78,13 @@ function inviteLink(invite) {
   return normalized ? `opencollab://board/${encodeURIComponent(normalized)}` : ''
 }
 
-module.exports = { messageTypes, command, normalizeInvite, inviteLink, ...board, ...alerts }
+module.exports = {
+  messageTypes,
+  BLIND_PEERS,
+  command,
+  normalizeInvite,
+  inviteLink,
+  ...board,
+  ...alerts,
+  ...activity
+}

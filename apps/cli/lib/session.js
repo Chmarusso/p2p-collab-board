@@ -15,8 +15,10 @@ class Session {
       room: null,
       objects: [],
       profiles: {},
+      members: [],
       columns: [],
       labels: [],
+      rules: [],
       theme: { background: null, accent: null },
       info: { description: '' },
       alerts: [],
@@ -79,8 +81,10 @@ class Session {
     if (message.type === messageTypes.boardState) {
       state.objects = message.objects || []
       state.profiles = message.profiles || {}
+      state.members = message.members || []
       state.columns = message.columns || []
       state.labels = message.labels || []
+      state.rules = message.rules || []
       state.theme = message.theme || state.theme
       state.info = message.info || state.info
     }
@@ -153,6 +157,12 @@ class Session {
 
   async openBoard(invite, name) {
     this.state.synced = false
+    // Comma-separated blind peer keys; replaces the built-in list (empty clears it).
+    const blindPeers = process.env.OPENCOLLAB_BLIND_PEERS
+    if (blindPeers !== undefined) {
+      const keys = blindPeers.split(',').map((key) => key.trim())
+      this.send({ type: messageTypes.blindPeersSet, keys: keys.filter(Boolean) })
+    }
     this.send({ type: messageTypes.roomStart, invite: invite || null, name })
     const message = await this.wait(
       (message) =>

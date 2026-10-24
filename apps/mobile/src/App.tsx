@@ -25,8 +25,10 @@ import * as Clipboard from 'expo-clipboard'
 import PearRuntime from 'pear-mobile'
 import FramedStream from 'framed-stream'
 import workerBundle from './worker.bundle.js'
+import { BootSplash } from './BootSplash'
 import { messageTypes } from '@opencollab/board-protocol'
 import {
+  Avatar,
   BoardImages,
   Button,
   CachedImage,
@@ -44,7 +46,10 @@ import {
   setReduceMotion
 } from './ui'
 import { BoardScreen } from './board/BoardScreen'
+import { avatarOf, isVideo } from './board/model'
 import type { AlertBoard, BoardAlert, BoardData } from './board/model'
+import { KeychainChoice, SettingsSheet } from './Settings'
+import { DEFAULT_SOUND, SoundName, isSoundName, playSound, soundPrefKey } from './sounds'
 
 const normalizeInvite = (value: string) => {
   const invite = value.trim()
@@ -71,7 +76,10 @@ const emptyBoard: BoardData = {
   labels: [],
   theme: { background: null, accent: null },
   info: { description: '' },
-  profiles: {}
+  profiles: {},
+  owner: null,
+  members: [],
+  rules: []
 }
 
 // OTA status, shared by every screen's banner. The worker sends the plain
@@ -108,6 +116,12 @@ type RecentBoard = { invite: string; name: string; joinedAt: number }
 const legacyRecentBoardsKey = 'opencollab.recent-boards'
 const recentBoardsKey = (identity: string) => `opencollab.recent-boards.${identity}`
 
+// The recovery phrase is kept in the Keychain only if the user agreed to it;
+// the choice is remembered. A phrase saved before the choice existed counts as
+// 'saved'.
+const identityPhraseKey = 'opencollab.identity'
+const keychainChoiceKey = 'opencollab.identity-keychain'
+
 const shortKey = (hex: string) => (hex.length > 10 ? `${hex.slice(0, 4)}…${hex.slice(-4)}` : hex)
 
 function relativeTime(iso?: string) {
@@ -119,6 +133,28 @@ function relativeTime(iso?: string) {
   return `${Math.floor(seconds / 86400)}d`
 }
 
+// Which cards show where: ids, columns, order, archived and template flags.
+function placementKey(
+  objects: Array<{
+    id: string
+    columnId?: string
+    position?: string
+    archived?: boolean
+    template?: boolean
+  }>,
+  columns: Array<{ id: string; position?: string }>
+) {
+  return [
+    columns.map((column) => `${column.id}@${column.position}`).join(','),
+    objects
+      .map(
+        (card) =>
+          `${card.id}:${card.columnId}:${card.position}:${card.archived ? 1 : 0}${card.template ? 1 : 0}`
+      )
+      .join(',')
+  ].join('|')
+}
+
 function describeNetwork(status: string) {
   if (status === 'topic-joining') return 'Searching for peers'
   if (status === 'topic-joined') return 'Announced on the network'
@@ -128,7 +164,7 @@ function describeNetwork(status: string) {
   return status
 }
 
-export default function App() {
+function AppContent({ onBoot }: { onBoot: () => void }) {
   const [pipe, setPipe] = useState<any>(null)
   const [identityPhrase, setIdentityPhrase] = useState('')
   const [identityReady, setIdentityReady] = useState(false)
@@ -144,6 +180,7 @@ export default function App() {
   const [displayNameDraft, setDisplayNameDraft] = useState('')
   const [invitationLink, setInvitationLink] = useState('')
   const [profileOpen, setProfileOpen] = useState(false)
+  const [editProfileOpen, setEditProfileOpen] = useState(false)
   const [composerOpen, setComposerOpen] = useState(false)
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([])
   const [imageCache, setImageCache] = useState<Record<string, CachedImage>>({})
@@ -164,6 +201,7 @@ export default function App() {
   const [composerColumn, setComposerColumn] = useState<string | null>(null)
   // Board moves made here land instantly; only other members' changes animate.
   const localMoveAt = useRef(0)
+  const lastPlacement = useRef('')
   const workerListeners = useRef(new Set<(message: WorkerMessage) => void>())
   const [roomReady, setRoomReady] = useState(false)
   const [synced, setSynced] = useState(false)
@@ -175,6 +213,22 @@ export default function App() {
   const identityKeyRef = useRef('')
   const currentBoardKey = useRef('')
   const savedPhraseRef = useRef('')
+  // The phrase of the identity being loaded, and of the one now unlocked.
+  const loadingPhraseRef = useRef('')
+  const phraseRef = useRef('')
+  const [keychain, setKeychain] = useState<KeychainChoice>(null)
+  const keychainRef = useRef<KeychainChoice>(null)
+  const [hasSavedPhrase, setHasSavedPhrase] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [sound, setSound] = useState<SoundName>(DEFAULT_SOUND)
+  const soundRef = useRef<SoundName>(DEFAULT_SOUND)
+  const readUntilRef = useRef(0)
+  readUntilRef.current = readUntil
+  // Alert ids already seen per board; a board's first check only sets this,
+  // so opening the app or adding a board doesn't play the sound.
+  const seenAlerts = useRef(new Map<string, Set<string>>())
+  const exportRequest = useRef('')
+  const [exporting, setExporting] = useState(false)
 
   useEffect(() => {
     AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion)
@@ -187,6 +241,7 @@ export default function App() {
     ])
     const framed = new FramedStream(ipc)
     framed.on('data', (data: Uint8Array) => {
+      onBoot()
       const text = new TextDecoder().decode(data)
       if (text === 'updating') return setUpdateStatus('downloading')
       if (text === 'updated') {
@@ -214,11 +269,15 @@ export default function App() {
           if (message.publicKey) void loadRecentBoards(message.publicKey)
           setIdentityReady(true)
           if (message.mnemonic) {
+            // Created: the Keychain question comes once the words are backed up.
+            phraseRef.current = message.mnemonic
             setIdentityPhrase(message.mnemonic)
             setBackupPhrase(message.mnemonic)
-            savedPhraseRef.current = message.mnemonic
-            SecureStore.setItemAsync('opencollab.identity', message.mnemonic)
+          } else if (loadingPhraseRef.current) {
+            phraseRef.current = loadingPhraseRef.current
+            offerKeychain(loadingPhraseRef.current)
           }
+          loadingPhraseRef.current = ''
         } else if (message.error) Alert.alert('Identity error', message.error)
       }
       if (message.type === messageTypes.roomStatus && message.status === 'ready') {
@@ -250,6 +309,22 @@ export default function App() {
         imageRequests.current.clear()
         setEntryMode('choose')
       }
+      if (message.type === 'board-action-error' && message.error) {
+        if (message.requestId && message.requestId === exportRequest.current) {
+          exportRequest.current = ''
+          setExporting(false)
+        }
+        Alert.alert('Not done', message.error)
+      }
+      if (message.type === 'board-export' && message.requestId === exportRequest.current) {
+        exportRequest.current = ''
+        setExporting(false)
+        if (message.path) {
+          Share.share({ url: `file://${encodeURI(message.path)}` }).catch((err) =>
+            Alert.alert('Export', err?.message || 'Could not share the file.')
+          )
+        }
+      }
       if (message.type === 'board-image') {
         imageRequests.current.delete(message.key)
         setImageCache((current) => ({
@@ -260,7 +335,12 @@ export default function App() {
         }))
       }
       if (message.type === messageTypes.boardState) {
-        if (!reduceMotion && Date.now() - localMoveAt.current > 1500) {
+        // Only a change in where cards sit animates; reactions, checklists and
+        // the like would otherwise re-lay out an open card sheet while typing.
+        const layout = placementKey(message.objects || [], message.columns || [])
+        const moved = layout !== lastPlacement.current
+        lastPlacement.current = layout
+        if (moved && !reduceMotion && Date.now() - localMoveAt.current > 1500) {
           LayoutAnimation.configureNext({
             duration: 220,
             update: { type: LayoutAnimation.Types.easeInEaseOut }
@@ -272,7 +352,10 @@ export default function App() {
           labels: message.labels || [],
           theme: message.theme || { background: null, accent: null },
           info: message.info || { description: '' },
-          profiles: message.profiles || {}
+          profiles: message.profiles || {},
+          owner: message.owner || null,
+          members: message.members || [],
+          rules: message.rules || []
         })
         openPendingCard(message.objects || [])
       }
@@ -287,15 +370,19 @@ export default function App() {
       if (message.type === 'room-status' && message.status === 'error')
         setEntryError(message.error || 'Something went wrong')
       if (message.type === 'room-debug') setNetworkStatus(describeNetwork(message.status))
-      if (message.type === messageTypes.boardAlerts) setAlertBoards(message.boards || [])
+      if (message.type === messageTypes.boardAlerts) {
+        setAlertBoards(message.boards || [])
+        chimeForNewAlerts(message.boards || [])
+      }
       for (const listener of workerListeners.current) listener(message)
       if (message.type === 'peer-count') setPeerCount(message.count || 0)
     })
     setPipe(framed)
-    SecureStore.getItemAsync('opencollab.identity').then((saved) => {
-      if (!saved) return
-      savedPhraseRef.current = saved
-      setIdentityPhrase(saved)
+    void loadSavedIdentity()
+    SecureStore.getItemAsync(soundPrefKey).then((value) => {
+      if (!isSoundName(value)) return
+      soundRef.current = value
+      setSound(value)
     })
     return () => {
       motion.remove()
@@ -396,11 +483,16 @@ export default function App() {
 
   function openAlert(board: AlertBoard, alert: BoardAlert) {
     markRead((b, a) => b.key === board.key && a.id === alert.id)
+    openBoardCard(board, alert.cardId)
+  }
+
+  // Opens a card on any joined board, switching boards first if needed.
+  function openBoardCard(board: AlertBoard, cardId: string) {
     if (board.key === currentBoardKey.current) {
-      setOpenCardRequest({ cardId: alert.cardId, nonce: Date.now() })
+      setOpenCardRequest({ cardId, nonce: Date.now() })
       return
     }
-    pendingOpen.current = { boardKey: board.key, cardId: alert.cardId }
+    pendingOpen.current = { boardKey: board.key, cardId }
     send({ type: messageTypes.roomStart, invite: normalizeInvite(board.invite) })
   }
 
@@ -414,15 +506,165 @@ export default function App() {
   }
   const nameFor = (identity: string) => profiles[identity] || shortKey(identity)
 
-  async function unlock() {
-    if (identityPhrase.trim().split(/\s+/).length < 12)
-      return Alert.alert('Identity required', 'Enter a recovery phrase with at least 12 words.')
-    // Unscoped boards belong to the previously saved identity only.
-    if (identityPhrase.trim() !== savedPhraseRef.current)
-      await SecureStore.deleteItemAsync(legacyRecentBoardsKey)
-    await SecureStore.setItemAsync('opencollab.identity', identityPhrase.trim())
-    send({ type: messageTypes.identityLoad, mnemonic: identityPhrase.trim() })
+  async function loadSavedIdentity() {
+    let choice = (await SecureStore.getItemAsync(keychainChoiceKey)) as KeychainChoice
+    if (choice === 'protected') {
+      // Reading it asks for Face ID, so that waits for "Unlock saved identity".
+      setKeychainChoice(choice)
+      setHasSavedPhrase(true)
+      return
+    }
+    const saved = await SecureStore.getItemAsync(identityPhraseKey)
+    if (saved && !choice) {
+      choice = 'saved'
+      void SecureStore.setItemAsync(keychainChoiceKey, choice)
+    }
+    setKeychainChoice(choice)
+    if (!saved) return
+    savedPhraseRef.current = saved
+    setHasSavedPhrase(true)
+    setIdentityPhrase(saved)
   }
+
+  function setKeychainChoice(choice: KeychainChoice) {
+    keychainRef.current = choice
+    setKeychain(choice)
+  }
+
+  // Protected only when the device can ask for Face ID / Touch ID; otherwise a
+  // plain Keychain item, as before.
+  async function savePhrase(phrase: string) {
+    let choice: KeychainChoice = 'saved'
+    try {
+      if (SecureStore.canUseBiometricAuthentication()) {
+        await SecureStore.setItemAsync(identityPhraseKey, phrase, {
+          requireAuthentication: true,
+          authenticationPrompt: 'Save your OpenCollab recovery words'
+        })
+        choice = 'protected'
+      } else await SecureStore.setItemAsync(identityPhraseKey, phrase)
+    } catch {
+      try {
+        await SecureStore.setItemAsync(identityPhraseKey, phrase)
+      } catch (err) {
+        Alert.alert('Not saved', (err as Error)?.message || 'The Keychain refused the phrase.')
+        return
+      }
+    }
+    await SecureStore.setItemAsync(keychainChoiceKey, choice)
+    savedPhraseRef.current = phrase
+    setHasSavedPhrase(true)
+    setKeychainChoice(choice)
+  }
+
+  async function forgetPhrase() {
+    await SecureStore.deleteItemAsync(identityPhraseKey)
+    await SecureStore.setItemAsync(keychainChoiceKey, 'off')
+    savedPhraseRef.current = ''
+    setHasSavedPhrase(false)
+    setKeychainChoice('off')
+  }
+
+  // Asked once; afterwards a new identity follows the choice already made.
+  function offerKeychain(phrase: string) {
+    if (phrase === savedPhraseRef.current) return
+    const choice = keychainRef.current
+    if (choice === 'off') return
+    if (choice === 'saved' || choice === 'protected') return void savePhrase(phrase)
+    Alert.alert(
+      'Save recovery words in the iOS Keychain?',
+      'OpenCollab then opens without asking for them. If you don’t save them, they stay in memory only and you enter them each time you open the app. You can change this later in Settings.',
+      [
+        {
+          text: 'Don’t save',
+          style: 'cancel',
+          onPress: () => {
+            void SecureStore.setItemAsync(keychainChoiceKey, 'off')
+            setKeychainChoice('off')
+          }
+        },
+        { text: 'Save', onPress: () => void savePhrase(phrase) }
+      ]
+    )
+  }
+
+  async function unlock(phrase = identityPhrase.trim()) {
+    if (phrase.split(/\s+/).length < 12) {
+      return Alert.alert('Identity required', 'Enter a recovery phrase with at least 12 words.')
+    }
+    // Unscoped boards belong to the previously saved identity only.
+    if (phrase !== savedPhraseRef.current) await SecureStore.deleteItemAsync(legacyRecentBoardsKey)
+    loadingPhraseRef.current = phrase
+    send({ type: messageTypes.identityLoad, mnemonic: phrase })
+  }
+
+  async function unlockSaved() {
+    if (keychainRef.current !== 'protected') return unlock(savedPhraseRef.current)
+    let saved: string | null = null
+    try {
+      saved = await SecureStore.getItemAsync(identityPhraseKey, {
+        requireAuthentication: true,
+        authenticationPrompt: 'Unlock OpenCollab'
+      })
+    } catch {
+      // Cancelled, or the item was invalidated by a Face ID change.
+      return Alert.alert(
+        'Not unlocked',
+        'Try again, or choose “Use existing identity” and enter your recovery words.'
+      )
+    }
+    if (!saved) {
+      setHasSavedPhrase(false)
+      return Alert.alert('Nothing saved', 'Enter your recovery words to continue.')
+    }
+    savedPhraseRef.current = saved
+    void unlock(saved)
+  }
+
+  function chimeForNewAlerts(boards: AlertBoard[]) {
+    let fresh = false
+    for (const board of boards) {
+      if (!board.checkedAt) continue
+      const seen = seenAlerts.current.get(board.key)
+      if (!seen) {
+        seenAlerts.current.set(board.key, new Set(board.alerts.map((alert) => alert.id)))
+        continue
+      }
+      for (const alert of board.alerts) {
+        if (seen.has(alert.id)) continue
+        seen.add(alert.id)
+        if (alert.at > readUntilRef.current) fresh = true
+      }
+    }
+    if (fresh) playSound(soundRef.current)
+  }
+
+  function chooseSound(next: SoundName) {
+    soundRef.current = next
+    setSound(next)
+    void SecureStore.setItemAsync(soundPrefKey, next)
+    playSound(next)
+  }
+
+  function exportBoard() {
+    if (exportRequest.current) return
+    const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+    exportRequest.current = requestId
+    setExporting(true)
+    send({ type: messageTypes.boardExport, requestId, toFile: true })
+  }
+
+  const settings = settingsOpen ? (
+    <SettingsSheet
+      keychain={keychain}
+      canSave={!!phraseRef.current}
+      onSavePhrase={() => void savePhrase(phraseRef.current)}
+      onForgetPhrase={() => void forgetPhrase()}
+      sound={sound}
+      onSound={chooseSound}
+      onClose={() => setSettingsOpen(false)}
+    />
+  ) : null
 
   async function createIdentity() {
     await SecureStore.deleteItemAsync(legacyRecentBoardsKey)
@@ -468,6 +710,26 @@ export default function App() {
     updateRecentBoards((current) => current.filter((board) => board.invite !== boardInvite))
   }
 
+  const myAvatar = avatarOf(boardData, identityKey)
+
+  // The avatar applies as soon as it is picked; the name waits for Save.
+  function saveProfile() {
+    const name = displayNameDraft.trim()
+    if (name && name !== displayName) send({ type: messageTypes.profileSet, displayName: name })
+    else setDisplayNameDraft(displayName)
+    setEditProfileOpen(false)
+  }
+
+  async function pickAvatar() {
+    // Avatars show small, so they don't need the full size.
+    const [image] = await pickPreparedImages(1, 256)
+    if (!image) return
+    send({
+      type: messageTypes.profileAvatarSet,
+      image: { type: image.type, data: image.data, width: image.width, height: image.height }
+    })
+  }
+
   async function shareInvitation() {
     if (!invitationLink) return
     await Share.share({ message: inviteLink(invitationLink), url: inviteLink(invitationLink) })
@@ -478,6 +740,10 @@ export default function App() {
     send({ type: messageTypes.boardsWatch, boards: [] })
     setAlertBoards([])
     setReadNow(new Set())
+    seenAlerts.current.clear()
+    // A phrase the user chose not to keep doesn't outlive the session.
+    if (!hasSavedPhrase) setIdentityPhrase('')
+    phraseRef.current = ''
     if (roomReady) send({ type: messageTypes.roomLeave })
     identityKeyRef.current = ''
     setIdentityKey('')
@@ -513,6 +779,7 @@ export default function App() {
   }
 
   function requestImage(ref: ImageRef) {
+    if (isVideo(ref)) return
     const key = imageKey(ref)
     if (imageCache[key]?.uri || imageRequests.current.has(key)) return
     imageRequests.current.add(key)
@@ -544,13 +811,17 @@ export default function App() {
         </Text>
         {identityChoice === 'choose' ? (
           <>
-            {identityPhrase ? (
-              <Button title='Unlock saved identity' icon='unlock' onPress={unlock} />
+            {hasSavedPhrase ? (
+              <Button
+                title='Unlock saved identity'
+                icon='unlock'
+                onPress={() => void unlockSaved()}
+              />
             ) : null}
             <Button
               title='Create new identity'
               icon='key'
-              variant={identityPhrase ? 'secondary' : 'primary'}
+              variant={hasSavedPhrase ? 'secondary' : 'primary'}
               onPress={createIdentity}
             />
             <Button
@@ -580,7 +851,7 @@ export default function App() {
                 variant='secondary'
                 onPress={() => setIdentityChoice('choose')}
               />
-              <Button title='Unlock' icon='unlock' onPress={unlock} grow />
+              <Button title='Unlock' icon='unlock' onPress={() => void unlock()} grow />
             </View>
           </>
         )}
@@ -601,7 +872,14 @@ export default function App() {
             </View>
           ))}
         </View>
-        <Button title="I've written it down" icon='check' onPress={() => setBackupPhrase('')} />
+        <Button
+          title="I've written it down"
+          icon='check'
+          onPress={() => {
+            setBackupPhrase('')
+            offerKeychain(backupPhrase)
+          }}
+        />
       </Screen>
     )
   if (!roomReady && entryMode === 'create')
@@ -738,7 +1016,14 @@ export default function App() {
         ) : (
           <Text style={styles.muted}>No boards yet. Create one or join with an invitation.</Text>
         )}
+        <Button
+          title='Settings'
+          icon='settings'
+          variant='ghost'
+          onPress={() => setSettingsOpen(true)}
+        />
         <Button title='Log out' icon='log-out' variant='ghost' onPress={logout} />
+        {settings}
       </Screen>
     )
   if (!displayName)
@@ -777,11 +1062,7 @@ export default function App() {
         boardName={boardName}
         boardKey={boardKey}
         synced={synced}
-        statusChip={
-          <View style={styles.boardChip}>
-            <StatusChip peers={peerCount} synced={synced} />
-          </View>
-        }
+        statusChip={<StatusChip peers={peerCount} synced={synced} />}
         loading={
           <View style={styles.boardLoading}>
             {/* Not the peer count: other joiners connect too but hold no data. */}
@@ -816,6 +1097,8 @@ export default function App() {
         isRead={isRead}
         markRead={markRead}
         onOpenAlert={openAlert}
+        onOpenMyCard={(board, card) => openBoardCard(board, card.id)}
+        sound={sound}
         openCardRequest={openCardRequest}
         subscribe={subscribe}
         nameFor={nameFor}
@@ -924,16 +1207,47 @@ export default function App() {
         <Pressable style={styles.modalBackdrop} onPress={() => setProfileOpen(false)}>
           <Pressable style={styles.modalCard} onPress={(event) => event.stopPropagation()}>
             <View style={styles.meta}>
-              <Identicon hex={identityKey} size={36} />
+              <Avatar
+                hex={identityKey}
+                size={36}
+                image={myAvatar}
+                cache={imageCache}
+                requestImage={requestImage}
+              />
               <View>
                 <Text style={styles.heading}>@{displayName}</Text>
                 <Text style={styles.metaMono}>{shortKey(identityKey)}</Text>
               </View>
             </View>
+            <Button
+              title='Edit name & avatar'
+              icon='user'
+              variant='secondary'
+              onPress={() => {
+                setProfileOpen(false)
+                setDisplayNameDraft(displayName)
+                setEditProfileOpen(true)
+              }}
+            />
             <StatusChip peers={peerCount} synced={synced} />
             <Text style={styles.metaMono}>{networkStatus}</Text>
             <Text style={styles.metaMono}>OpenCollab v{version}</Text>
             <Button title='Share invitation' icon='share-2' onPress={shareInvitation} />
+            <Button
+              title={exporting ? 'Exporting…' : 'Export board'}
+              icon='download'
+              variant='secondary'
+              onPress={exportBoard}
+            />
+            <Button
+              title='Settings'
+              icon='settings'
+              variant='secondary'
+              onPress={() => {
+                setProfileOpen(false)
+                setSettingsOpen(true)
+              }}
+            />
             <Button
               title='Switch board'
               icon='repeat'
@@ -948,6 +1262,90 @@ export default function App() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      <Modal
+        visible={editProfileOpen}
+        transparent
+        animationType='fade'
+        onRequestClose={() => setEditProfileOpen(false)}
+      >
+        <KeyboardAvoidingView
+          style={styles.flex}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <Pressable style={styles.modalBackdrop} onPress={() => setEditProfileOpen(false)}>
+            <Pressable style={styles.modalCard} onPress={(event) => event.stopPropagation()}>
+              <Text style={styles.heading}>Edit name & avatar</Text>
+              <View style={styles.avatarEdit}>
+                <Pressable
+                  onPress={pickAvatar}
+                  style={({ pressed }) => pressed && styles.pressed}
+                  accessibilityRole='button'
+                  accessibilityLabel='Change avatar'
+                >
+                  <Avatar
+                    hex={identityKey}
+                    size={96}
+                    image={myAvatar}
+                    cache={imageCache}
+                    requestImage={requestImage}
+                  />
+                  <View style={styles.avatarBadge}>
+                    <Feather name='camera' size={14} color={colors.bg} />
+                  </View>
+                </Pressable>
+                {myAvatar ? (
+                  <Pressable
+                    onPress={() => send({ type: messageTypes.profileAvatarSet, image: null })}
+                    hitSlop={8}
+                    accessibilityRole='button'
+                  >
+                    <Text style={styles.removePhoto}>Remove avatar</Text>
+                  </Pressable>
+                ) : null}
+              </View>
+              <TextInput
+                style={styles.input}
+                value={displayNameDraft}
+                onChangeText={setDisplayNameDraft}
+                onSubmitEditing={saveProfile}
+                placeholder='Display name'
+                placeholderTextColor={colors.muted}
+                maxLength={48}
+                returnKeyType='done'
+                accessibilityLabel='Display name'
+              />
+              <Text style={styles.hint}>Everyone on this board sees your name and avatar.</Text>
+              <View style={styles.row}>
+                <Button
+                  title='Cancel'
+                  variant='ghost'
+                  onPress={() => {
+                    setDisplayNameDraft(displayName)
+                    setEditProfileOpen(false)
+                  }}
+                />
+                <Button title='Save' grow onPress={saveProfile} />
+              </View>
+            </Pressable>
+          </Pressable>
+        </KeyboardAvoidingView>
+      </Modal>
+      {settings}
+    </View>
+  )
+}
+
+export default function App() {
+  // The worker's first message means it's up; the splash hands over then.
+  const [booted, setBooted] = useState(false)
+  const [splashDone, setSplashDone] = useState(false)
+  const boot = useCallback(() => setBooted(true), [])
+  const done = useCallback(() => setSplashDone(true), [])
+  return (
+    <View style={styles.app}>
+      <AppContent onBoot={boot} />
+      {splashDone ? null : <BootSplash ready={booted} onDone={done} />}
     </View>
   )
 }
@@ -1171,10 +1569,25 @@ function SwipeToRemove({
 }
 
 const styles = StyleSheet.create({
+  app: { flex: 1, backgroundColor: colors.bg },
   root: { flex: 1, backgroundColor: colors.bg },
-  boardChip: { paddingHorizontal: 16 },
   boardLoading: { paddingHorizontal: 16, gap: 12 },
   flex: { flex: 1 },
+  avatarEdit: { alignItems: 'center', gap: 10, paddingVertical: 6 },
+  avatarBadge: {
+    position: 'absolute',
+    right: -2,
+    bottom: -2,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: colors.accent,
+    borderWidth: 2,
+    borderColor: colors.surface
+  },
+  removePhoto: { color: colors.muted, fontSize: 12, textDecorationLine: 'underline' },
   screen: { flexGrow: 1, padding: 20, paddingTop: 64, gap: 14 },
   list: { padding: 16, paddingTop: 64, paddingBottom: 120, gap: 12 },
   boardHeader: { gap: 10, marginBottom: 4 },

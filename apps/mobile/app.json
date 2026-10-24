@@ -4,6 +4,7 @@
     "slug": "opencollab",
     "version": "1.0.0",
     "orientation": "portrait",
+    "icon": "./assets/icon.png",
     "scheme": "opencollab",
     "ios": {
       "bundleIdentifier": "com.opencollab.mobile",
@@ -14,17 +15,46 @@
       }
     },
     "android": {
-      "package": "com.opencollab.mobile"
+      "package": "com.opencollab.mobile",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "monochromeImage": "./assets/adaptive-icon-monochrome.png",
+        "backgroundColor": "#0A0E14"
+      }
     },
     "plugins": [
       "pear-runtime-react-native",
       "expo-secure-store",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#0A0E14"
+        }
+      ],
       [
         "expo-image-picker",
         {
           "photosPermission": "OpenCollab uses your photo library so you can attach images to board posts.",
           "cameraPermission": false,
           "microphonePermission": false
+        }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": false,
+          "recordAudioAndroid": false,
+          "enableBackgroundPlayback": false
+        }
+      ],
+      [
+        "expo-video",
+        {
+          "supportsBackgroundPlayback": false,
+          "supportsPictureInPicture": false
         }
       ]
     ]

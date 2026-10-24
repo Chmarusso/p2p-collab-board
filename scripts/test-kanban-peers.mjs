@@ -53,6 +53,17 @@ try {
   alice.send({ type: messageTypes.themeSet, accent: '#22aa88' })
   await until(bob, 'theme from creator', (b) => b.theme?.accent === '#22aa88')
   console.log('✓ edits flow both ways and converge')
+
+  // Presence is gossiped between connected peers only, never logged.
+  const seen = bob.wait(
+    (message) =>
+      message.type === messageTypes.boardPresence &&
+      message.peers.some((entry) => entry.cardId === cardId && entry.typing),
+    { label: 'presence', timeout: 30000 }
+  )
+  alice.send({ type: messageTypes.presenceSet, cardId, typing: true })
+  await seen
+  console.log('✓ presence reaches the other peer')
 } finally {
   await Promise.all(sessions.map((session) => session.close().catch(() => {})))
   await Promise.all(roots.map((root) => fs.rm(root, { recursive: true, force: true })))
