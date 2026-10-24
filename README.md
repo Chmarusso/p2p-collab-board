@@ -1,3 +1,5 @@
+![OpenCollab: team boards that sync peer to peer](apps/landing/assets/og.jpg)
+
 # OpenCollab
 
 Private team boards that sync peer to peer. Post ideas, attach images, comment and vote
@@ -21,7 +23,10 @@ It suits teams that want internal tools without SaaS lock-in, privacy-sensitive 
 and ad-hoc collaboration at events or on a shared network.
 
 The trade-off: with no server holding a copy, two peers have to be online together to
-sync. Run an always-on peer (`opencollab watch` on a small server) to cover the gaps.
+sync. Run a [blind peer](apps/blind-peer/README.md) on a small server to cover the gaps: it
+keeps an encrypted copy of your boards online without being able to read them.
+
+How can this work with no server at all? See the [FAQ](docs/faq.md).
 
 ## Clients
 
@@ -85,4 +90,11 @@ npm start             # desktop app in dev mode
 
 - [Development and deployment](docs/development.md): architecture and OTA diagrams,
   storage, releases, store submissions, developer FAQ and troubleshooting
+- [FAQ](docs/faq.md): how OpenCollab works without servers
+- [Blind peer](apps/blind-peer/README.md): keep boards available while everyone is offline
+- [Running on a server](docs/server.md): the CLI on a VPS, bots and automations
+- [Landing page](apps/landing/index.html): static site explaining the app, no build step
+- [Design system](apps/landing/design-system.html): brand, tokens and every website and app
+  component on one page. After changing desktop styles, run
+  `node scripts/sync-design-system.mjs` to refresh the app components' CSS
 - [Pear documentation](https://docs.pears.com)

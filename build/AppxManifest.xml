@@ -11,7 +11,7 @@
     <DisplayName>Hello Pear</DisplayName>
     <PublisherDisplayName>My Publisher</PublisherDisplayName>
     <Description>Description of my app</Description>
-    <Logo>build\icon.png</Logo>
+    <Logo>assets\StoreLogo.png</Logo>
     <desktop6:FileSystemWriteVirtualization>disabled</desktop6:FileSystemWriteVirtualization>
   </Properties>
   <Resources>
@@ -27,7 +27,10 @@
   </Capabilities>
   <Applications>
     <Application Id="App" Executable="app\HelloPear.exe" EntryPoint="Windows.FullTrustApplication">
-      <uap:VisualElements DisplayName="Hello Pear" Description="Description of my app" Square150x150Logo="build\icon.png" Square44x44Logo="build\icon.png" BackgroundColor="transparent" />
+      <uap:VisualElements DisplayName="Hello Pear" Description="Description of my app" Square150x150Logo="assets\Square150x150Logo.png" Square44x44Logo="assets\Square44x44Logo.png" BackgroundColor="transparent">
+        <uap:DefaultTile Wide310x150Logo="assets\Wide310x150Logo.png" Square310x310Logo="assets\Square310x310Logo.png" Square71x71Logo="assets\Square71x71Logo.png" />
+        <uap:SplashScreen Image="assets\SplashScreen.png" BackgroundColor="#0A0E14" />
+      </uap:VisualElements>
     </Application>
   </Applications>
 </Package>
