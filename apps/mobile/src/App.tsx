@@ -1,8 +1,9 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   AccessibilityInfo,
   Alert,
   Animated,
+  BackHandler,
   FlatList,
   Image,
   KeyboardAvoidingView,
@@ -22,7 +23,7 @@ import {
 import { Feather } from '@expo/vector-icons'
 import * as SecureStore from 'expo-secure-store'
 import * as Clipboard from 'expo-clipboard'
-import PearRuntime from 'pear-mobile'
+import { Worklet } from 'react-native-bare-kit'
 import FramedStream from 'framed-stream'
 import workerBundle from './worker.bundle.js'
 import { BootSplash } from './BootSplash'
@@ -50,7 +51,7 @@ import {
   themed
 } from './ui'
 import { BoardScreen } from './board/BoardScreen'
-import { avatarOf, isVideo } from './board/model'
+import { avatarOf, hideBlocked, hideBlockedAlerts, isVideo } from './board/model'
 import type { AlertBoard, BoardAlert, BoardData } from './board/model'
 import { KeychainChoice, SettingsSheet, keychainCopy } from './Settings'
 import { DEFAULT_SOUND, SoundName, isSoundName, playSound, soundPrefKey } from './sounds'
@@ -196,7 +197,15 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
   const [boardData, setBoardData] = useState<BoardData>(emptyBoard)
   const profiles = boardData.profiles
   const [boardKey, setBoardKey] = useState('')
-  const [alertBoards, setAlertBoards] = useState<AlertBoard[]>([])
+  const [allAlertBoards, setAlertBoards] = useState<AlertBoard[]>([])
+  // Members blocked on this device, per identity; see hideBlocked.
+  const [blocked, setBlocked] = useState<string[]>([])
+  const blockedRef = useRef<string[]>([])
+  const alertBoards = useMemo(
+    () => hideBlockedAlerts(allAlertBoards, blocked),
+    [allAlertBoards, blocked]
+  )
+  const boardView = useMemo(() => hideBlocked(boardData, blocked), [boardData, blocked])
   // Notifications read: everything up to `readUntil` (kept in SecureStore, which
   // only holds small values) plus what was opened this session.
   const [readUntil, setReadUntil] = useState(0)
@@ -254,13 +263,17 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
   useEffect(() => {
     AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion)
     const motion = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion)
-    const ipc = PearRuntime.run('/worker.bundle', workerBundle, [
+    // Started here rather than through pear-mobile's PearRuntime.run (which does
+    // the same) so the cleanup can stop it: Android Back destroys the activity
+    // while the process lives on, and a second worker can't lock the stores.
+    const worklet = new Worklet()
+    worklet.start('/worker.bundle', workerBundle, [
       String(!(globalThis as { __DEV__?: boolean }).__DEV__),
       version,
       upgrade,
       productName
     ])
-    const framed = new FramedStream(ipc)
+    const framed = new FramedStream(worklet.IPC)
     framed.on('data', (data: Uint8Array) => {
       onBoot()
       const text = new TextDecoder().decode(data)
@@ -285,6 +298,11 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
             SecureStore.getItemAsync(`opencollab.alerts-read-until.${message.publicKey}`).then(
               (value) => setReadUntil(Number(value) || 0)
             )
+            SecureStore.getItemAsync(`opencollab.blocked.${message.publicKey}`).then((value) => {
+              const list = value ? (JSON.parse(value) as string[]) : []
+              blockedRef.current = list
+              setBlocked(list)
+            })
           }
           setIdentityKey(message.publicKey || '')
           if (message.publicKey) void loadRecentBoards(message.publicKey)
@@ -417,6 +435,7 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
     return () => {
       motion.remove()
       framed.destroy()
+      worklet.terminate()
     }
   }, [])
 
@@ -430,6 +449,24 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
   }, [roomReady, synced])
 
   const send = (message: object) => pipe?.write(JSON.stringify(message))
+
+  // Android Back steps out of a board or a create/join form before leaving the
+  // app. Open sheets and modals handle Back themselves (onRequestClose).
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (roomReady) {
+        send({ type: messageTypes.roomLeave })
+        return true
+      }
+      if (identityReady && entryMode !== 'choose') {
+        setEntryError('')
+        setEntryMode('choose')
+        return true
+      }
+      return false
+    })
+    return () => subscription.remove()
+  }, [pipe, roomReady, identityReady, entryMode])
 
   // The worker checks every joined board in the background for notifications.
   useEffect(() => {
@@ -666,10 +703,23 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
       for (const alert of board.alerts) {
         if (seen.has(alert.id)) continue
         seen.add(alert.id)
+        if (alert.author && blockedRef.current.includes(alert.author)) continue
         if (alert.at > readUntilRef.current) fresh = true
       }
     }
     if (fresh) playSound(soundRef.current)
+  }
+
+  function toggleBlocked(identity: string) {
+    const next = blockedRef.current.includes(identity)
+      ? blockedRef.current.filter((key) => key !== identity)
+      : [...blockedRef.current, identity]
+    blockedRef.current = next
+    setBlocked(next)
+    void SecureStore.setItemAsync(
+      `opencollab.blocked.${identityKeyRef.current}`,
+      JSON.stringify(next)
+    )
   }
 
   function chooseSound(next: SoundName) {
@@ -786,6 +836,8 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
     setProfileOpen(false)
     send({ type: messageTypes.boardsWatch, boards: [] })
     setAlertBoards([])
+    blockedRef.current = []
+    setBlocked([])
     setReadNow(new Set())
     seenAlerts.current.clear()
     // A phrase the user chose not to keep doesn't outlive the session.
@@ -1116,7 +1168,7 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
     <View style={styles.root}>
       <StatusBar barStyle={scheme === 'light' ? 'dark-content' : 'light-content'} />
       <BoardScreen
-        data={boardData}
+        data={boardView}
         me={identityKey}
         displayName={displayName}
         boardName={boardName}
@@ -1164,6 +1216,8 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
         nameFor={nameFor}
         shortKey={shortKey}
         relativeTime={relativeTime}
+        blocked={blocked}
+        toggleBlocked={toggleBlocked}
       />
       <UpdateBanner />
 

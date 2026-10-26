@@ -10,11 +10,13 @@
     "ios": "expo run:ios",
     "android": "expo run:android",
     "bundle:bare": "bare-pack --host ios-arm64 --host ios-arm64-simulator --host ios-x64-simulator --host android-arm64 --linked --imports ./bare-pack.imports.json --out ./src/worker.bundle.js ./../../workers/main.js",
-    "ota": "node scripts/ota.js"
+    "ota": "node scripts/ota.js",
+    "release:android": "node scripts/release-android.js"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.1.1",
     "@opencollab/board-protocol": "file:../../packages/board-protocol",
+    "bare-type": "1.1.1",
     "expo": "^55.0.8",
     "expo-audio": "~55.0.18",
     "expo-clipboard": "^55.0.17",
@@ -30,9 +32,6 @@
     "react": "19.2.0",
     "react-native": "0.83.2",
     "react-native-bare-kit": "^0.12.0"
-  },
-  "overrides": {
-    "bare-type": "1.4.0"
   },
   "devDependencies": {
     "@react-native/metro-config": "^0.84.0",

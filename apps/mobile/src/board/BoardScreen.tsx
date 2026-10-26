@@ -104,6 +104,8 @@ type Props = {
   nameFor: (identity: string) => string
   shortKey: (hex: string) => string
   relativeTime: (iso?: string) => string
+  blocked: string[]
+  toggleBlocked: (identity: string) => void
 }
 
 const screenWidth = Dimensions.get('window').width
@@ -770,6 +772,8 @@ export function BoardScreen(props: Props) {
           status={props.statusChip}
           cache={props.cache}
           requestImage={props.requestImage}
+          blocked={props.blocked}
+          toggleBlocked={props.toggleBlocked}
           onClose={() => setSheet(null)}
         />
       ) : null}

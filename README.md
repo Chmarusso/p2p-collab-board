@@ -30,14 +30,15 @@ How can this work with no server at all? See the [FAQ](docs/faq.md).
 
 ## Clients
 
-All three run the same P2P backend, [`workers/main.js`](workers/main.js), on Bare. The
+All of them run the same P2P backend, [`workers/main.js`](workers/main.js), on Bare. The
 UI only sends commands to it and renders what it reports back.
 
-| Client       | Code                                    | Run                                          |
-| ------------ | --------------------------------------- | -------------------------------------------- |
-| Desktop      | `electron/`, `renderer/`                | `npm start`                                  |
-| iOS          | [`apps/mobile/`](apps/mobile/README.md) | `npm run --workspace @opencollab/mobile ios` |
-| Command line | [`apps/cli/`](apps/cli/README.md)       | `npm run cli -- --help`                      |
+| Client       | Code                                    | Run                                              |
+| ------------ | --------------------------------------- | ------------------------------------------------ |
+| Desktop      | `electron/`, `renderer/`                | `npm start`                                      |
+| iOS          | [`apps/mobile/`](apps/mobile/README.md) | `npm run --workspace @opencollab/mobile ios`     |
+| Android      | [`apps/mobile/`](apps/mobile/README.md) | `npm run --workspace @opencollab/mobile android` |
+| Command line | [`apps/cli/`](apps/cli/README.md)       | `npm run cli -- --help`                          |
 
 ## What's in the repo
 
@@ -94,8 +95,11 @@ Installed apps update themselves from the same link. Installs and updates need a
 one peer online that has the release, such as a machine running `pear seed <link>`.
 Builds are published per platform, so a platform without a published build can't install.
 
-The iOS app can't be installed from Pear. Build it from [`apps/mobile`](apps/mobile/README.md);
-after that it receives JavaScript updates over Pear.
+The phone apps can't be installed from Pear. For Android (10 or newer, 64-bit ARM),
+download the APK from the
+[Android releases](https://github.com/Chmarusso/p2p-collab-board/releases?q=android-v&expanded=true);
+install a newer APK over it to update. For iOS, build it from
+[`apps/mobile`](apps/mobile/README.md); after that it receives JavaScript updates over Pear.
 
 ## Run from source
 

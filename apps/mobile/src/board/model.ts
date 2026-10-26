@@ -373,6 +373,28 @@ export function memberPowers(data: BoardData, me: string) {
   }
 }
 
+// Blocking is local to this device: a blocked member's comments and the
+// notifications they cause are hidden here. Nothing is sent to the board.
+export function hideBlocked(data: BoardData, blocked: string[]): BoardData {
+  if (!blocked.length) return data
+  return {
+    ...data,
+    objects: data.objects.map((card) =>
+      card.comments?.some((comment) => blocked.includes(comment.author))
+        ? { ...card, comments: card.comments.filter((c) => !blocked.includes(c.author)) }
+        : card
+    )
+  }
+}
+
+export function hideBlockedAlerts(boards: AlertBoard[], blocked: string[]): AlertBoard[] {
+  if (!blocked.length) return boards
+  return boards.map((board) => ({
+    ...board,
+    alerts: board.alerts.filter((alert) => !alert.author || !blocked.includes(alert.author))
+  }))
+}
+
 export const newLabelId = () =>
   `label:${Array.from({ length: 12 }, () => Math.floor(Math.random() * 16).toString(16)).join('')}`
 

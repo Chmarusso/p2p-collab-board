@@ -5,6 +5,7 @@ import {
   Alert,
   Image,
   KeyboardAvoidingView,
+  Linking,
   Modal,
   Platform,
   Pressable,
@@ -465,6 +466,13 @@ export function ThemeSheet({
 
 const ROLE_ORDER = { owner: 0, admin: 1, member: 2 }
 
+// encodeURIComponent, not URLSearchParams: React Native's is incomplete.
+const reportUrl = (member: Member) =>
+  'https://github.com/Chmarusso/p2p-collab-board/issues/new?title=Abuse%20report&body=' +
+  encodeURIComponent(
+    `Member key: ${member.identity}\n\nWhat happened:\n\n(Don't paste private board content or invite links.)`
+  )
+
 export function MembersSheet({
   data,
   me,
@@ -474,6 +482,8 @@ export function MembersSheet({
   status,
   cache,
   requestImage,
+  blocked,
+  toggleBlocked,
   onClose
 }: {
   data: BoardData
@@ -484,6 +494,8 @@ export function MembersSheet({
   status?: React.ReactNode
   cache: Record<string, CachedImage>
   requestImage: (ref: ImageRef) => void
+  blocked: string[]
+  toggleBlocked: (identity: string) => void
   onClose: () => void
 }) {
   const powers = memberPowers(data, me)
@@ -508,12 +520,35 @@ export function MembersSheet({
         }
       ]
     )
+  const block = (member: Member) =>
+    Alert.alert(
+      `Block ${nameOf(member)}?`,
+      "You won't see their comments or get notifications from them on this device. They aren't told, and the board doesn't change for anyone else.",
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Block', style: 'destructive', onPress: () => toggleBlocked(member.identity) }
+      ]
+    )
+  // No server to report to: the board's owner and admins can remove the
+  // member, and abuse of the app itself goes to the maintainers on GitHub.
+  const report = (member: Member) =>
+    Alert.alert(
+      `Report ${nameOf(member)}?`,
+      "The board's owner and admins can remove them. To report abuse to the OpenCollab team, open a report on GitHub. Don't include private board content.",
+      [
+        { text: 'Cancel', style: 'cancel' },
+        ...(blocked.includes(member.identity)
+          ? []
+          : [{ text: 'Block', onPress: () => toggleBlocked(member.identity) }]),
+        { text: 'Report on GitHub', onPress: () => void Linking.openURL(reportUrl(member)) }
+      ]
+    )
   return (
     <Sheet title='Members' onClose={onClose}>
       {status}
       <Text style={styles.muted}>
         The owner and admins can remove members. A removed member can still see the board, but their
-        changes are ignored.
+        changes are ignored. Anyone can block or report a member.
       </Text>
       {members.length ? null : (
         <Text style={styles.muted}>Nobody has written to this board yet.</Text>
@@ -521,6 +556,8 @@ export function MembersSheet({
       {members.map((member) => {
         const canBan = powers.canBan(member)
         const canRole = powers.canChangeRoles && member.role !== 'owner' && !member.banned
+        const other = member.identity !== me
+        const isBlocked = blocked.includes(member.identity)
         return (
           <View key={member.identity} style={[styles.member, member.banned && styles.banned]}>
             <View style={styles.rowCenter}>
@@ -549,7 +586,8 @@ export function MembersSheet({
             {member.banned && member.bannedBy ? (
               <Text style={styles.usage}>Banned by {nameFor(member.bannedBy)}</Text>
             ) : null}
-            {canRole || canBan ? (
+            {isBlocked ? <Text style={styles.usage}>Blocked on this device</Text> : null}
+            {canRole || canBan || other ? (
               <View style={styles.rowCenter}>
                 {canRole ? (
                   <Button
@@ -584,6 +622,22 @@ export function MembersSheet({
                     icon='user-x'
                     variant='ghost'
                     onPress={() => ban(member)}
+                  />
+                ) : null}
+                {other ? (
+                  <Button
+                    title={isBlocked ? 'Unblock' : 'Block'}
+                    icon={isBlocked ? 'eye' : 'eye-off'}
+                    variant='ghost'
+                    onPress={() => (isBlocked ? toggleBlocked(member.identity) : block(member))}
+                  />
+                ) : null}
+                {other ? (
+                  <Button
+                    title='Report'
+                    icon='flag'
+                    variant='ghost'
+                    onPress={() => report(member)}
                   />
                 ) : null}
               </View>

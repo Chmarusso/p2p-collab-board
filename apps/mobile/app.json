@@ -2,7 +2,7 @@
   "expo": {
     "name": "OpenCollab",
     "slug": "opencollab",
-    "version": "1.0.0",
+    "version": "1.0.5",
     "orientation": "portrait",
     "userInterfaceStyle": "automatic",
     "icon": "./assets/icon.png",
@@ -17,11 +17,13 @@
     },
     "android": {
       "package": "com.opencollab.mobile",
+      "versionCode": 1,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "monochromeImage": "./assets/adaptive-icon-monochrome.png",
         "backgroundColor": "#0A0E14"
-      }
+      },
+      "blockedPermissions": ["android.permission.SYSTEM_ALERT_WINDOW"]
     },
     "plugins": [
       "pear-runtime-react-native",
@@ -57,7 +59,8 @@
           "supportsBackgroundPlayback": false,
           "supportsPictureInPicture": false
         }
-      ]
+      ],
+      "./plugins/android-release"
     ]
   }
 }

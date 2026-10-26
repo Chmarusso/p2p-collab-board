@@ -11,6 +11,12 @@
   and staging stay manual.
 - `publish.yml` npm-publishes on any `v*` tag (what `npm version` creates) — don't
   tag unless releasing.
+- `android-release.yml`: `android-v*` tag (must equal `apps/mobile/app.json`
+  `expo.version`) or manual dispatch → signed arm64 APK on a **draft** GitHub release.
+  Signing secrets live in the `release` environment; without them the job fails
+  rather than ship a debug-signed APK. The usual path is local instead:
+  `npm run --workspace @opencollab/mobile release:android` (APK + AAB, same checks,
+  draft release). Details: `apps/mobile/README.md`.
 - Rebrand trap: CI lowercases `productName` with `tr` only, but the snap/flatpak
   makers also replace non-`[a-z0-9-]` chars — a `productName` with spaces or
   punctuation breaks the Linux jobs' artifact lookup.
