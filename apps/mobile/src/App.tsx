@@ -1037,6 +1037,13 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
             onPress={() => setEntryMode('join')}
           />
         </View>
+        <Button
+          title='Try a sample board'
+          icon='book-open'
+          variant='ghost'
+          // A private board the worker fills with cards that show the features.
+          onPress={() => send({ type: messageTypes.roomStart, invite: null, sample: true })}
+        />
         {entryError ? <Text style={styles.error}>{entryError}</Text> : null}
         {recentBoards.length > 0 ? (
           <View style={styles.section}>

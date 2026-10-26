@@ -14,6 +14,7 @@ npx opencollab --help            # after npm install (workspace bin)
 ```sh
 opencollab identity new          # prints your recovery phrase — keep it offline
 opencollab create "Team board"   # prints the invitation link
+opencollab create --sample       # or a board of sample cards that show the features
 opencollab join <invite>         # or join someone else's board
 opencollab name Alice            # display name on the current board
 opencollab avatar me.png         # avatar on the current board ("clear" removes it)

@@ -41,6 +41,7 @@ const messageTypes = Object.freeze({
   ruleUpsert: 'board:rule-upsert',
   ruleDelete: 'board:rule-delete',
   templateApply: 'board:template-apply',
+  sampleReady: 'board:sample-ready',
   cardFromTemplate: 'board:card-from-template',
   activityGet: 'board:activity',
   statsGet: 'board:stats',

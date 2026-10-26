@@ -3594,6 +3594,7 @@ document.addEventListener('keydown', (event) => {
 
 function showRoomChoice() {
   document.getElementById('room-choice').style.display = 'flex'
+  document.getElementById('room-sample-row').hidden = false
   document.getElementById('room-create-form').style.display = 'none'
   document.getElementById('room-join-form').style.display = 'none'
   recentBoards.style.display = ''
@@ -3601,6 +3602,7 @@ function showRoomChoice() {
 }
 function showRoomForm(id) {
   document.getElementById('room-choice').style.display = 'none'
+  document.getElementById('room-sample-row').hidden = true
   recentBoards.style.display = 'none'
   document.getElementById(id).style.display = 'grid'
   document.querySelector(`#${id} input`).focus()
@@ -3631,6 +3633,11 @@ document.getElementById('room-create').onclick = () => {
   }
   roomError.innerText = ''
   send({ type: 'room:start', invite: null, name })
+}
+// A private board pre-filled by the worker with cards that show the features.
+document.getElementById('room-sample').onclick = () => {
+  roomError.innerText = ''
+  send({ type: 'room:start', invite: null, sample: true })
 }
 document.getElementById('room-join').onclick = () => {
   const invite = normalizeInvite(document.getElementById('room-invite').value)

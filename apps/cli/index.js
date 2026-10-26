@@ -527,14 +527,16 @@ const boards = command(
 const create = command(
   'create',
   summary('Create a private board and print its invitation'),
-  arg('<name>', 'board name'),
+  arg('[name]', 'board name'),
+  flag('--sample', 'Fill the board with sample cards that show the features'),
   ...commonFlags(),
   action(async ({ args, flags }) => {
+    if (!args.name && !flags.sample) throw new Error('Name the board, or pass --sample.')
     await withSession(flags, async (session) => {
       const storage = storageOf(flags)
       const secret = await password()
       await session.unlock(secret)
-      const room = await session.openBoard(null, args.name)
+      const room = await session.openBoard(null, args.name, { sample: !!flags.sample })
       await store.rememberBoard(storage, secret, {
         invite: room.invite,
         name: room.boardName || args.name
