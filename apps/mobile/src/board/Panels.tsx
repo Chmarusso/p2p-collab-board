@@ -10,13 +10,12 @@ import {
   Pressable,
   ScrollView,
   StatusBar,
-  StyleSheet,
   Text,
   TextInput,
   View
 } from 'react-native'
 import { Feather } from '@expo/vector-icons'
-import { messageTypes } from '@opencollab/board-protocol'
+import { THEME_TEMPLATES, messageTypes, themeTemplate } from '@opencollab/board-protocol'
 import {
   Avatar,
   Button,
@@ -26,7 +25,10 @@ import {
   colors,
   imageKey,
   mono,
-  pickPreparedImages
+  pickPreparedImages,
+  scheme,
+  themed,
+  tint
 } from '../ui'
 import { Chip } from './CardSheet'
 import {
@@ -333,9 +335,36 @@ export function ThemeSheet({
       type: kind === 'icon' ? messageTypes.boardIconSet : messageTypes.backgroundImageSet,
       image: null
     })
+  const boardTemplate = themeTemplate(data.theme.template).id
   return (
     <Sheet title='Customize' onClose={onClose}>
       <Text style={styles.muted}>Everyone on this board sees the same theme.</Text>
+      <Text style={styles.sectionLabel}>Template</Text>
+      <View style={styles.templates}>
+        {THEME_TEMPLATES.map((template) => {
+          const palette = template[scheme]
+          const selected = boardTemplate === template.id
+          return (
+            <PressableScale
+              key={template.id}
+              style={[styles.templateTile, selected && styles.swatchSelected]}
+              // A template shows as designed: clear the custom colors.
+              onPress={() => setTheme({ template: template.id, accent: null, background: null })}
+              accessibilityRole='button'
+              accessibilityLabel={`${template.name} template`}
+              accessibilityState={{ selected }}
+            >
+              <View style={[styles.templatePreview, { backgroundColor: palette.bg }]}>
+                <View style={[styles.templateCard, { backgroundColor: palette.surface }]} />
+                <View style={[styles.templateDot, { backgroundColor: palette.accent }]} />
+              </View>
+              <Text style={styles.templateName} numberOfLines={1}>
+                {template.name}
+              </Text>
+            </PressableScale>
+          )
+        })}
+      </View>
       <Text style={styles.sectionLabel}>Board icon</Text>
       <View style={styles.rowCenter}>
         <View style={styles.iconPreview}>
@@ -423,10 +452,12 @@ export function ThemeSheet({
         />
       </View>
       <Text style={styles.sectionLabel}>Accent</Text>
+      {/* None follows the template's accent. */}
       <Swatches
+        none
         colors={ACCENTS}
-        selected={data.theme.accent || ACCENTS[0]}
-        onPick={(color) => setTheme({ accent: color === ACCENTS[0] ? null : color })}
+        selected={data.theme.accent}
+        onPick={(color) => setTheme({ accent: color })}
       />
     </Sheet>
   )
@@ -882,7 +913,7 @@ export function NotificationsSheet({
   )
 }
 
-const styles = StyleSheet.create({
+const styles = themed(() => ({
   root: {
     flex: 1,
     backgroundColor: colors.surface,
@@ -933,7 +964,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: 8
   },
-  deleteConfirm: { backgroundColor: 'rgba(255, 92, 92, 0.15)', paddingHorizontal: 8 },
+  deleteConfirm: { backgroundColor: tint(colors.error, 0.15), paddingHorizontal: 8 },
   deleteText: { color: colors.error, fontWeight: '700', fontSize: 12 },
   divider: { height: 1, backgroundColor: colors.border, marginVertical: 6 },
   swatches: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
@@ -992,6 +1023,21 @@ const styles = StyleSheet.create({
   badgeOwner: { color: colors.accent, borderColor: colors.accent },
   badgeAdmin: { color: colors.info, borderColor: colors.info },
   badgeBanned: { color: colors.error, borderColor: colors.error },
+  templates: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  templateTile: {
+    width: '31%',
+    flexGrow: 1,
+    gap: 6,
+    padding: 6,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceRaised
+  },
+  templatePreview: { height: 44, borderRadius: 6, padding: 6, justifyContent: 'space-between' },
+  templateCard: { height: 14, width: '70%', borderRadius: 3 },
+  templateDot: { width: 10, height: 10, borderRadius: 5, alignSelf: 'flex-end' },
+  templateName: { color: colors.text, fontSize: 13, fontWeight: '600', textAlign: 'center' },
   bgSwatch: { width: 54, height: 40, borderRadius: 8, borderWidth: 2, borderColor: colors.border },
   group: { gap: 8 },
   groupHead: {
@@ -1022,6 +1068,6 @@ const styles = StyleSheet.create({
   kind_mention: { color: colors.info },
   kind_assigned: { color: colors.accent },
   kind_comment: { color: colors.info },
-  kind_overdue: { color: '#f87168' },
-  'kind_due-soon': { color: '#f5cd47' }
-})
+  kind_overdue: { color: colors.danger },
+  'kind_due-soon': { color: colors.warn }
+}))

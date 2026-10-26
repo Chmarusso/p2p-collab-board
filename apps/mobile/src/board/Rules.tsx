@@ -2,10 +2,10 @@
 // or on a schedule; and the board templates that set up columns and labels.
 // The member whose device first sees the trigger runs the rule.
 import React, { useState } from 'react'
-import { Alert, Pressable, StyleSheet, Switch, Text, TextInput, View } from 'react-native'
+import { Alert, Pressable, Switch, Text, TextInput, View } from 'react-native'
 import { Feather } from '@expo/vector-icons'
 import { messageTypes } from '@opencollab/board-protocol'
-import { Button, colors, mono } from '../ui'
+import { Button, colors, mono, themed } from '../ui'
 import { Chip } from './CardSheet'
 import { Sheet } from './Panels'
 import { BoardData, BoardRule, RuleActions, RuleTrigger, assignable } from './model'
@@ -465,7 +465,7 @@ export function BoardTemplatesSheet({ send, onClose }: { send: Send; onClose: ()
   )
 }
 
-const styles = StyleSheet.create({
+const styles = themed(() => ({
   muted: { color: colors.muted, lineHeight: 20 },
   hint: { color: colors.muted, fontSize: 12 },
   error: { color: colors.error },
@@ -516,4 +516,4 @@ const styles = StyleSheet.create({
   ruleText: { color: colors.text, lineHeight: 19 },
   ruleMeta: { color: colors.muted, fontSize: 12, lineHeight: 17 },
   iconHit: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' }
-})
+}))

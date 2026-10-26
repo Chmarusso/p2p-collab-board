@@ -68,7 +68,12 @@ try {
     labelIds: [label.id]
   })
   session.send({ type: messageTypes.cardArchive, objectId: second.id, archived: true })
-  session.send({ type: messageTypes.themeSet, background: 'preset:dusk', accent: '#22aa88' })
+  session.send({
+    type: messageTypes.themeSet,
+    background: 'preset:dusk',
+    accent: '#22aa88',
+    template: 'ocean'
+  })
   session.send({ type: messageTypes.columnUpdate, columnId: 'col:doing', name: 'Doing' })
   session.send({ type: messageTypes.columnDelete, columnId: 'col:done' })
   session.send({ type: messageTypes.boardVote, objectId: first.id, value: 1 })
@@ -110,6 +115,7 @@ try {
   assert.deepEqual(board.theme, {
     background: 'preset:dusk',
     accent: '#22aa88',
+    template: 'ocean',
     backgroundImage: null
   })
   board = await until(

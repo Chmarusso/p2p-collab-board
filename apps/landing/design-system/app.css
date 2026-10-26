@@ -5,7 +5,7 @@
   --surface-raised: #141d29;
   --border: #1c2633;
   --text: #c9d4e3;
-  --muted: #6b7a90;
+  --muted: #7d8ca3;
   --accent: #39ff88;
   --accent-ink: #04110a;
   --info: #22d3ee;
@@ -13,6 +13,9 @@
   --error: #ff5c5c;
   --danger: #f87168;
   --warn: #f5cd47;
+  --scrim: rgba(3, 6, 10, 0.7);
+  --border-strong: color-mix(in srgb, var(--border), var(--muted) 35%);
+  --success: #4bce97;
   --mono: 'JetBrains Mono', 'SF Mono', ui-monospace, Menlo, monospace;
   --radius: 10px;
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
@@ -22,6 +25,10 @@
   color: var(--text);
   background: var(--bg);
 }
+/* The palette itself is set from renderer/themes.js; these follow the mode. */
+:root[data-scheme='light'] {
+  --scrim: rgba(20, 26, 36, 0.45);
+}
 /* Elements with their own display (buttons, .row) must still hide. */
 [hidden] {
   display: none !important;
@@ -30,8 +37,17 @@ body {
   margin: 0;
   min-height: 100vh;
   background:
-    radial-gradient(circle at 15% -10%, rgba(57, 255, 136, 0.07), transparent 40%),
-    radial-gradient(circle at 110% 10%, rgba(34, 211, 238, 0.06), transparent 35%), var(--bg);
+    radial-gradient(
+      circle at 15% -10%,
+      color-mix(in srgb, var(--accent) 7%, transparent),
+      transparent 40%
+    ),
+    radial-gradient(
+      circle at 110% 10%,
+      color-mix(in srgb, var(--info) 6%, transparent),
+      transparent 35%
+    ),
+    var(--bg);
 }
 .container {
   width: min(920px, 92vw);
@@ -103,7 +119,7 @@ button.secondary {
   color: var(--text);
 }
 button.secondary:hover {
-  border-color: #2b3a4d;
+  border-color: var(--border-strong);
 }
 button.ghost {
   background: transparent;
@@ -114,8 +130,8 @@ button.ghost:hover {
   color: var(--text);
 }
 button.danger {
-  background: rgba(255, 92, 92, 0.12);
-  border-color: rgba(255, 92, 92, 0.4);
+  background: color-mix(in srgb, var(--error) 12%, transparent);
+  border-color: color-mix(in srgb, var(--error) 40%, transparent);
   color: var(--error);
 }
 button.icon-only {
@@ -144,7 +160,7 @@ input:focus,
 textarea:focus {
   border-color: var(--accent);
   outline: none;
-  box-shadow: 0 0 0 3px rgba(57, 255, 136, 0.15);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent);
 }
 .card,
 .gate {
@@ -238,7 +254,7 @@ textarea:focus {
   align-items: center;
   justify-content: center;
   padding: 20px;
-  background: rgba(3, 6, 10, 0.7);
+  background: var(--scrim);
   backdrop-filter: blur(4px);
 }
 #connection-modal.open {
@@ -340,7 +356,7 @@ textarea:focus {
 }
 .status-chip.online .status-dot {
   background: var(--accent);
-  box-shadow: 0 0 8px rgba(57, 255, 136, 0.7);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 70%, transparent);
   animation: none;
 }
 #identity-label {
@@ -490,7 +506,7 @@ body.board-open .container {
   text-align: left;
 }
 .kanban-card:hover {
-  border-color: #2b3a4d;
+  border-color: var(--border-strong);
 }
 /* Subtle on purpose: cards are pressed tens of times a day. */
 .kanban-card {
@@ -598,7 +614,7 @@ select {
   justify-content: center;
   padding: 48px 20px;
   overflow-y: auto;
-  background: rgba(3, 6, 10, 0.7);
+  background: var(--scrim);
   backdrop-filter: blur(4px);
 }
 #card-modal.open {
@@ -796,12 +812,12 @@ select {
 .mention {
   padding: 0 4px;
   border-radius: 5px;
-  background: rgba(34, 211, 238, 0.14);
+  background: color-mix(in srgb, var(--info) 14%, transparent);
   color: var(--info);
   font-weight: 600;
 }
 .mention.mention-me {
-  background: rgba(57, 255, 136, 0.16);
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
   color: var(--accent);
 }
 .mention-menu {
@@ -845,7 +861,7 @@ select {
   align-items: flex-start;
   justify-content: center;
   padding: 48px 20px;
-  background: rgba(3, 6, 10, 0.7);
+  background: var(--scrim);
   backdrop-filter: blur(4px);
 }
 #notifications-modal.open {
@@ -991,12 +1007,12 @@ select {
   font-family: var(--mono);
 }
 .due-button.soon {
-  border-color: rgba(245, 205, 71, 0.5);
-  color: #f5cd47;
+  border-color: color-mix(in srgb, var(--warn) 50%, transparent);
+  color: var(--warn);
 }
 .due-button.overdue {
-  border-color: rgba(248, 113, 104, 0.5);
-  color: #f87168;
+  border-color: color-mix(in srgb, var(--danger) 50%, transparent);
+  color: var(--danger);
 }
 .due-popover {
   position: absolute;
@@ -1096,7 +1112,7 @@ select {
   align-items: flex-start;
   justify-content: center;
   padding: 48px 20px;
-  background: rgba(3, 6, 10, 0.7);
+  background: var(--scrim);
   backdrop-filter: blur(4px);
 }
 #labels-modal.open,
@@ -1283,12 +1299,12 @@ button.danger {
   color: var(--muted);
 }
 .due-badge.soon {
-  background: rgba(245, 205, 71, 0.16);
-  color: #f5cd47;
+  background: color-mix(in srgb, var(--warn) 16%, transparent);
+  color: var(--warn);
 }
 .due-badge.overdue {
-  background: rgba(248, 113, 104, 0.18);
-  color: #f87168;
+  background: color-mix(in srgb, var(--danger) 18%, transparent);
+  color: var(--danger);
 }
 .filter-group {
   display: grid;
@@ -1320,8 +1336,71 @@ body.board-open .topbar .prompt,
 body.board-open .new-object-bar .section-label {
   color: var(--board-ink, inherit);
 }
+body.board-open.themed .new-object-bar > .row > button.ghost {
+  color: var(--board-ink, var(--muted));
+}
 #theme-panel {
   margin-bottom: 14px;
+}
+.template-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+  gap: 8px;
+}
+.template-tile {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  padding: 6px 6px 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+}
+.template-tile[aria-pressed='true'] {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.template-preview {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  height: 42px;
+  padding: 5px;
+  border-radius: 6px;
+  background: var(--tile-bg);
+  border: 1px solid var(--tile-border);
+}
+.template-preview span {
+  border-radius: 3px;
+  background: var(--tile-surface);
+}
+.template-preview span:first-child {
+  grid-row: span 2;
+  box-shadow: inset 0 3px 0 var(--tile-accent);
+}
+.template-preview span:last-child {
+  background: var(--tile-accent);
+}
+.device-theme {
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.device-theme-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+}
+.device-template {
+  display: flex;
+  white-space: nowrap;
+  align-items: center;
+  gap: 8px;
+}
+.device-template select {
+  width: auto;
 }
 .swatch.background {
   width: 52px;
@@ -1461,10 +1540,10 @@ body.board-open .new-object-bar .section-label {
   color: var(--info);
 }
 .alert-kind.overdue {
-  color: #f87168;
+  color: var(--danger);
 }
 .alert-kind.due-soon {
-  color: #f5cd47;
+  color: var(--warn);
 }
 .notifications-empty {
   padding: 18px;
@@ -1855,7 +1934,7 @@ body.board-open .new-object-bar .section-label {
   padding: 1px;
   border-radius: 999px;
   background: var(--accent);
-  box-shadow: 0 0 0 3px rgba(57, 255, 136, 0.18);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
 }
 .card-viewers .stack-face {
   width: 16px;
@@ -2242,7 +2321,7 @@ body.board-open .new-object-bar .section-label {
   font-size: 13px;
 }
 .poker-card:hover {
-  border-color: #2b3a4d;
+  border-color: var(--border-strong);
 }
 .poker-card.on {
   border-color: var(--accent);
@@ -2674,7 +2753,7 @@ body.board-open .new-object-bar .section-label {
   justify-content: center;
   padding: 48px 20px;
   overflow-y: auto;
-  background: rgba(3, 6, 10, 0.7);
+  background: var(--scrim);
   backdrop-filter: blur(4px);
 }
 .overlay.open {
@@ -2759,8 +2838,8 @@ body.board-open .new-object-bar .section-label {
 }
 .swatch-dot.created,
 .chart-created {
-  background: #4a5a70;
-  fill: #4a5a70;
+  background: color-mix(in srgb, var(--muted) 70%, var(--bg));
+  fill: color-mix(in srgb, var(--muted) 70%, var(--bg));
 }
 .throughput-chart {
   width: 100%;
@@ -2780,7 +2859,7 @@ body.board-open .new-object-bar .section-label {
   fill: transparent;
 }
 .chart-hit:hover {
-  fill: rgba(255, 255, 255, 0.04);
+  fill: color-mix(in srgb, var(--text) 5%, transparent);
 }
 .hbars {
   display: grid;

@@ -1,6 +1,7 @@
 const board = require('./board')
 const alerts = require('./alerts')
 const activity = require('./activity')
+const themes = require('./themes')
 
 const messageTypes = Object.freeze({
   identityLoad: 'identity:load',
@@ -86,5 +87,6 @@ module.exports = {
   inviteLink,
   ...board,
   ...alerts,
-  ...activity
+  ...activity,
+  ...themes
 }

@@ -2,7 +2,7 @@
 // planning-poker estimates. CardSheet wraps each in its own titled section;
 // changes go straight to the worker and come back in board-state.
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import { Animated, Pressable, StyleSheet, Text, TextInput, View } from 'react-native'
+import { Animated, Pressable, Text, TextInput, View } from 'react-native'
 import { Feather } from '@expo/vector-icons'
 import { REACTIONS, messageTypes } from '@opencollab/board-protocol'
 import {
@@ -14,7 +14,9 @@ import {
   colors,
   easeOut,
   mono,
-  reduceMotion
+  reduceMotion,
+  themed,
+  tint
 } from '../ui'
 import { Chip } from './CardSheet'
 import {
@@ -710,7 +712,7 @@ function RevealValue({ index, children }: { index: number; children: React.React
   )
 }
 
-const styles = StyleSheet.create({
+const styles = themed(() => ({
   flex: { flex: 1 },
   gap: { gap: 8 },
   wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, alignItems: 'center' },
@@ -731,7 +733,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: colors.surfaceRaised
   },
-  barDone: { backgroundColor: '#4bce97' },
+  barDone: { backgroundColor: colors.success },
   progressRow: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 28 },
   stack: { flexDirection: 'row', alignItems: 'center' },
   stackItem: { borderWidth: 1.5, borderColor: colors.surfaceRaised, overflow: 'hidden' },
@@ -751,7 +753,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center'
   },
   reactionCompact: { minHeight: 30, paddingHorizontal: 7 },
-  reactionMine: { borderColor: colors.accent, backgroundColor: 'rgba(57, 255, 136, 0.12)' },
+  reactionMine: { borderColor: colors.accent, backgroundColor: tint(colors.accent, 0.12) },
   emoji: { fontSize: 15 },
   count: { color: colors.muted, fontFamily: mono, fontSize: 12 },
   countMine: { color: colors.accent, fontWeight: '700' },
@@ -833,7 +835,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
     textTransform: 'uppercase'
   },
-  linkBlocked: { color: '#f87168' },
+  linkBlocked: { color: colors.danger },
   linkTitle: { color: colors.text, fontSize: 14, fontWeight: '600' },
   panel: {
     gap: 8,
@@ -869,4 +871,4 @@ const styles = StyleSheet.create({
   vote: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   voteName: { flex: 1, color: colors.text, fontSize: 13 },
   voteValue: { color: colors.text, fontFamily: mono, fontSize: 14, fontWeight: '700' }
-})
+}))

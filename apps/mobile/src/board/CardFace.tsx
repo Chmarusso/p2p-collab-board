@@ -1,10 +1,20 @@
 // A card as it sits in a column or the agenda: cover, labels, title and the
 // small facts that tell what state it is in without opening it.
 import React, { useEffect } from 'react'
-import { Image, Pressable, StyleSheet, Text, View } from 'react-native'
+import { Image, Pressable, Text, View } from 'react-native'
 import { Feather } from '@expo/vector-icons'
 import { REACTIONS } from '@opencollab/board-protocol'
-import { CachedImage, ImageRef, PressableScale, colors, imageKey, mono } from '../ui'
+import {
+  CachedImage,
+  ImageRef,
+  PressableScale,
+  colors,
+  imageKey,
+  mono,
+  themed,
+  tint,
+  mix
+} from '../ui'
 import { AvatarStack, ProgressBar } from './CardExtras'
 import {
   BoardData,
@@ -100,7 +110,7 @@ export function CardFace({
         <View style={styles.labels}>
           {blocked ? (
             <View style={styles.blockedBadge}>
-              <Feather name='slash' size={10} color='#f87168' />
+              <Feather name='slash' size={10} color={colors.danger} />
               <Text style={styles.blockedText}>Blocked</Text>
             </View>
           ) : null}
@@ -128,7 +138,7 @@ export function CardFace({
           <Feather
             name='check-square'
             size={12}
-            color={checklist.done === checklist.total ? '#4bce97' : colors.muted}
+            color={checklist.done === checklist.total ? colors.success : colors.muted}
           />
           <Text style={styles.metaMono}>
             {checklist.done}/{checklist.total}
@@ -152,9 +162,9 @@ export function CardFace({
               size={11}
               color={
                 due.status === 'overdue'
-                  ? '#f87168'
+                  ? colors.danger
                   : due.status === 'soon'
-                    ? '#f5cd47'
+                    ? colors.warn
                     : colors.muted
               }
             />
@@ -225,7 +235,7 @@ function Meta({
   )
 }
 
-const styles = StyleSheet.create({
+const styles = themed(() => ({
   flex: { flex: 1 },
   fill: { width: '100%', height: '100%' },
   card: {
@@ -240,7 +250,7 @@ const styles = StyleSheet.create({
   archived: { opacity: 0.55, borderStyle: 'dashed' },
   // Aging sinks the card toward the column instead of fading its text, so it
   // stays readable. It is static: Reduce Motion has nothing to turn off.
-  stale: { backgroundColor: '#121a25' },
+  stale: { backgroundColor: mix(colors.surfaceRaised, colors.surface, 0.5) },
   old: { backgroundColor: colors.surface, borderStyle: 'dashed' },
   blockedStrip: {
     position: 'absolute',
@@ -249,7 +259,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     width: 3,
     zIndex: 1,
-    backgroundColor: '#f87168'
+    backgroundColor: colors.danger
   },
   cover: {
     height: 120,
@@ -290,9 +300,9 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     paddingHorizontal: 5,
     paddingVertical: 1,
-    backgroundColor: 'rgba(248, 113, 104, 0.18)'
+    backgroundColor: tint(colors.danger, 0.18)
   },
-  blockedText: { color: '#f87168', fontSize: 11, fontWeight: '700' },
+  blockedText: { color: colors.danger, fontSize: 11, fontWeight: '700' },
   cardTitle: { color: colors.text, fontWeight: '600', fontSize: 15, lineHeight: 20 },
   checklist: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   cardMeta: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 10 },
@@ -304,7 +314,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     borderWidth: 1,
-    borderColor: 'rgba(34, 211, 238, 0.4)',
+    borderColor: tint(colors.info, 0.4),
     borderRadius: 4,
     paddingHorizontal: 4,
     overflow: 'hidden'
@@ -317,10 +327,10 @@ const styles = StyleSheet.create({
     paddingVertical: 1,
     borderRadius: 4
   },
-  dueSoon: { backgroundColor: 'rgba(245, 205, 71, 0.16)' },
-  dueOverdue: { backgroundColor: 'rgba(248, 113, 104, 0.18)' },
-  soonText: { color: '#f5cd47' },
-  overdueText: { color: '#f87168' },
+  dueSoon: { backgroundColor: tint(colors.warn, 0.16) },
+  dueOverdue: { backgroundColor: tint(colors.danger, 0.18) },
+  soonText: { color: colors.warn },
+  overdueText: { color: colors.danger },
   mentioned: { color: colors.accent, fontWeight: '800', fontSize: 12 },
   assignees: { marginLeft: 'auto' }
-})
+}))

@@ -2,10 +2,10 @@
 // the feed from the board's log on request; it is asked again whenever the
 // board changes while the list is on screen.
 import React, { useEffect, useRef, useState } from 'react'
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native'
+import { FlatList, Pressable, Text, View } from 'react-native'
 import { Feather } from '@expo/vector-icons'
 import { messageTypes } from '@opencollab/board-protocol'
-import { Avatar, CachedImage, FeatherName, ImageRef, colors, mono } from '../ui'
+import { Avatar, CachedImage, FeatherName, ImageRef, colors, mono, themed } from '../ui'
 import { Sheet } from './Panels'
 import { ActivityEntry, BoardData, avatarOf, requestId, timeAgo } from './model'
 
@@ -197,7 +197,7 @@ export function ActivitySheet(props: {
   )
 }
 
-const styles = StyleSheet.create({
+const styles = themed(() => ({
   flex: { flex: 1 },
   list: { gap: 4 },
   feed: { paddingHorizontal: 20, paddingBottom: 60 },
@@ -229,4 +229,4 @@ const styles = StyleSheet.create({
   cardTitle: { color: colors.muted },
   more: { color: colors.muted, fontSize: 13, marginTop: 2 },
   time: { color: colors.muted, fontFamily: mono, fontSize: 11, marginTop: 2 }
-})
+}))

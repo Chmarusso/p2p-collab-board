@@ -3,7 +3,7 @@
 import React from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import { messageTypes } from '@opencollab/board-protocol'
-import { colors, mono } from '../ui'
+import { colors, mono, themed, mix } from '../ui'
 import { useWorkerReply } from './Activity'
 import { Sheet } from './Panels'
 import { BoardData, BoardStats, formatDuration, wipState } from './model'
@@ -11,8 +11,6 @@ import { BoardData, BoardStats, formatDuration, wipState } from './model'
 type WorkerMessage = { type: string; [key: string]: any }
 
 const CHART_HEIGHT = 120
-// The "created" series: quieter than done, but visible on the dark surface.
-const CREATED = '#4a5a70'
 
 export function StatsSheet({
   data,
@@ -161,7 +159,7 @@ function StatsBody({
                   {
                     width: `${Math.min(100, (column.count / columnPeak) * 100)}%`,
                     backgroundColor:
-                      state === 'over' ? '#f87168' : state === 'full' ? '#f5cd47' : accent
+                      state === 'over' ? colors.danger : state === 'full' ? colors.warn : accent
                   }
                 ]}
               />
@@ -216,87 +214,91 @@ function Tile({ label, value, warn }: { label: string; value: number | string; w
   )
 }
 
-const styles = StyleSheet.create({
-  flex: { flex: 1 },
-  muted: { color: colors.muted, fontSize: 13 },
-  text: { color: colors.text },
-  center: { textAlign: 'center', paddingVertical: 24 },
-  mono: { color: colors.text, fontFamily: mono, fontSize: 12 },
-  over: { color: '#f87168' },
-  full: { color: '#f5cd47' },
-  sectionLabel: {
-    color: colors.muted,
-    fontFamily: mono,
-    fontSize: 11,
-    letterSpacing: 1,
-    textTransform: 'uppercase',
-    marginTop: 10
-  },
-  tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  tile: {
-    flexGrow: 1,
-    flexBasis: '30%',
-    gap: 2,
-    padding: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: colors.border,
-    backgroundColor: colors.surfaceRaised
-  },
-  tileValue: { color: colors.text, fontFamily: mono, fontSize: 20, fontWeight: '700' },
-  tileLabel: { color: colors.muted, fontSize: 12 },
-  legend: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  key: { width: 10, height: 10, borderRadius: 2, marginLeft: 4 },
-  keyCreated: { backgroundColor: CREATED },
-  chart: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 6,
-    paddingTop: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border
-  },
-  week: { flex: 1, alignItems: 'center', gap: 4 },
-  bars: {
-    height: CHART_HEIGHT,
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 2
-  },
-  bar: { width: 9, minHeight: 1, borderTopLeftRadius: 3, borderTopRightRadius: 3 },
-  barCreated: { backgroundColor: CREATED },
-  barValue: { color: colors.text, fontFamily: mono, fontSize: 11, minHeight: 14 },
-  // Centred over the 9pt done bar.
-  barValueAbove: { position: 'absolute', left: -16, width: 41, textAlign: 'center' },
-  axis: { color: colors.muted, fontFamily: mono, fontSize: 11, marginBottom: 4 },
-  columnRow: { gap: 6 },
-  columnHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  columnName: { flex: 1, color: colors.text, fontWeight: '600' },
-  track: { height: 8, borderRadius: 4, backgroundColor: colors.border },
-  fill: { height: 8, borderRadius: 4 },
-  limit: {
-    position: 'absolute',
-    top: -3,
-    width: 2,
-    height: 14,
-    marginLeft: -1,
-    backgroundColor: colors.text
-  },
-  table: {
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: colors.border,
-    overflow: 'hidden'
-  },
-  tableRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 12,
-    minHeight: 40,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.border
-  },
-  cell: { width: 64, textAlign: 'right' },
-  nameCell: { flex: 1, width: 'auto', textAlign: 'left' }
+const styles = themed(() => {
+  // The neutral "created" series, between muted text and the card surface.
+  const created = mix(colors.muted, colors.surface, 0.45)
+  return {
+    flex: { flex: 1 },
+    muted: { color: colors.muted, fontSize: 13 },
+    text: { color: colors.text },
+    center: { textAlign: 'center', paddingVertical: 24 },
+    mono: { color: colors.text, fontFamily: mono, fontSize: 12 },
+    over: { color: colors.danger },
+    full: { color: colors.warn },
+    sectionLabel: {
+      color: colors.muted,
+      fontFamily: mono,
+      fontSize: 11,
+      letterSpacing: 1,
+      textTransform: 'uppercase',
+      marginTop: 10
+    },
+    tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+    tile: {
+      flexGrow: 1,
+      flexBasis: '30%',
+      gap: 2,
+      padding: 12,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.surfaceRaised
+    },
+    tileValue: { color: colors.text, fontFamily: mono, fontSize: 20, fontWeight: '700' },
+    tileLabel: { color: colors.muted, fontSize: 12 },
+    legend: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+    key: { width: 10, height: 10, borderRadius: 2, marginLeft: 4 },
+    keyCreated: { backgroundColor: created },
+    chart: {
+      flexDirection: 'row',
+      alignItems: 'flex-end',
+      gap: 6,
+      paddingTop: 8,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border
+    },
+    week: { flex: 1, alignItems: 'center', gap: 4 },
+    bars: {
+      height: CHART_HEIGHT,
+      flexDirection: 'row',
+      alignItems: 'flex-end',
+      gap: 2
+    },
+    bar: { width: 9, minHeight: 1, borderTopLeftRadius: 3, borderTopRightRadius: 3 },
+    barCreated: { backgroundColor: created },
+    barValue: { color: colors.text, fontFamily: mono, fontSize: 11, minHeight: 14 },
+    // Centred over the 9pt done bar.
+    barValueAbove: { position: 'absolute', left: -16, width: 41, textAlign: 'center' },
+    axis: { color: colors.muted, fontFamily: mono, fontSize: 11, marginBottom: 4 },
+    columnRow: { gap: 6 },
+    columnHead: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    columnName: { flex: 1, color: colors.text, fontWeight: '600' },
+    track: { height: 8, borderRadius: 4, backgroundColor: colors.border },
+    fill: { height: 8, borderRadius: 4 },
+    limit: {
+      position: 'absolute',
+      top: -3,
+      width: 2,
+      height: 14,
+      marginLeft: -1,
+      backgroundColor: colors.text
+    },
+    table: {
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      overflow: 'hidden'
+    },
+    tableRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      paddingHorizontal: 12,
+      minHeight: 40,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      borderTopColor: colors.border
+    },
+    cell: { width: 64, textAlign: 'right' },
+    nameCell: { flex: 1, width: 'auto', textAlign: 'left' }
+  }
 })

@@ -2,9 +2,9 @@
 // keeps the lists current with the notification checks, so boards that aren't
 // open show up too.
 import React from 'react'
-import { Pressable, StyleSheet, Text, View } from 'react-native'
+import { Pressable, Text, View } from 'react-native'
 import { Feather } from '@expo/vector-icons'
-import { PressableScale, colors, mono } from '../ui'
+import { PressableScale, colors, mono, themed } from '../ui'
 import { ProgressBar } from './CardExtras'
 import { Sheet } from './Panels'
 import { AlertBoard, MyCard, dueInfo } from './model'
@@ -96,7 +96,7 @@ export function MyWorkSheet({
   )
 }
 
-const styles = StyleSheet.create({
+const styles = themed(() => ({
   flex: { flex: 1 },
   muted: { color: colors.muted, lineHeight: 20, textAlign: 'center' },
   empty: { alignItems: 'center', gap: 8, paddingVertical: 32 },
@@ -116,6 +116,6 @@ const styles = StyleSheet.create({
   title: { color: colors.text, fontWeight: '600', fontSize: 15, lineHeight: 20 },
   meta: { flexDirection: 'row', alignItems: 'center', gap: 10, flexWrap: 'wrap' },
   mono: { color: colors.muted, fontFamily: mono, fontSize: 12 },
-  overdue: { color: '#f87168' },
-  soon: { color: '#f5cd47' }
-})
+  overdue: { color: colors.danger },
+  soon: { color: colors.warn }
+}))

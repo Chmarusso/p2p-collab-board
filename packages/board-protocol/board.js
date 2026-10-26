@@ -3,6 +3,7 @@
 // broadcasts arrive whenever), so every mutable field is last-writer-wins on a
 // stamp taken from the signed payload: (ts, author identity, payload JSON).
 // Same ops in, same board out, on every peer.
+const { isTemplateId } = require('./themes')
 
 const DEFAULT_COLUMNS = Object.freeze([
   { id: 'col:new', name: 'New', position: 'H' },
@@ -471,6 +472,9 @@ function deriveBoard(
       if (payload.accent === null || isColor(payload.accent)) {
         assign(theme, 'accent', payload.accent, stamp)
       }
+      if (payload.template === null || isTemplateId(payload.template)) {
+        assign(theme, 'template', payload.template, stamp)
+      }
       const backgroundImage =
         payload.backgroundImage === undefined ? undefined : imageRef(payload.backgroundImage)
       if (backgroundImage !== undefined) assign(theme, 'backgroundImage', backgroundImage, stamp)
@@ -724,6 +728,7 @@ function deriveBoard(
     theme: {
       background: read(theme, 'background', null),
       accent: read(theme, 'accent', null),
+      template: read(theme, 'template', null),
       backgroundImage: read(theme, 'backgroundImage', null)
     },
     info: { description: read(info, 'description', ''), icon: read(info, 'icon', null) },

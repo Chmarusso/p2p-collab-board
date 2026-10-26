@@ -2,11 +2,11 @@
 // plays here with the system controls. Videos have no thumbnail, so each shows
 // as a tile with its name and size.
 import React, { useEffect, useRef, useState } from 'react'
-import { ActivityIndicator, Alert, Modal, Pressable, StyleSheet, Text, View } from 'react-native'
+import { ActivityIndicator, Alert, Modal, Pressable, Text, View } from 'react-native'
 import { Feather } from '@expo/vector-icons'
 import { VideoView, useVideoPlayer } from 'expo-video'
 import { messageTypes } from '@opencollab/board-protocol'
-import { ImageRef, colors, imageKey, mono } from '../ui'
+import { ImageRef, colors, imageKey, mono, themed } from '../ui'
 
 type WorkerMessage = { type: string; [key: string]: any }
 
@@ -118,7 +118,7 @@ function VideoModal({ path, onClose }: { path: string; onClose: () => void }) {
   )
 }
 
-const styles = StyleSheet.create({
+const styles = themed(() => ({
   tiles: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   tile: {
     flexGrow: 1,
@@ -149,4 +149,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center'
   }
-})
+}))

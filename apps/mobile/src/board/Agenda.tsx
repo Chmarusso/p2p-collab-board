@@ -2,11 +2,9 @@
 // already in the last column are done and left out. It is the screen's own
 // scroller, with the board header on top, so long boards stay virtualized.
 import React, { useState } from 'react'
-import { Pressable, SectionList, StyleSheet, Text, View } from 'react-native'
-import { colors, mono } from '../ui'
+import { Pressable, SectionList, Text, View } from 'react-native'
+import { colors, mono, themed } from '../ui'
 import { Card, agenda } from './model'
-
-const GROUP_COLORS: Record<string, string> = { Overdue: '#f87168', Today: '#f5cd47' }
 
 export function Agenda({
   cards,
@@ -42,7 +40,7 @@ export function Agenda({
       renderSectionHeader={({ section }) => (
         <View style={styles.head}>
           <Text
-            style={[styles.name, { color: GROUP_COLORS[section.name] || colors.text }]}
+            style={[styles.name, { color: groupColor(section.name) }]}
             accessibilityRole='header'
           >
             {section.name}
@@ -65,7 +63,10 @@ export function Agenda({
   )
 }
 
-const styles = StyleSheet.create({
+const groupColor = (name: string) =>
+  name === 'Overdue' ? colors.danger : name === 'Today' ? colors.warn : colors.text
+
+const styles = themed(() => ({
   page: { paddingTop: 64, paddingBottom: 120 },
   header: { marginBottom: 6 },
   empty: { color: colors.muted, textAlign: 'center', paddingVertical: 32, paddingHorizontal: 24 },
@@ -82,4 +83,4 @@ const styles = StyleSheet.create({
   toggle: { marginLeft: 'auto' },
   link: { color: colors.info, fontWeight: '600', fontSize: 14 },
   item: { paddingHorizontal: 16, paddingBottom: 8 }
-})
+}))

@@ -18,7 +18,18 @@ import {
 } from 'react-native'
 import { Feather } from '@expo/vector-icons'
 import { messageTypes } from '@opencollab/board-protocol'
-import { Avatar, Button, CachedImage, FadeIn, ImageRef, PressableScale, colors, mono } from '../ui'
+import {
+  Avatar,
+  Button,
+  CachedImage,
+  FadeIn,
+  ImageRef,
+  PressableScale,
+  colors,
+  mono,
+  themed,
+  tint
+} from '../ui'
 import { SoundName } from '../sounds'
 import { ActivitySheet } from './Activity'
 import { Agenda } from './Agenda'
@@ -900,7 +911,7 @@ function MenuRow({
   )
 }
 
-const styles = StyleSheet.create({
+const styles = themed(() => ({
   root: { flex: 1, backgroundColor: colors.bg },
   fill: { width: '100%', height: '100%' },
   page: { paddingTop: 64, paddingBottom: 120, gap: 12 },
@@ -917,7 +928,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1,
     borderColor: colors.error,
-    backgroundColor: 'rgba(255, 92, 92, 0.12)'
+    backgroundColor: tint(colors.error, 0.12)
   },
   bannedText: { color: colors.text, flex: 1, lineHeight: 19 },
   title: { flex: 1, fontSize: 26, fontWeight: '700', color: colors.text },
@@ -996,10 +1007,10 @@ const styles = StyleSheet.create({
   columnName: { flex: 1, color: colors.text, fontWeight: '700', fontSize: 15 },
   columnCount: { color: colors.muted, fontFamily: mono, fontSize: 12 },
   columnPoints: { color: colors.info, fontFamily: mono, fontSize: 11 },
-  columnOver: { borderColor: 'rgba(248, 113, 104, 0.6)' },
+  columnOver: { borderColor: tint(colors.danger, 0.6) },
   wipBadge: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: 999, overflow: 'hidden' },
-  wipFull: { color: '#f5cd47', backgroundColor: 'rgba(245, 205, 71, 0.16)' },
-  wipOver: { color: '#f87168', backgroundColor: 'rgba(248, 113, 104, 0.18)', fontWeight: '700' },
+  wipFull: { color: colors.warn, backgroundColor: tint(colors.warn, 0.16) },
+  wipOver: { color: colors.danger, backgroundColor: tint(colors.danger, 0.18), fontWeight: '700' },
   online: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 16 },
   onlineDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.accent },
   onlineText: { color: colors.muted, fontSize: 13, flexShrink: 1 },
@@ -1089,10 +1100,10 @@ const styles = StyleSheet.create({
     paddingVertical: 1,
     borderRadius: 4
   },
-  dueSoon: { backgroundColor: 'rgba(245, 205, 71, 0.16)' },
-  dueOverdue: { backgroundColor: 'rgba(248, 113, 104, 0.18)' },
-  soonText: { color: '#f5cd47' },
-  overdueText: { color: '#f87168' },
+  dueSoon: { backgroundColor: tint(colors.warn, 0.16) },
+  dueOverdue: { backgroundColor: tint(colors.danger, 0.18) },
+  soonText: { color: colors.warn },
+  overdueText: { color: colors.danger },
   mentioned: { color: colors.accent, fontWeight: '800', fontSize: 12 },
   addRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   addInput: {
@@ -1134,4 +1145,4 @@ const styles = StyleSheet.create({
   },
   descriptionScroll: { flexGrow: 0 },
   row: { flexDirection: 'row', gap: 10 }
-})
+}))

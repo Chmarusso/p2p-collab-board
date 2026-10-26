@@ -82,8 +82,32 @@ export type MediaRef = {
 export type BoardTheme = {
   background: string | null
   accent: string | null
+  template: string | null
   backgroundImage: MediaRef | null
 }
+export type ThemeMode = 'system' | 'light' | 'dark'
+export type ThemePalette = {
+  bg: string
+  surface: string
+  surfaceRaised: string
+  border: string
+  text: string
+  muted: string
+  accent: string
+  accentInk: string
+  info: string
+  magenta: string
+  error: string
+  danger: string
+  warn: string
+  success: string
+}
+export type ThemeTemplate = { id: string; name: string; dark: ThemePalette; light: ThemePalette }
+export declare const DEFAULT_TEMPLATE: string
+export declare const THEME_TEMPLATES: readonly ThemeTemplate[]
+export declare const THEME_MODES: readonly ThemeMode[]
+export declare function isTemplateId(value: unknown): value is string
+export declare function themeTemplate(id: string | null | undefined): ThemeTemplate
 export type BoardInfo = { description: string; icon: MediaRef | null }
 export type MemberRole = 'owner' | 'admin' | 'member'
 export type BoardMember = {

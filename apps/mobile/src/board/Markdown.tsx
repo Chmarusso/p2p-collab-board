@@ -4,9 +4,9 @@
 // and only http(s)/mailto links open. `![alt](image:<key>)` shows one of the
 // card's own encrypted attachments, the same convention as on desktop.
 import React, { useEffect } from 'react'
-import { Image, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native'
+import { Image, Linking, Pressable, ScrollView, Text, View } from 'react-native'
 import { Lexer, type Token, type Tokens } from 'marked'
-import { CachedImage, ImageRef, colors, imageKey, mono } from '../ui'
+import { CachedImage, ImageRef, colors, imageKey, mono, themed } from '../ui'
 
 export type Mention = { identity: string; name: string }
 
@@ -269,7 +269,7 @@ function withMentions(text: string, props: Props, key: string): React.ReactNode 
   return <Text key={key}>{parts}</Text>
 }
 
-const styles = StyleSheet.create({
+const styles = themed(() => ({
   block: { gap: 8 },
   flex: { flex: 1 },
   fill: { width: '100%', height: '100%' },
@@ -311,4 +311,4 @@ const styles = StyleSheet.create({
   missing: { color: colors.muted, fontSize: 13 },
   mention: { color: colors.info, fontWeight: '600' },
   mentionMe: { color: colors.accent, fontWeight: '700' }
-})
+}))

@@ -3,6 +3,7 @@ import { escape, relativeTime, isoDay } from './util.js'
 import { celebrate } from './confetti.js'
 import { renderStats } from './stats.js'
 import { renderTable, renderCalendar } from './views.js'
+import { THEME_TEMPLATES, THEME_MODES, themeTemplate } from './themes.js'
 
 const bridge = window.bridge
 const normalizeInvite = (value) => {
@@ -37,7 +38,7 @@ let peerCount = 0
 let objects = []
 let columns = []
 let labels = []
-let theme = { background: null, accent: null, backgroundImage: null }
+let theme = { background: null, accent: null, template: null, backgroundImage: null }
 let boardInfo = { description: '', icon: null }
 // Moderation: the owner (board creator) and every member with role and ban.
 let boardOwner = null
@@ -303,7 +304,7 @@ function resetBoardUi() {
   renderDescription()
   renderBoardIcon()
   colorPickerColumn = null
-  theme = { background: null, accent: null, backgroundImage: null }
+  theme = { background: null, accent: null, template: null, backgroundImage: null }
   boardOwner = null
   members = []
   closeMembers()
@@ -338,12 +339,57 @@ function luminance(hex) {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b
 }
 
+// Look and feel on this device: light or dark mode, and a template that can
+// override the board's. Kept in localStorage, like the notification sound.
+const THEME_MODE_KEY = 'opencollab.theme-mode'
+const THEME_OVERRIDE_KEY = 'opencollab.theme-override'
+const darkQuery = window.matchMedia('(prefers-color-scheme: dark)')
+// Palette keys map to CSS variables by name: surfaceRaised → --surface-raised.
+const cssVar = (key) => `--${key.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`)}`
+
+function deviceSetting(key, fallback) {
+  try {
+    return localStorage.getItem(key) || fallback
+  } catch {
+    return fallback
+  }
+}
+function saveDeviceSetting(key, value) {
+  try {
+    localStorage.setItem(key, value)
+  } catch {}
+}
+
+// Dark until the user picks System or Light, so the default look stays put.
+let themeMode = deviceSetting(THEME_MODE_KEY, 'dark')
+if (!THEME_MODES.includes(themeMode)) themeMode = 'dark'
+let themeOverride = deviceSetting(THEME_OVERRIDE_KEY, '')
+const colorScheme = () =>
+  themeMode === 'system' ? (darkQuery.matches ? 'dark' : 'light') : themeMode
+// This device's template, else the open board's, else the default.
+const activeTemplate = (open = true) =>
+  themeTemplate(themeOverride || (open ? theme.template : null))
+darkQuery.addEventListener('change', () => {
+  if (themeMode === 'system') applyTheme()
+})
+
 // Theme values are validated by the worker: a preset id or #rrggbb.
 function applyTheme() {
   const root = document.documentElement
   const open = document.body.classList.contains('board-open')
+  const scheme = colorScheme()
   const background = open ? theme.background : null
   const accent = open ? theme.accent : null
+  // The board's custom accent goes into the palette, so each variable is
+  // written once and stays put across board updates.
+  const palette = { ...activeTemplate(open)[scheme] }
+  if (accent) {
+    palette.accent = accent
+    palette.accentInk = luminance(accent) > 0.4 ? '#04110a' : '#ffffff'
+  }
+  for (const [key, value] of Object.entries(palette)) root.style.setProperty(cssVar(key), value)
+  root.style.colorScheme = scheme
+  root.dataset.scheme = scheme
   // A background image sits on top of the color, dimmed so text stays readable.
   const image =
     open && theme.backgroundImage ? imageCache.get(imageKey(theme.backgroundImage)) : null
@@ -359,24 +405,42 @@ function applyTheme() {
   } else if (background) root.style.setProperty('--board-bg', base)
   else root.style.removeProperty('--board-bg')
   document.body.classList.toggle('themed', !!background || !!image?.url)
-  // Text sitting on a light custom background turns dark.
-  if (!image?.url && background?.startsWith('#') && luminance(background) > 0.35) {
-    root.style.setProperty('--board-ink', '#0b0f14')
+  // Text on the board canvas follows the background, not the mode: dark on a
+  // light custom colour, light on presets and images (which are all dark).
+  const lightCanvas = !image?.url && background?.startsWith('#') && luminance(background) > 0.35
+  if (lightCanvas) root.style.setProperty('--board-ink', '#0b0f14')
+  else if (scheme === 'light' && (background || image?.url)) {
+    root.style.setProperty('--board-ink', '#eef2f7')
   } else root.style.removeProperty('--board-ink')
-  if (accent) {
-    root.style.setProperty('--accent', accent)
-    root.style.setProperty('--accent-ink', luminance(accent) > 0.4 ? '#04110a' : '#ffffff')
-  } else {
-    root.style.removeProperty('--accent')
-    root.style.removeProperty('--accent-ink')
-  }
 }
 
 function setTheme(change) {
   send({ type: 'board:theme-set', ...change })
 }
 
+// One tile per template, previewed in the current mode.
+function templateTile(template, pressed) {
+  const colors = template[colorScheme()]
+  return `<button type="button" class="template-tile" data-template="${template.id}" aria-pressed="${pressed}" style="--tile-bg: ${colors.bg}; --tile-surface: ${colors.surface}; --tile-border: ${colors.border}; --tile-text: ${colors.text}; --tile-accent: ${colors.accent}"><span class="template-preview" aria-hidden="true"><span></span><span></span><span></span></span>${escape(template.name)}</button>`
+}
+
 function renderThemePanel() {
+  const templates = document.getElementById('theme-templates')
+  const boardTemplate = themeTemplate(theme.template).id
+  templates.innerHTML = THEME_TEMPLATES.map((template) =>
+    templateTile(template, template.id === boardTemplate)
+  ).join('')
+  for (const button of templates.querySelectorAll('[data-template]')) {
+    // The template brings its own accent and background; a background image stays.
+    button.onclick = () =>
+      setTheme({ template: button.dataset.template, accent: null, background: null })
+  }
+  for (const button of document.querySelectorAll('[data-theme-mode]')) {
+    button.setAttribute('aria-pressed', String(button.dataset.themeMode === themeMode))
+  }
+  document.getElementById('theme-override').value = themeOverride
+  document.getElementById('theme-override-hint').hidden = !themeOverride
+
   const backgrounds = document.getElementById('theme-backgrounds')
   const current = theme.background
   const options = [
@@ -397,13 +461,17 @@ function renderThemePanel() {
   backgrounds.querySelector('input').onchange = (event) =>
     setTheme({ background: event.target.value })
 
+  // The first swatch is the template's own accent, shown as it looks right now.
+  const templateAccent = activeTemplate()[colorScheme()].accent
   const accents = document.getElementById('theme-accents')
   accents.innerHTML =
-    ACCENTS.map(
-      (color, index) =>
-        `<button type="button" class="swatch" style="--label-color: ${color}" data-accent="${index === 0 ? '' : color}" aria-label="Accent ${color}" aria-pressed="${(theme.accent || ACCENTS[0]) === color}"></button>`
-    ).join('') +
-    `<label class="swatch custom" title="Custom accent">+<input type="color" aria-label="Custom accent color" value="${theme.accent || ACCENTS[0]}" /></label>`
+    [templateAccent, ...ACCENTS.filter((color) => color !== templateAccent)]
+      .map(
+        (color, index) =>
+          `<button type="button" class="swatch" style="--label-color: ${color}" data-accent="${index === 0 ? '' : color}" aria-label="${index === 0 ? 'Template accent' : `Accent ${color}`}" aria-pressed="${index === 0 ? !theme.accent : theme.accent === color}"></button>`
+      )
+      .join('') +
+    `<label class="swatch custom" title="Custom accent">+<input type="color" aria-label="Custom accent color" value="${theme.accent || templateAccent}" /></label>`
   for (const button of accents.querySelectorAll('[data-accent]')) {
     button.onclick = () => setTheme({ accent: button.dataset.accent || null })
   }
@@ -3336,7 +3404,11 @@ bridge.onWorkerIPC(workers.main, (data) => {
     labelDraft = null
     assigneeDraft = null
     rules = message.rules || []
-    theme = { backgroundImage: null, ...(message.theme || { background: null, accent: null }) }
+    theme = {
+      template: null,
+      backgroundImage: null,
+      ...(message.theme || { background: null, accent: null })
+    }
     boardInfo = { icon: null, ...(message.info || { description: '' }) }
     boardOwner = message.owner || null
     members = message.members || []
@@ -4273,6 +4345,29 @@ soundSelect.onchange = () => {
   } catch {}
   playSound(soundSelect.value)
 }
+
+// Mode and personal template, from the theme panel. Both apply at once.
+for (const button of document.querySelectorAll('[data-theme-mode]')) {
+  button.onclick = () => {
+    themeMode = button.dataset.themeMode
+    saveDeviceSetting(THEME_MODE_KEY, themeMode)
+    applyTheme()
+    renderThemePanel()
+  }
+}
+const overrideSelect = document.getElementById('theme-override')
+overrideSelect.innerHTML =
+  '<option value="">Board theme</option>' +
+  THEME_TEMPLATES.map(
+    (template) => `<option value="${template.id}">${escape(template.name)}</option>`
+  ).join('')
+overrideSelect.onchange = (event) => {
+  themeOverride = event.target.value
+  saveDeviceSetting(THEME_OVERRIDE_KEY, themeOverride)
+  applyTheme()
+  renderThemePanel()
+}
+applyTheme()
 
 // Panels opened from the board bar and settings menu share one overlay style:
 // a backdrop click, the ✕ button or Escape closes them and focus goes back.

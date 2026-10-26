@@ -16,20 +16,56 @@ import {
 import { Feather } from '@expo/vector-icons'
 import * as ImagePicker from 'expo-image-picker'
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator'
+import { DEFAULT_TEMPLATE, themeTemplate, type ThemePalette } from '@opencollab/board-protocol'
 
-export const colors = {
-  bg: '#0A0E14',
-  surface: '#0F1620',
-  surfaceRaised: '#141D29',
-  border: '#1C2633',
-  text: '#C9D4E3',
-  muted: '#6B7A90',
-  accent: '#39FF88',
-  onAccent: '#04110A',
-  info: '#22D3EE',
-  magenta: '#FF4FD8',
-  error: '#FF5C5C'
+// The current palette. Mutated in place by applyPalette, so every read of
+// `colors.x` during a render sees the active theme; App re-renders the tree.
+// Starts as the default template in dark mode.
+const { accentInk: defaultInk, ...defaultPalette } = themeTemplate(DEFAULT_TEMPLATE).dark
+export const colors = { ...defaultPalette, onAccent: defaultInk }
+export type Scheme = 'light' | 'dark'
+export let scheme: Scheme = 'dark'
+let paletteVersion = 0
+
+export function applyPalette(palette: ThemePalette, next: Scheme) {
+  const { accentInk, ...rest } = palette
+  Object.assign(colors, rest, { onAccent: accentInk })
+  scheme = next
+  paletteVersion++
 }
+
+// StyleSheet.create that re-runs its factory after the palette changes, so
+// styles reading `colors` follow the theme without a remount.
+export function themed<T extends StyleSheet.NamedStyles<T>>(
+  factory: () => T & StyleSheet.NamedStyles<T>
+): T {
+  let version = -1
+  let sheet = {} as T
+  const current = () => {
+    if (version !== paletteVersion) {
+      sheet = StyleSheet.create(factory())
+      version = paletteVersion
+    }
+    return sheet
+  }
+  return new Proxy({} as T, {
+    get: (_, key) => current()[key as keyof T],
+    has: (_, key) => key in current()
+  })
+}
+
+const channels = (hex: string) => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16))
+
+// '#rrggbb' at `alpha`, for tinted fills that follow the palette.
+export const tint = (hex: string, alpha: number) => `rgba(${channels(hex).join(', ')}, ${alpha})`
+
+// `amount` of the way from color `a` to color `b`.
+export function mix(a: string, b: string, amount: number) {
+  const to = channels(b)
+  const rgb = channels(a).map((c, i) => Math.round(c + (to[i] - c) * amount))
+  return `rgb(${rgb.join(', ')})`
+}
+
 export const mono = Platform.select({ ios: 'Menlo', default: 'monospace' })
 
 export type FeatherName = React.ComponentProps<typeof Feather>['name']
@@ -365,7 +401,7 @@ export function Button({
   )
 }
 
-const styles = StyleSheet.create({
+const styles = themed(() => ({
   button: {
     flexDirection: 'row',
     gap: 8,
@@ -406,4 +442,4 @@ const styles = StyleSheet.create({
   slotState: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 4 },
   metaMono: { color: colors.muted, fontFamily: mono, fontSize: 12 },
   flex: { flex: 1 }
-})
+}))

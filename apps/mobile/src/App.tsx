@@ -14,10 +14,10 @@ import {
   Share,
   ScrollView,
   StatusBar,
-  StyleSheet,
   Text,
   TextInput,
-  View
+  View,
+  useColorScheme
 } from 'react-native'
 import { Feather } from '@expo/vector-icons'
 import * as SecureStore from 'expo-secure-store'
@@ -26,7 +26,8 @@ import PearRuntime from 'pear-mobile'
 import FramedStream from 'framed-stream'
 import workerBundle from './worker.bundle.js'
 import { BootSplash } from './BootSplash'
-import { messageTypes } from '@opencollab/board-protocol'
+import { THEME_MODES, messageTypes, themeTemplate } from '@opencollab/board-protocol'
+import type { ThemeMode } from '@opencollab/board-protocol'
 import {
   Avatar,
   BoardImages,
@@ -43,12 +44,15 @@ import {
   reduceMotion,
   PendingImage,
   pickPreparedImages,
-  setReduceMotion
+  applyPalette,
+  scheme,
+  setReduceMotion,
+  themed
 } from './ui'
 import { BoardScreen } from './board/BoardScreen'
 import { avatarOf, isVideo } from './board/model'
 import type { AlertBoard, BoardAlert, BoardData } from './board/model'
-import { KeychainChoice, SettingsSheet } from './Settings'
+import { KeychainChoice, SettingsSheet, keychainCopy } from './Settings'
 import { DEFAULT_SOUND, SoundName, isSoundName, playSound, soundPrefKey } from './sounds'
 
 const normalizeInvite = (value: string) => {
@@ -58,6 +62,9 @@ const normalizeInvite = (value: string) => {
   )
   return decodeURIComponent(match ? match[1] : invite).replace(/\/$/, '')
 }
+
+const themeModeKey = 'opencollab.theme-mode'
+const themeOverrideKey = 'opencollab.theme-override'
 
 const inviteLink = (invite: string) =>
   `opencollab://board/${encodeURIComponent(normalizeInvite(invite))}`
@@ -74,7 +81,7 @@ const emptyBoard: BoardData = {
   objects: [],
   columns: [],
   labels: [],
-  theme: { background: null, accent: null },
+  theme: { background: null, accent: null, template: null },
   info: { description: '' },
   profiles: {},
   owner: null,
@@ -229,6 +236,20 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
   const seenAlerts = useRef(new Map<string, Set<string>>())
   const exportRequest = useRef('')
   const [exporting, setExporting] = useState(false)
+  // Appearance is per device: a light/dark mode and an optional template that
+  // replaces the open board's. Applied here, before any child reads `colors`.
+  const systemScheme = useColorScheme()
+  // Dark until the user picks System or Light, so existing users keep the old look.
+  const [themeMode, setThemeMode] = useState<ThemeMode>('dark')
+  const [themeOverride, setThemeOverride] = useState('')
+  const template = themeTemplate(themeOverride || (boardKey ? boardData.theme.template : null))
+  const activeScheme =
+    themeMode === 'system' ? (systemScheme === 'light' ? 'light' : 'dark') : themeMode
+  const paletteKey = useRef('')
+  if (paletteKey.current !== `${template.id}:${activeScheme}`) {
+    paletteKey.current = `${template.id}:${activeScheme}`
+    applyPalette(template[activeScheme], activeScheme)
+  }
 
   useEffect(() => {
     AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion)
@@ -350,7 +371,7 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
           objects: message.objects || [],
           columns: message.columns || [],
           labels: message.labels || [],
-          theme: message.theme || { background: null, accent: null },
+          theme: message.theme || { background: null, accent: null, template: null },
           info: message.info || { description: '' },
           profiles: message.profiles || {},
           owner: message.owner || null,
@@ -385,6 +406,14 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
       soundRef.current = value
       setSound(value)
     })
+    // Read together so the palette switches once at boot, not twice.
+    Promise.all([
+      SecureStore.getItemAsync(themeModeKey),
+      SecureStore.getItemAsync(themeOverrideKey)
+    ]).then(([mode, override]) => {
+      if (THEME_MODES.includes(mode as ThemeMode)) setThemeMode(mode as ThemeMode)
+      if (override) setThemeOverride(override)
+    })
     return () => {
       motion.remove()
       framed.destroy()
@@ -418,6 +447,9 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
     ;(globalThis as Record<string, unknown>).__opencollab = {
       send,
       dismissBackup: () => setBackupPhrase(''),
+      openSettings: () => setSettingsOpen(true),
+      setThemeMode,
+      setThemeOverride,
       subscribe: (listener: (message: WorkerMessage) => void) => {
         workerListeners.current.add(listener)
         return () => workerListeners.current.delete(listener)
@@ -548,7 +580,7 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
       try {
         await SecureStore.setItemAsync(identityPhraseKey, phrase)
       } catch (err) {
-        Alert.alert('Not saved', (err as Error)?.message || 'The Keychain refused the phrase.')
+        Alert.alert('Not saved', (err as Error)?.message || keychainCopy.refused)
         return
       }
     }
@@ -573,7 +605,7 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
     if (choice === 'off') return
     if (choice === 'saved' || choice === 'protected') return void savePhrase(phrase)
     Alert.alert(
-      'Save recovery words in the iOS Keychain?',
+      keychainCopy.offer,
       'OpenCollab then opens without asking for them. If you don’t save them, they stay in memory only and you enter them each time you open the app. You can change this later in Settings.',
       [
         {
@@ -647,6 +679,16 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
     playSound(next)
   }
 
+  function chooseThemeMode(next: ThemeMode) {
+    setThemeMode(next)
+    void SecureStore.setItemAsync(themeModeKey, next)
+  }
+
+  function chooseThemeOverride(next: string) {
+    setThemeOverride(next)
+    void SecureStore.setItemAsync(themeOverrideKey, next)
+  }
+
   function exportBoard() {
     if (exportRequest.current) return
     const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`
@@ -663,6 +705,10 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
       onForgetPhrase={() => void forgetPhrase()}
       sound={sound}
       onSound={chooseSound}
+      themeMode={themeMode}
+      onThemeMode={chooseThemeMode}
+      themeOverride={themeOverride}
+      onThemeOverride={chooseThemeOverride}
       onClose={() => setSettingsOpen(false)}
     />
   ) : null
@@ -1061,7 +1107,7 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
 
   return (
     <View style={styles.root}>
-      <StatusBar barStyle='light-content' />
+      <StatusBar barStyle={scheme === 'light' ? 'dark-content' : 'light-content'} />
       <BoardScreen
         data={boardData}
         me={identityKey}
@@ -1370,7 +1416,7 @@ function Screen({
 }) {
   return (
     <View style={styles.root}>
-      <StatusBar barStyle='light-content' />
+      <StatusBar barStyle={scheme === 'light' ? 'dark-content' : 'light-content'} />
       <KeyboardAvoidingView
         style={styles.flex}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -1575,7 +1621,7 @@ function SwipeToRemove({
   )
 }
 
-const styles = StyleSheet.create({
+const styles = themed(() => ({
   app: { flex: 1, backgroundColor: colors.bg },
   root: { flex: 1, backgroundColor: colors.bg },
   boardLoading: { paddingHorizontal: 16, gap: 12 },
@@ -1874,4 +1920,4 @@ const styles = StyleSheet.create({
     justifyContent: 'center'
   },
   viewerImage: { width: '100%', height: '100%' }
-})
+}))

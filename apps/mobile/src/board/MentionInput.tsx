@@ -1,8 +1,8 @@
 // A text field that suggests board members after "@", like the desktop picker.
 // Tapping a suggestion inserts "@Name " at the caret.
 import React, { useState } from 'react'
-import { Pressable, StyleSheet, Text, TextInput, TextInputProps, View } from 'react-native'
-import { Identicon, colors } from '../ui'
+import { Pressable, Text, TextInput, TextInputProps, View } from 'react-native'
+import { Identicon, colors, themed } from '../ui'
 
 type Props = Omit<TextInputProps, 'onChangeText' | 'value'> & {
   value: string
@@ -61,7 +61,7 @@ export function MentionInput({ value, onChangeText, profiles, me, style, ...rest
   )
 }
 
-const styles = StyleSheet.create({
+const styles = themed(() => ({
   wrap: { gap: 6 },
   suggestions: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   suggestion: {
@@ -78,4 +78,4 @@ const styles = StyleSheet.create({
   },
   name: { color: colors.text, fontWeight: '600', flexShrink: 1 },
   pressed: { opacity: 0.8 }
-})
+}))

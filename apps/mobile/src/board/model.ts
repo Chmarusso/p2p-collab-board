@@ -52,6 +52,7 @@ export type Label = { id: string; name: string; color: string | null }
 export type Theme = {
   background: string | null
   accent: string | null
+  template?: string | null
   backgroundImage?: ImageRef | null
 }
 export type BoardInfo = { description: string; icon?: ImageRef | null }

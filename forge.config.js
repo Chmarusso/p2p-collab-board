@@ -31,7 +31,8 @@ let packagerConfig = {
   derefSymlinks: true,
   // The mobile workspace (sources, Pods, native builds) is not part of the
   // desktop app; without this it is copied into every package (~470 MB).
-  ignore: [/^\/apps(\/|$)/]
+  // .claude holds local agent worktrees, whose node_modules link back here.
+  ignore: [/^\/apps(\/|$)/, /^\/\.claude(\/|$)/]
 }
 
 if (process.env.MAC_CODESIGN_IDENTITY) {

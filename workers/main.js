@@ -1830,7 +1830,8 @@ pipe.on('data', async (data) => {
       await sendOwnOp({
         type: 'board:theme',
         ...(msg.background !== undefined && { background: msg.background }),
-        ...(msg.accent !== undefined && { accent: msg.accent })
+        ...(msg.accent !== undefined && { accent: msg.accent }),
+        ...(msg.template !== undefined && { template: msg.template })
       })
     } else if (msg.type === messageTypes.blindPeersSet && Array.isArray(msg.keys)) {
       blindPeerKeys = msg.keys.filter((key) => typeof key === 'string' && key.trim())

@@ -224,7 +224,12 @@ const card = (identity, id, ts, extra = {}) =>
       ops.push(op(identity, { type: 'card:image', ts, objectId, images: [ref] }))
     } else if (kind === 'theme') {
       ops.push(
-        op(identity, { type: 'board:theme', ts, background: pick(['#112233', 'preset:dusk']) })
+        op(identity, {
+          type: 'board:theme',
+          ts,
+          background: pick(['#112233', 'preset:dusk']),
+          template: pick(['ocean', 'rose', null])
+        })
       )
     } else if (kind === 'vote') {
       ops.push(op(identity, { type: 'vote', ts, objectId, value: pick([1, -1, 0]) }))
@@ -335,7 +340,13 @@ const card = (identity, id, ts, extra = {}) =>
     card(alice, 'c1', 1),
     op(bob, { type: 'card:update', ts: 2, objectId: 'c1', title: '  ', dueDate: 'soon' }),
     op(bob, { type: 'card:move', ts: 2, objectId: 'c1', columnId: 'col:done', position: 'x0' }),
-    op(bob, { type: 'board:theme', ts: 2, background: 'url(evil)', accent: 'red' }),
+    op(bob, {
+      type: 'board:theme',
+      ts: 2,
+      background: 'url(evil)',
+      accent: 'red',
+      template: '../Evil Theme'
+    }),
     op(bob, { type: 'column:upsert', ts: 2, columnId: 'col:new', color: 'javascript:' })
   ])
   assert.equal(state.objects[0].title, 'c1', 'blank titles are ignored')
@@ -343,8 +354,8 @@ const card = (identity, id, ts, extra = {}) =>
   assert.equal(state.objects[0].columnId, 'col:new', 'invalid positions are ignored')
   assert.deepEqual(
     state.theme,
-    { background: null, accent: null, backgroundImage: null },
-    'theme accepts colors only'
+    { background: null, accent: null, template: null, backgroundImage: null },
+    'theme accepts colors and template ids only'
   )
   assert.equal(state.columns[0].color, null)
   console.log('✓ defaults, legacy posts, deletes and invalid values behave')

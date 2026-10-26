@@ -13,7 +13,6 @@ import {
   Pressable,
   ScrollView,
   StatusBar,
-  StyleSheet,
   Switch,
   Text,
   TextInput,
@@ -34,7 +33,9 @@ import {
   mono,
   pickPreparedImages,
   pickVideos,
-  reduceMotion
+  reduceMotion,
+  themed,
+  tint
 } from '../ui'
 import { SoundName, playSound } from '../sounds'
 import { ActivityList } from './Activity'
@@ -691,9 +692,9 @@ export function CardSheet(props: Props) {
                       size={14}
                       color={
                         due?.status === 'overdue'
-                          ? '#f87168'
+                          ? colors.danger
                           : due?.status === 'soon'
-                            ? '#f5cd47'
+                            ? colors.warn
                             : colors.muted
                       }
                     />
@@ -1095,7 +1096,7 @@ function VoteButton({
   )
 }
 
-const styles = StyleSheet.create({
+const styles = themed(() => ({
   root: {
     flex: 1,
     backgroundColor: colors.surface,
@@ -1180,11 +1181,11 @@ const styles = StyleSheet.create({
     borderColor: colors.border
   },
   dueSet: { borderStyle: 'solid' },
-  soon: { borderColor: 'rgba(245, 205, 71, 0.5)' },
-  overdue: { borderColor: 'rgba(248, 113, 104, 0.5)' },
+  soon: { borderColor: tint(colors.warn, 0.5) },
+  overdue: { borderColor: tint(colors.danger, 0.5) },
   dueText: { color: colors.text, fontFamily: mono, fontSize: 13 },
-  soonText: { color: '#f5cd47' },
-  overdueText: { color: '#f87168' },
+  soonText: { color: colors.warn },
+  overdueText: { color: colors.danger },
   duePanel: {
     gap: 10,
     padding: 12,
@@ -1225,15 +1226,15 @@ const styles = StyleSheet.create({
   track: { height: 6, borderRadius: 3, backgroundColor: colors.border, overflow: 'hidden' },
   bar: { height: 6, backgroundColor: colors.accent },
   comment: { gap: 6, borderLeftColor: colors.border, borderLeftWidth: 2, paddingLeft: 10 },
-  blockedBadge: { color: '#f87168', borderColor: 'rgba(248, 113, 104, 0.5)' },
+  blockedBadge: { color: colors.danger, borderColor: tint(colors.danger, 0.5) },
   templateNote: {
     flexDirection: 'row',
     gap: 8,
     padding: 10,
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: 'rgba(34, 211, 238, 0.4)',
-    backgroundColor: 'rgba(34, 211, 238, 0.08)'
+    borderColor: tint(colors.info, 0.4),
+    backgroundColor: tint(colors.info, 0.08)
   },
   templateText: { flex: 1, color: colors.text, fontSize: 13, lineHeight: 18 },
   tabs: {
@@ -1252,4 +1253,4 @@ const styles = StyleSheet.create({
   toggleRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 44 },
   toggleText: { color: colors.text, fontSize: 15, fontWeight: '600' },
   commentAuthor: { color: colors.text, fontWeight: '700', fontSize: 13 }
-})
+}))
