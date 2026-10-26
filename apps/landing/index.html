@@ -1,0 +1,441 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>OpenCollab — team boards that sync peer to peer</title>
+    <meta
+      name="description"
+      content="Private Kanban boards for teams. No server, no account, no cloud database: devices sync directly, encrypted end to end."
+    />
+    <meta name="theme-color" content="#0a0e14" />
+    <link rel="icon" href="assets/icon.svg" type="image/svg+xml" />
+    <link rel="icon" href="icon.png" sizes="64x64" />
+    <link rel="apple-touch-icon" href="assets/apple-touch-icon.png" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="OpenCollab — team boards that sync peer to peer" />
+    <meta
+      property="og:description"
+      content="Private Kanban boards for teams. No server, no account, no cloud database: devices sync directly, encrypted end to end."
+    />
+    <meta
+      property="og:image"
+      content="https://raw.githubusercontent.com/Chmarusso/p2p-collab-board/main/apps/landing/assets/og.jpg"
+    />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="nav">
+      <a class="logo" href="#top" aria-label="OpenCollab home">
+        <span class="prompt">&gt;</span> opencollab<span class="cursor">_</span>
+      </a>
+      <nav aria-label="Sections">
+        <a href="#screens">Screenshots</a>
+        <a href="#why">Why P2P</a>
+        <a href="#features">Features</a>
+        <a href="#how">How it works</a>
+        <a href="#get">Get it</a>
+        <a href="#faq">FAQ</a>
+      </nav>
+    </header>
+
+    <main id="top">
+      <section class="hero">
+        <div class="hero-copy">
+          <p class="eyebrow">Peer-to-peer · end-to-end encrypted · open source</p>
+          <h1>Team boards with no server in the middle.</h1>
+          <p class="lead">
+            OpenCollab is a Kanban board your team shares directly between devices. No sign-up, no
+            cloud database, no subscription. Your identity is a key on your device, and a teammate
+            joins with an invite link.
+          </p>
+          <div class="actions">
+            <a class="button primary" href="#get">Get OpenCollab</a>
+            <a class="button" href="https://github.com/Chmarusso/p2p-collab-board">View source</a>
+          </div>
+          <p class="platforms">macOS · Windows · Linux · iPhone · Terminal</p>
+        </div>
+
+        <div class="shots-hero">
+          <img
+            class="desk"
+            src="assets/screens/desktop-board.jpg"
+            width="1600"
+            height="1000"
+            alt="The OpenCollab desktop app showing a Kanban board with five columns"
+          />
+          <img
+            class="phone"
+            src="assets/screens/iphone-board.jpg"
+            width="760"
+            height="1651"
+            alt="The same board on an iPhone"
+          />
+        </div>
+      </section>
+
+      <section id="screens" class="section">
+        <h2><span class="hash">#</span> One board on every device</h2>
+        <div class="gallery">
+          <figure class="shot">
+            <img
+              src="assets/screens/desktop-card.jpg"
+              width="1600"
+              height="1000"
+              loading="lazy"
+              alt="A card with labels, assignees, a planning-poker estimate and a checklist"
+            />
+            <figcaption>
+              <strong>Every detail in one place</strong>Checklists, assignees, estimates, links and
+              reactions on each card.
+            </figcaption>
+          </figure>
+          <figure class="shot">
+            <img
+              src="assets/screens/desktop-calendar.jpg"
+              width="1600"
+              height="1000"
+              loading="lazy"
+              alt="The calendar view with cards placed on their due dates"
+            />
+            <figcaption>
+              <strong>Plan the month at a glance</strong>Drag a card to another day to reschedule
+              it.
+            </figcaption>
+          </figure>
+          <figure class="shot">
+            <img
+              src="assets/screens/desktop-table.jpg"
+              width="1600"
+              height="1000"
+              loading="lazy"
+              alt="The table view listing every card with its column, due date and points"
+            />
+            <figcaption>
+              <strong>Scan everything at once</strong>Sort by column, due date or points.
+            </figcaption>
+          </figure>
+          <figure class="shot">
+            <img
+              src="assets/screens/desktop-mywork.jpg"
+              width="1600"
+              height="1000"
+              loading="lazy"
+              alt="My work: the open cards assigned to you across boards"
+            />
+            <figcaption>
+              <strong>Know what's yours</strong>Open cards assigned to you on every board, soonest
+              due first.
+            </figcaption>
+          </figure>
+        </div>
+        <div class="phones">
+          <figure class="shot">
+            <img
+              src="assets/screens/iphone-board.jpg"
+              width="760"
+              height="1651"
+              loading="lazy"
+              alt="The board on iPhone"
+            />
+          </figure>
+          <figure class="shot">
+            <img
+              src="assets/screens/iphone-card.jpg"
+              width="760"
+              height="1651"
+              loading="lazy"
+              alt="A card on iPhone"
+            />
+          </figure>
+          <figure class="shot">
+            <img
+              src="assets/screens/iphone-agenda.jpg"
+              width="760"
+              height="1651"
+              loading="lazy"
+              alt="The agenda view on iPhone"
+            />
+          </figure>
+          <figure class="shot">
+            <img
+              src="assets/screens/iphone-mywork.jpg"
+              width="760"
+              height="1651"
+              loading="lazy"
+              alt="My work on iPhone"
+            />
+          </figure>
+        </div>
+      </section>
+
+      <section id="why" class="section">
+        <h2><span class="hash">#</span> Why peer to peer</h2>
+        <div class="grid">
+          <article class="tile">
+            <h3>No backend to run or pay for</h3>
+            <p>
+              Devices sync with each other, so costs don't grow with your team. The only optional
+              infrastructure is one always-on peer.
+            </p>
+          </article>
+          <article class="tile">
+            <h3>Your data stays with you</h3>
+            <p>
+              Boards live on members' devices, encrypted with the invite secret. No vendor holds a
+              copy, and a peer that stores the data can't read it.
+            </p>
+          </article>
+          <article class="tile">
+            <h3>No accounts</h3>
+            <p>
+              Your identity is a key on your device, backed up as a recovery phrase. Joining a board
+              takes one invite link.
+            </p>
+          </article>
+          <article class="tile">
+            <h3>Works offline</h3>
+            <p>
+              Keep working without a connection. Changes merge the next time two members are online
+              together, and every device ends up with the same board.
+            </p>
+          </article>
+          <article class="tile">
+            <h3>Updates from peers</h3>
+            <p>
+              The desktop app and the CLI update themselves from other peers, with no release
+              server. The iPhone app gets its JavaScript updates the same way.
+            </p>
+          </article>
+          <article class="tile">
+            <h3>Every change is signed</h3>
+            <p>
+              Each edit is a signed operation in its member's own log. Nobody can rewrite someone
+              else's work, and moderators can shut out a removed member.
+            </p>
+          </article>
+        </div>
+      </section>
+
+      <section id="features" class="section">
+        <h2><span class="hash">#</span> Everything a team board needs</h2>
+        <ul class="features">
+          <li>
+            <strong>Board, table and calendar</strong> Columns you can rename and reorder, a
+            sortable table, and a calendar you can drag cards across.
+          </li>
+          <li>
+            <strong>Rich cards</strong> Markdown descriptions, code highlighting, images and video.
+          </li>
+          <li>
+            <strong>Checklists</strong> Break a card into steps and watch its progress bar fill.
+          </li>
+          <li>
+            <strong>Assignees and My work</strong> Assign cards, and see everything that's yours
+            across boards.
+          </li>
+          <li>
+            <strong>Comments, reactions and @mentions</strong> Discuss a card, react with an emoji
+            and pull a teammate in.
+          </li>
+          <li>
+            <strong>Live presence</strong> See who's on the board and which card they're looking at.
+          </li>
+          <li>
+            <strong>Linked cards</strong> Mark what blocks what; blocked cards stand out until the
+            blocker is done.
+          </li>
+          <li>
+            <strong>Planning poker and stats</strong> Vote on estimates, reveal together, and track
+            throughput and cycle time.
+          </li>
+          <li><strong>WIP limits</strong> Cap a column and see at a glance when it's over.</li>
+          <li>
+            <strong>Rules and recurring cards</strong> Auto-assign or label cards as they move, and
+            create a weekly planning card on schedule.
+          </li>
+          <li>
+            <strong>Labels, due dates and filters</strong> Color labels, due-soon alerts and filters
+            by label, member or date.
+          </li>
+          <li>
+            <strong>Notifications, roles and export</strong> One bell across every board, owner and
+            admin roles, and a full export any time.
+          </li>
+        </ul>
+      </section>
+
+      <section id="how" class="section">
+        <h2><span class="hash">#</span> How it works</h2>
+        <ol class="steps">
+          <li>
+            <span class="step">01</span>
+            <h3>Create your key</h3>
+            <p>
+              The app makes an identity on your device and shows a recovery phrase. Write it down:
+              it's the only way back in.
+            </p>
+          </li>
+          <li>
+            <span class="step">02</span>
+            <h3>Start a board, share the invite</h3>
+            <p>
+              Send the invite link to your team. Whoever holds it can find the board and read it;
+              nobody else can.
+            </p>
+          </li>
+          <li>
+            <span class="step">03</span>
+            <h3>Devices sync directly</h3>
+            <p>
+              Members find each other over a distributed network and connect with encrypted,
+              hole-punched links. No relay server reads the traffic.
+            </p>
+          </li>
+        </ol>
+        <p class="note">
+          <strong>The trade-off:</strong> with no server holding a copy, two members have to be
+          online at the same time to sync. To cover the gaps, keep one peer always on, such as
+          <code>opencollab watch</code> on a small server.
+        </p>
+      </section>
+
+      <section id="get" class="section">
+        <h2><span class="hash">#</span> Get OpenCollab</h2>
+        <div class="grid three">
+          <article class="tile">
+            <h3>Desktop</h3>
+            <p>
+              macOS, Windows and Linux. Installs from peers through Pear and keeps itself updated.
+            </p>
+            <pre><code>npx pear install pear://nzi3suuxyzwj6oosortonj5pxd9s7ckgd8cr87szddaamxi77kny</code></pre>
+          </article>
+          <article class="tile">
+            <h3>iPhone</h3>
+            <p>
+              The full board in your pocket, with Face ID unlock and notifications. Build it from
+              <a href="https://github.com/Chmarusso/p2p-collab-board/tree/main/apps/mobile"
+                >apps/mobile</a
+              >; after that it updates over Pear.
+            </p>
+          </article>
+          <article class="tile">
+            <h3>Command line</h3>
+            <p>Read and edit boards from a terminal, or run an always-on peer for your team.</p>
+            <pre><code>npx pear install --to ~/.local/share pear://q1huw5ozxk8j36pcb8sicfr4dtgf9154r5aj3yzqa14ngxxq1kmy</code></pre>
+          </article>
+        </div>
+        <p class="note">
+          Installing needs at least one peer online that has the release. You need
+          <a href="https://nodejs.org">Node.js</a> for <code>npx pear</code>.
+        </p>
+      </section>
+
+      <section id="faq" class="section">
+        <h2><span class="hash">#</span> FAQ: how does it work without servers?</h2>
+        <div class="faq">
+          <details>
+            <summary>Where is my board stored if there&#39;s no server?</summary>
+            <p>
+              On every member&#39;s device. Each keeps a full copy as signed, append-only logs, one
+              per member, merged into one board. Opening a board reads your local copy, so it works
+              offline; syncing only exchanges the entries the other side is missing.
+            </p>
+          </details>
+          <details>
+            <summary>How do devices find each other without a server?</summary>
+            <p>
+              Through a distributed hash table that every running Holepunch app helps run. Each
+              board has a topic derived from its key; members announce themselves under it and look
+              each other up. The only fixed addresses are three bootstrap nodes used once to join
+              the network, and DHT nodes only ever see a hash of the board&#39;s key.
+            </p>
+          </details>
+          <details>
+            <summary>How do they connect if both are behind home routers?</summary>
+            <p>
+              With UDP hole punching: both devices learn their public address from the DHT and send
+              packets to each other at the same moment, so both routers open a path. Every
+              connection is end-to-end encrypted. A few strict networks block this; a peer with a
+              public IP, like a blind peer on a VPS, bridges the gap.
+            </p>
+          </details>
+          <details>
+            <summary>What happens when nobody else is online?</summary>
+            <p>
+              You keep working. Changes go into your own log and sync the next time you and another
+              member are online together. If your team is rarely online at the same time, run a
+              blind peer: it keeps an encrypted copy of your boards available around the clock,
+              without being able to read them.
+            </p>
+          </details>
+          <details>
+            <summary>Who can read my board?</summary>
+            <p>
+              Only people holding the invite link. The link carries the board secret: cards,
+              comments, the board name and attachments are encrypted with keys derived from it.
+              Every change is signed by its author, so nobody can forge or rewrite someone
+              else&#39;s edits.
+            </p>
+          </details>
+          <details>
+            <summary>Two people edited the same card offline. Who wins?</summary>
+            <p>
+              For each field the newest change wins, with ties broken the same way everywhere.
+              Comments, votes and images only add, so nothing is lost. Every device applies the same
+              rules to the same signed changes and ends up with the same board.
+            </p>
+          </details>
+          <details>
+            <summary>What if I lose my phone?</summary>
+            <p>
+              There is no account to recover. Your identity is a key backed up as a recovery phrase;
+              enter it on a new device and you&#39;re back as the same member. Without the phrase,
+              nobody can restore it.
+            </p>
+          </details>
+          <details>
+            <summary>So there&#39;s really zero infrastructure?</summary>
+            <p>
+              Close to it: DHT bootstrap nodes to join the network, optionally a blind peer or an
+              always-on CLI peer for availability and bots, and the App Store for the iPhone binary.
+              None of them sees your board&#39;s content.
+            </p>
+          </details>
+        </div>
+        <p class="note">
+          More detail in the
+          <a href="https://github.com/Chmarusso/p2p-collab-board/blob/main/docs/faq.md">full FAQ</a
+          >.
+        </p>
+      </section>
+
+      <section class="section stack">
+        <h2><span class="hash">#</span> Built on Holepunch</h2>
+        <p>
+          OpenCollab runs on <a href="https://holepunch.to">Holepunch</a>'s peer-to-peer building
+          blocks: <a href="https://docs.pears.com">Pear</a> for delivery and updates,
+          <a href="https://github.com/holepunchto/bare">Bare</a> for the shared backend,
+          <a href="https://github.com/holepunchto/hyperswarm">Hyperswarm</a> for finding peers,
+          <a href="https://github.com/holepunchto/hypercore">Hypercore</a> and
+          <a href="https://github.com/holepunchto/autobee">Autobee</a> for the signed, multi-writer
+          board, and <a href="https://github.com/holepunchto/hyperblobs">Hyperblobs</a> for
+          encrypted attachments. Desktop, iPhone and terminal all run the same backend.
+        </p>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <span class="logo small"
+        ><span class="prompt">&gt;</span> opencollab<span class="cursor">_</span></span
+      >
+      <nav aria-label="Footer">
+        <a href="design-system.html">Design system</a>
+        <a href="https://github.com/Chmarusso/p2p-collab-board">GitHub</a>
+      </nav>
+    </footer>
+  </body>
+</html>

@@ -3,6 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <title>OpenCollab</title>
+    <link
+      rel="stylesheet"
+      href="../node_modules/@highlightjs/cdn-assets/styles/github-dark.min.css"
+    />
     <style>
       :root {
         --bg: #0a0e14;
@@ -10,25 +14,49 @@
         --surface-raised: #141d29;
         --border: #1c2633;
         --text: #c9d4e3;
-        --muted: #6b7a90;
+        --muted: #7d8ca3;
         --accent: #39ff88;
         --accent-ink: #04110a;
         --info: #22d3ee;
         --magenta: #ff4fd8;
         --error: #ff5c5c;
+        --danger: #f87168;
+        --warn: #f5cd47;
+        --scrim: rgba(3, 6, 10, 0.7);
+        --border-strong: color-mix(in srgb, var(--border), var(--muted) 35%);
+        --success: #4bce97;
         --mono: 'JetBrains Mono', 'SF Mono', ui-monospace, Menlo, monospace;
         --radius: 10px;
+        --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+        --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
         color-scheme: dark;
         font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
         color: var(--text);
         background: var(--bg);
       }
+      /* The palette itself is set from renderer/themes.js; these follow the mode. */
+      :root[data-scheme='light'] {
+        --scrim: rgba(20, 26, 36, 0.45);
+      }
+      /* Elements with their own display (buttons, .row) must still hide. */
+      [hidden] {
+        display: none !important;
+      }
       body {
         margin: 0;
         min-height: 100vh;
         background:
-          radial-gradient(circle at 15% -10%, rgba(57, 255, 136, 0.07), transparent 40%),
-          radial-gradient(circle at 110% 10%, rgba(34, 211, 238, 0.06), transparent 35%), var(--bg);
+          radial-gradient(
+            circle at 15% -10%,
+            color-mix(in srgb, var(--accent) 7%, transparent),
+            transparent 40%
+          ),
+          radial-gradient(
+            circle at 110% 10%,
+            color-mix(in srgb, var(--info) 6%, transparent),
+            transparent 35%
+          ),
+          var(--bg);
       }
       .container {
         width: min(920px, 92vw);
@@ -100,7 +128,7 @@
         color: var(--text);
       }
       button.secondary:hover {
-        border-color: #2b3a4d;
+        border-color: var(--border-strong);
       }
       button.ghost {
         background: transparent;
@@ -111,8 +139,8 @@
         color: var(--text);
       }
       button.danger {
-        background: rgba(255, 92, 92, 0.12);
-        border-color: rgba(255, 92, 92, 0.4);
+        background: color-mix(in srgb, var(--error) 12%, transparent);
+        border-color: color-mix(in srgb, var(--error) 40%, transparent);
         color: var(--error);
       }
       button.icon-only {
@@ -141,7 +169,7 @@
       textarea:focus {
         border-color: var(--accent);
         outline: none;
-        box-shadow: 0 0 0 3px rgba(57, 255, 136, 0.15);
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent);
       }
       .card,
       .gate {
@@ -235,15 +263,15 @@
         align-items: center;
         justify-content: center;
         padding: 20px;
-        background: rgba(3, 6, 10, 0.7);
+        background: var(--scrim);
         backdrop-filter: blur(4px);
       }
       #connection-modal.open {
         display: flex;
-        animation: fade-in 0.15s ease;
+        animation: fade-in 150ms var(--ease-out);
       }
       #connection-modal.open .modal-card {
-        animation: pop-in 0.18s ease;
+        animation: pop-in 180ms var(--ease-out);
       }
       .modal-card {
         width: min(480px, 100%);
@@ -293,6 +321,11 @@
         flex: none;
         background: var(--bg);
       }
+      /* A member's picture takes the identicon's place and size, but round. */
+      .identicon.avatar {
+        border-radius: 50%;
+        object-fit: cover;
+      }
       .topbar {
         display: flex;
         justify-content: space-between;
@@ -302,8 +335,13 @@
       }
       .topbar-meta {
         display: flex;
+        flex-wrap: wrap;
         align-items: center;
         gap: 10px;
+        min-width: 0;
+      }
+      .topbar > div:first-child {
+        min-width: 0;
       }
       .status-chip {
         display: inline-flex;
@@ -327,14 +365,33 @@
       }
       .status-chip.online .status-dot {
         background: var(--accent);
-        box-shadow: 0 0 8px rgba(57, 255, 136, 0.7);
+        box-shadow: 0 0 8px color-mix(in srgb, var(--accent) 70%, transparent);
         animation: none;
       }
       #identity-label {
         gap: 8px;
+        max-width: 220px;
+        white-space: nowrap;
+      }
+      #identity-label,
+      #identity-label span {
+        min-width: 0;
+      }
+      #identity-label span {
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      #board-name {
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+        overflow: hidden;
+        overflow-wrap: anywhere;
       }
       .new-object-bar {
         display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
         justify-content: space-between;
         align-items: center;
         margin-bottom: 14px;
@@ -345,44 +402,1172 @@
       }
       #new-object-form.open {
         display: grid;
-        animation: rise-in 0.18s ease;
+        animation: rise-in 180ms var(--ease-out);
+      }
+      body.board-open .container {
+        width: auto;
+        padding: 20px 24px 24px;
       }
       #board-objects {
-        display: grid;
+        display: flex;
         gap: 12px;
+        align-items: flex-start;
+        overflow-x: auto;
+        padding-bottom: 12px;
+        min-height: 200px;
       }
-      .object-card {
-        display: grid;
-        grid-template-columns: 44px 1fr;
-        gap: 14px;
-      }
-      .object-card.enter,
-      .comment.enter {
-        animation: rise-in 0.22s ease both;
-      }
-      .votes {
+      .column {
+        flex: none;
+        width: 280px;
+        max-height: calc(100vh - 200px);
         display: flex;
         flex-direction: column;
-        align-items: center;
-        gap: 2px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-top: 3px solid var(--column-color, var(--border));
+        border-radius: 12px;
       }
-      .votes button {
+      .column.dragging {
+        opacity: 0.4;
+      }
+      .column-head {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 10px 10px 6px 12px;
+        cursor: grab;
+      }
+      .column-name {
+        display: block;
+        flex: 1;
+        min-width: 0;
+        justify-content: flex-start;
+        padding: 4px 6px;
+        margin-left: -6px;
+        background: transparent;
+        color: var(--text);
+        font-weight: 700;
+        text-align: left;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .column-name-input {
+        flex: 1;
+        padding: 4px 6px;
+        font-weight: 700;
+      }
+      .column-count {
+        font-family: var(--mono);
+        font-size: 12px;
+        color: var(--muted);
+      }
+      /* Overlaid on hover so they don't take room from the column name. */
+      .column-head {
+        position: relative;
+      }
+      .column-tools {
+        position: absolute;
+        top: 6px;
+        right: 6px;
+        display: flex;
+        background: var(--surface);
+        border-radius: 8px;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.15s ease;
+      }
+      .column-head:hover .column-tools,
+      .column-head:focus-within .column-tools {
+        pointer-events: auto;
+      }
+      .column-head:hover .column-tools,
+      .column-head:focus-within .column-tools {
+        opacity: 1;
+      }
+      .column-tools button {
+        padding: 4px;
+      }
+      .column-cards {
+        display: grid;
+        gap: 8px;
+        align-content: start;
+        padding: 4px 10px;
+        min-height: 40px;
+        overflow-y: auto;
+      }
+      .column-empty {
+        padding: 10px;
+        border: 1px dashed var(--border);
+        border-radius: 8px;
+        color: var(--muted);
+        font-size: 13px;
+        text-align: center;
+      }
+      .kanban-card {
+        display: grid;
+        gap: 6px;
+        padding: 10px 12px;
+        background: var(--surface-raised);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        cursor: pointer;
+        text-align: left;
+      }
+      .kanban-card:hover {
+        border-color: var(--border-strong);
+      }
+      /* Subtle on purpose: cards are pressed tens of times a day. */
+      .kanban-card {
+        transition:
+          transform 160ms var(--ease-out),
+          border-color 0.15s ease;
+      }
+      .kanban-card:active {
+        transform: scale(0.98);
+      }
+      .kanban-card.enter {
+        animation: rise-in 220ms var(--ease-out) both;
+      }
+      .kanban-card.dragging {
+        opacity: 0.4;
+      }
+      .kanban-card.archived {
+        opacity: 0.55;
+        border-style: dashed;
+      }
+      .kanban-card-title {
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 4;
+        overflow: hidden;
+        font-weight: 650;
+        line-height: 1.35;
+        overflow-wrap: anywhere;
+      }
+      .kanban-card-meta {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px;
+        font-family: var(--mono);
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .kanban-card-meta:empty {
+        display: none;
+      }
+      .kanban-card-meta span {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .kanban-card-meta .icon {
+        width: 13px;
+        height: 13px;
+      }
+      .drop-marker {
+        height: 3px;
+        border-radius: 2px;
+        background: var(--accent);
+      }
+      .column-drop-marker {
+        flex: none;
+        width: 3px;
+        align-self: stretch;
+        border-radius: 2px;
+        background: var(--accent);
+      }
+      .column-foot {
+        padding: 8px 10px 10px;
+      }
+      .column-foot > button:first-child {
+        flex: 1;
+        justify-content: flex-start;
+      }
+      .composer {
+        display: grid;
+        gap: 8px;
+      }
+      .composer textarea {
+        resize: none;
+      }
+      .add-column {
+        flex: none;
+        width: 280px;
+      }
+      .add-column > button {
+        width: 100%;
+        justify-content: flex-start;
+      }
+      .add-column .composer {
+        padding: 10px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+      }
+      select {
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 8px 10px;
+        font: inherit;
+        color: var(--text);
+        background: var(--bg);
+      }
+      #card-modal {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 10;
+        align-items: flex-start;
+        justify-content: center;
+        padding: 48px 20px;
+        overflow-y: auto;
+        background: var(--scrim);
+        backdrop-filter: blur(4px);
+      }
+      #card-modal.open {
+        display: flex;
+        animation: fade-in 150ms var(--ease-out);
+      }
+      #card-modal.open .card-detail,
+      #notifications-modal.open .modal-card,
+      #labels-modal.open .modal-card,
+      #members-modal.open .modal-card,
+      #profile-modal.open .modal-card {
+        animation: pop-in 180ms var(--ease-out);
+      }
+      .card-detail {
+        display: grid;
+        gap: 16px;
+        width: min(640px, 100%);
+      }
+      /* Grid children default to min-width: auto and grow with long content. */
+      .card-detail > *,
+      .card-detail-props > *,
+      .card-detail .stack > *,
+      .card-detail-sub {
+        min-width: 0;
+      }
+      .card-detail select {
+        max-width: 100%;
+      }
+      .markdown table {
+        display: block;
+        max-width: 100%;
+        overflow-x: auto;
+      }
+      .comments-more {
+        justify-self: start;
+        font-size: 13px;
+      }
+      .card-detail-head {
+        display: flex;
+        gap: 8px;
+        align-items: flex-start;
+      }
+      #card-title {
+        field-sizing: content;
+        resize: none;
+        line-height: 1.3;
+        font-size: 20px;
+        font-weight: 700;
+        border-color: transparent;
+        background: transparent;
+        padding: 6px 8px;
+        margin-left: -8px;
+      }
+      #card-title:hover {
+        border-color: var(--border);
+      }
+      .card-detail-sub {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px;
+        font-size: 14px;
+      }
+      #card-author {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .card-detail-bar > button.ghost {
+        padding: 0 6px;
+        font-size: 13px;
+      }
+      .card-detail-bar {
+        justify-content: space-between;
+      }
+      .card-detail-foot {
+        justify-content: flex-end;
+        padding-top: 12px;
+        border-top: 1px solid var(--border);
+      }
+      .badge {
+        padding: 2px 8px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .badge[hidden] {
+        display: none;
+      }
+      .vote-inline {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .vote-inline button {
         padding: 4px;
         background: transparent;
         color: var(--muted);
-        border-color: transparent;
       }
-      .votes button:hover {
-        color: var(--text);
-        border-color: var(--border);
-      }
-      .votes button.voted-up {
+      .vote-inline button.voted-up {
         background: var(--accent);
         color: var(--accent-ink);
       }
-      .votes button.voted-down {
+      .vote-inline button.voted-down {
         background: var(--magenta);
         color: #1a0315;
+      }
+      .markdown {
+        line-height: 1.55;
+        overflow-wrap: anywhere;
+      }
+      .markdown > :first-child {
+        margin-top: 0;
+      }
+      .markdown > :last-child {
+        margin-bottom: 0;
+      }
+      .markdown p,
+      .markdown ul,
+      .markdown ol,
+      .markdown blockquote,
+      .markdown pre,
+      .markdown table {
+        margin: 0 0 10px;
+      }
+      .markdown ul,
+      .markdown ol {
+        padding-left: 22px;
+      }
+      .markdown h1,
+      .markdown h2,
+      .markdown h3,
+      .markdown h4 {
+        margin: 14px 0 8px;
+        font-size: 16px;
+      }
+      .markdown h1 {
+        font-size: 19px;
+      }
+      .markdown a {
+        color: var(--info);
+      }
+      .markdown blockquote {
+        padding-left: 12px;
+        border-left: 3px solid var(--border);
+        color: var(--muted);
+      }
+      .markdown code {
+        font-family: var(--mono);
+        font-size: 0.9em;
+        padding: 1px 5px;
+        border-radius: 5px;
+        background: var(--bg);
+        border: 1px solid var(--border);
+      }
+      .markdown pre {
+        overflow-x: auto;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+      }
+      .markdown pre code.hljs {
+        display: block;
+        padding: 12px;
+        border: 0;
+        border-radius: 8px;
+        font-size: 13px;
+        line-height: 1.5;
+      }
+      .markdown table {
+        border-collapse: collapse;
+      }
+      /* Cells keep whole words; a wide table scrolls instead. */
+      .markdown th,
+      .markdown td {
+        overflow-wrap: normal;
+        min-width: 4em;
+        padding: 4px 10px;
+        border: 1px solid var(--border);
+      }
+      #card-body-view {
+        min-height: 24px;
+        padding: 10px 12px;
+        border-radius: 8px;
+        background: var(--surface-raised);
+        cursor: text;
+      }
+      #card-body-view.empty {
+        color: var(--muted);
+      }
+      .hint {
+        font-size: 12px;
+      }
+      .mention {
+        padding: 0 4px;
+        border-radius: 5px;
+        background: color-mix(in srgb, var(--info) 14%, transparent);
+        color: var(--info);
+        font-weight: 600;
+      }
+      .mention.mention-me {
+        background: color-mix(in srgb, var(--accent) 16%, transparent);
+        color: var(--accent);
+      }
+      .mention-menu {
+        display: grid;
+        gap: 2px;
+        padding: 4px;
+        margin-top: 4px;
+        background: var(--surface-raised);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
+      }
+      .mention-option {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 8px;
+        border-radius: 6px;
+        cursor: pointer;
+      }
+      .mention-option.active,
+      .mention-option:hover {
+        background: var(--border);
+      }
+      #notifications-button {
+        gap: 4px;
+        font-family: var(--mono);
+      }
+      #notifications-button.unread {
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+      #notifications-button .count:empty {
+        display: none;
+      }
+      #notifications-modal {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 10;
+        align-items: flex-start;
+        justify-content: center;
+        padding: 48px 20px;
+        background: var(--scrim);
+        backdrop-filter: blur(4px);
+      }
+      #notifications-modal.open {
+        display: flex;
+        animation: fade-in 150ms var(--ease-out);
+      }
+      .notifications-list {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 8px;
+        max-height: 60vh;
+        overflow-y: auto;
+      }
+      .mention-item {
+        display: grid;
+        gap: 4px;
+        justify-content: stretch;
+        text-align: left;
+        padding: 10px 12px;
+        background: var(--surface-raised);
+        border: 1px solid var(--border);
+        color: var(--text);
+        font-weight: 400;
+      }
+      .mention-item.unread {
+        border-color: var(--accent);
+      }
+      .mention-item .snippet {
+        color: var(--muted);
+        font-size: 13px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .kanban-card-meta .mention-me {
+        padding: 0 5px;
+        font-weight: 700;
+      }
+      .label-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .label-list:empty {
+        display: none;
+      }
+      .label-chip {
+        display: inline-block;
+        max-width: 100%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        line-height: 18px;
+        align-items: center;
+        min-height: 20px;
+        padding: 1px 8px;
+        border-radius: 4px;
+        background: var(--label-color, #8590a2);
+        color: #0b0f14;
+        font-size: 12px;
+        font-weight: 700;
+      }
+      .kanban-card .label-list .label-chip {
+        min-height: 8px;
+        min-width: 36px;
+        padding: 0 6px;
+        font-size: 11px;
+      }
+      .swatches {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .swatch {
+        width: 28px;
+        height: 22px;
+        padding: 0;
+        border-radius: 4px;
+        border: 2px solid transparent;
+        background: var(--label-color);
+      }
+      .swatch[aria-pressed='true'] {
+        border-color: var(--text);
+      }
+      .card-detail-props {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        align-items: start;
+        gap: 16px;
+      }
+      .card-detail-props .stack {
+        align-content: start;
+      }
+      @media (max-width: 600px) {
+        .card-detail-props {
+          grid-template-columns: 1fr;
+        }
+      }
+      .label-picker {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 6px;
+      }
+      .label-picker .label-list:empty {
+        display: none;
+      }
+      /* Off: outlined in the label's color. On: filled. One click toggles. */
+      .label-toggle {
+        min-height: 28px;
+        padding: 3px 10px;
+        border: 1.5px solid var(--label-color, #8590a2);
+        border-radius: 6px;
+        background: transparent;
+        color: var(--text);
+        font-size: 13px;
+        font-weight: 600;
+      }
+      .label-toggle.on {
+        background: var(--label-color, #8590a2);
+        color: #0b0f14;
+      }
+      .label-new {
+        width: 130px;
+        min-height: 28px;
+        padding: 3px 10px;
+        border-style: dashed;
+        font-size: 13px;
+      }
+      .due-anchor {
+        position: relative;
+        justify-self: start;
+      }
+      .due-button {
+        gap: 6px;
+        padding: 5px 10px;
+        border: 1px dashed var(--border);
+        font-size: 13px;
+      }
+      .due-button.set {
+        border-style: solid;
+        color: var(--text);
+        font-family: var(--mono);
+      }
+      .due-button.soon {
+        border-color: color-mix(in srgb, var(--warn) 50%, transparent);
+        color: var(--warn);
+      }
+      .due-button.overdue {
+        border-color: color-mix(in srgb, var(--danger) 50%, transparent);
+        color: var(--danger);
+      }
+      .due-popover {
+        position: absolute;
+        top: calc(100% + 6px);
+        left: 0;
+        z-index: 3;
+        display: grid;
+        gap: 10px;
+        width: 240px;
+        padding: 12px;
+        background: var(--surface-raised);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+        transform-origin: top left;
+      }
+      .due-popover .stack {
+        gap: 4px;
+      }
+      .settings-anchor {
+        position: relative;
+        display: flex;
+        align-self: stretch;
+      }
+      .settings-menu {
+        position: absolute;
+        top: calc(100% + 6px);
+        right: 0;
+        z-index: 5;
+        display: grid;
+        gap: 2px;
+        min-width: 180px;
+        padding: 4px;
+        background: var(--surface-raised);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+        transform-origin: top right;
+      }
+      .settings-menu[hidden] {
+        display: none;
+      }
+      .settings-menu button {
+        justify-content: flex-start;
+        gap: 10px;
+        padding: 8px 10px;
+        color: var(--text);
+        font-weight: 500;
+      }
+      .settings-menu button:hover {
+        background: var(--border);
+      }
+      .avatar-edit {
+        display: grid;
+        justify-items: center;
+        gap: 6px;
+      }
+      .avatar-pick {
+        position: relative;
+        padding: 0;
+        border-radius: 50%;
+        background: var(--bg);
+      }
+      .avatar-pick .identicon {
+        width: 96px;
+        height: 96px;
+        border-radius: 50%;
+      }
+      /* The identicon's grid fills its square: the button draws the circle and the
+         identicon sits inset and unclipped inside it. */
+      .avatar-pick svg.identicon {
+        box-sizing: border-box;
+        padding: 18px;
+        border-radius: 0;
+        background: none;
+      }
+      .avatar-badge {
+        position: absolute;
+        right: 2px;
+        bottom: 2px;
+        display: grid;
+        place-items: center;
+        width: 28px;
+        height: 28px;
+        border-radius: 50%;
+        background: var(--accent);
+        color: var(--accent-ink);
+        border: 2px solid var(--surface);
+      }
+      #labels-modal,
+      #members-modal,
+      #profile-modal {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 12;
+        align-items: flex-start;
+        justify-content: center;
+        padding: 48px 20px;
+        background: var(--scrim);
+        backdrop-filter: blur(4px);
+      }
+      #labels-modal.open,
+      #members-modal.open,
+      #profile-modal.open {
+        display: flex;
+        animation: fade-in 150ms var(--ease-out);
+      }
+      .members-list {
+        display: grid;
+        gap: 6px;
+        max-height: 50vh;
+        overflow-y: auto;
+      }
+      .member-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 10px;
+        background: var(--surface-raised);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+      }
+      .member-row.banned .identity {
+        opacity: 0.55;
+        text-decoration: line-through;
+      }
+      .member-row .identity {
+        flex: 1;
+        min-width: 0;
+      }
+      .members-status {
+        justify-self: start;
+      }
+      .member-row .member-actions {
+        display: flex;
+        gap: 6px;
+        margin-left: auto;
+      }
+      .role-badge {
+        padding: 1px 8px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .role-badge.owner {
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+      .role-badge.admin {
+        border-color: var(--info);
+        color: var(--info);
+      }
+      .role-badge.banned {
+        border-color: var(--error);
+        color: var(--error);
+      }
+      button.danger {
+        color: var(--error);
+      }
+      .board-title {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+      }
+      .board-icon {
+        flex: none;
+        width: 36px;
+        height: 36px;
+        border-radius: 8px;
+        overflow: hidden;
+        background: var(--surface-raised);
+      }
+      .board-icon img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+      .board-icon[hidden] {
+        display: none;
+      }
+      .media-actions {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+      }
+      .media-thumb {
+        width: 52px;
+        height: 34px;
+        border-radius: 6px;
+        border: 1px solid var(--border);
+        background: var(--surface-raised) center / cover no-repeat;
+      }
+      .media-thumb.icon {
+        width: 34px;
+      }
+      .object-image.video {
+        display: grid;
+        place-items: center;
+        gap: 4px;
+        min-height: 120px;
+        aspect-ratio: 16 / 9;
+        color: var(--text);
+        font-size: 13px;
+      }
+      .object-image.video .play {
+        font-size: 28px;
+        line-height: 1;
+      }
+      .object-video {
+        grid-column: 1 / -1;
+        width: 100%;
+        max-height: 60vh;
+        border-radius: 8px;
+        background: #000;
+      }
+      .sound-setting {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 12px;
+        padding-top: 12px;
+        border-top: 1px solid var(--border);
+      }
+      .sound-setting select {
+        width: auto;
+      }
+      .labels-manager {
+        display: grid;
+        gap: 12px;
+      }
+      .labels-list {
+        display: grid;
+        gap: 6px;
+        max-height: 50vh;
+        overflow-y: auto;
+      }
+      .label-manage-row {
+        display: grid;
+        grid-template-columns: auto 1fr 72px auto;
+        align-items: center;
+        gap: 8px;
+      }
+      .label-manage-row input {
+        padding: 6px 8px;
+      }
+      .label-manage-row .usage {
+        text-align: right;
+        font-family: var(--mono);
+        font-size: 12px;
+        white-space: nowrap;
+      }
+      .label-manage-row .swatches {
+        grid-column: 1 / -1;
+        padding: 2px 0 6px;
+      }
+      .label-create {
+        display: grid;
+        gap: 8px;
+        padding-top: 12px;
+        border-top: 1px solid var(--border);
+      }
+      .label-create .row input {
+        flex: 1;
+        width: auto;
+      }
+      .labels-empty {
+        padding: 10px;
+        color: var(--muted);
+        text-align: center;
+      }
+      .due-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 1px 6px;
+        border-radius: 4px;
+        font-family: var(--mono);
+        font-size: 12px;
+        color: var(--muted);
+      }
+      .due-badge.soon {
+        background: color-mix(in srgb, var(--warn) 16%, transparent);
+        color: var(--warn);
+      }
+      .due-badge.overdue {
+        background: color-mix(in srgb, var(--danger) 18%, transparent);
+        color: var(--danger);
+      }
+      .filter-group {
+        display: grid;
+        grid-template-columns: 110px 1fr;
+        align-items: center;
+        gap: 10px;
+      }
+      #filter-panel {
+        margin-bottom: 14px;
+      }
+      #filter-labels .label-chip {
+        border: 2px solid transparent;
+        cursor: pointer;
+        opacity: 0.55;
+      }
+      #filter-labels .label-chip[aria-pressed='true'] {
+        border-color: var(--text);
+        opacity: 1;
+      }
+      #filter-toggle.active {
+        color: var(--accent);
+      }
+      body.board-open.themed {
+        background: var(--board-bg);
+        background-attachment: fixed;
+      }
+      body.board-open .topbar h1,
+      body.board-open .topbar .prompt,
+      body.board-open .new-object-bar .section-label {
+        color: var(--board-ink, inherit);
+      }
+      body.board-open.themed .new-object-bar > .row > button.ghost {
+        color: var(--board-ink, var(--muted));
+      }
+      #theme-panel {
+        margin-bottom: 14px;
+      }
+      .template-tiles {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+        gap: 8px;
+      }
+      .template-tile {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 6px;
+        padding: 6px 6px 8px;
+        border: 1px solid var(--border);
+        background: var(--surface);
+        color: var(--text);
+        font-size: 12px;
+        font-weight: 600;
+      }
+      .template-tile[aria-pressed='true'] {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 1px var(--accent);
+      }
+      .template-preview {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 4px;
+        height: 42px;
+        padding: 5px;
+        border-radius: 6px;
+        background: var(--tile-bg);
+        border: 1px solid var(--tile-border);
+      }
+      .template-preview span {
+        border-radius: 3px;
+        background: var(--tile-surface);
+      }
+      .template-preview span:first-child {
+        grid-row: span 2;
+        box-shadow: inset 0 3px 0 var(--tile-accent);
+      }
+      .template-preview span:last-child {
+        background: var(--tile-accent);
+      }
+      .device-theme {
+        padding-top: 12px;
+        border-top: 1px solid var(--border);
+      }
+      .device-theme-controls {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px 16px;
+      }
+      .device-template {
+        display: flex;
+        white-space: nowrap;
+        align-items: center;
+        gap: 8px;
+      }
+      .device-template select {
+        width: auto;
+      }
+      .swatch.background {
+        width: 52px;
+        height: 34px;
+        background: var(--label-color);
+      }
+      .swatch.custom {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        background: var(--surface-raised);
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .swatch.custom input {
+        position: absolute;
+        inset: 0;
+        opacity: 0;
+        cursor: pointer;
+      }
+      .swatch.none {
+        background: repeating-linear-gradient(
+          45deg,
+          var(--surface-raised) 0 6px,
+          var(--border) 6px 12px
+        );
+      }
+      .column-colors {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        padding: 0 10px 8px;
+      }
+      .column-colors .swatch {
+        width: 22px;
+        height: 18px;
+      }
+      .board-description {
+        position: relative;
+        max-width: 720px;
+        margin-top: 6px;
+        color: var(--board-ink, var(--muted));
+      }
+      .board-description.clamped #board-description {
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+        overflow: hidden;
+      }
+      .board-description #board-description {
+        cursor: text;
+      }
+      #board-description-more {
+        padding: 0;
+        font-size: 13px;
+      }
+      #board-description-add {
+        padding: 4px 0;
+        margin-top: 6px;
+      }
+      #board-description-form {
+        max-width: 720px;
+        margin-top: 8px;
+      }
+      /* The card's first image, shown as a cover on the board. */
+      .card-cover {
+        margin: -10px -12px 2px;
+        height: 140px;
+        overflow: hidden;
+        border-radius: 8px 8px 0 0;
+        background: var(--surface);
+      }
+      .card-cover img {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+      .md-image {
+        display: block;
+        margin: 8px 0;
+      }
+      .md-image img {
+        display: block;
+        max-width: 100%;
+        max-height: 420px;
+        border-radius: 8px;
+        cursor: zoom-in;
+      }
+      .md-image.loading {
+        height: 120px;
+        border-radius: 8px;
+        background: var(--surface);
+      }
+      .md-image.missing::before {
+        content: attr(data-alt) ' (image unavailable)';
+        color: var(--muted);
+        font-size: 13px;
+      }
+      #card-body.dropping {
+        border-color: var(--accent);
+        border-style: dashed;
+      }
+      .notifications-board {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 8px;
+        margin-top: 6px;
+        padding-top: 8px;
+        border-top: 1px solid var(--border);
+      }
+      .notifications-board:first-child {
+        margin-top: 0;
+        padding-top: 0;
+        border-top: 0;
+      }
+      .notifications-board strong {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .notifications-board .time {
+        flex-shrink: 0;
+      }
+      .mention-item .what {
+        overflow-wrap: anywhere;
+      }
+      .alert-kind {
+        font-family: var(--mono);
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--muted);
+      }
+      .alert-kind.mention,
+      .alert-kind.comment {
+        color: var(--info);
+      }
+      .alert-kind.overdue {
+        color: var(--danger);
+      }
+      .alert-kind.due-soon {
+        color: var(--warn);
+      }
+      .notifications-empty {
+        padding: 18px;
+        color: var(--muted);
+        text-align: center;
+      }
+      .comments:empty {
+        display: none;
+      }
+      .comment.enter {
+        animation: rise-in 220ms var(--ease-out) both;
       }
       .score {
         font-family: var(--mono);
@@ -391,39 +1576,7 @@
         text-align: center;
       }
       .score.bump {
-        animation: bump 0.3s ease;
-      }
-      .object-title {
-        font-size: 17px;
-        font-weight: 700;
-        margin-bottom: 4px;
-      }
-      .object-body {
-        margin: 10px 0 12px;
-        white-space: pre-wrap;
-        line-height: 1.5;
-      }
-      .object-body:empty {
-        display: none;
-      }
-      .comments-toggle {
-        padding: 4px 6px;
-        margin-left: -6px;
-        font-size: 13px;
-      }
-      .comments-toggle .chevron {
-        transition: transform 0.15s ease;
-      }
-      .comments-toggle[aria-expanded='true'] .chevron {
-        transform: rotate(90deg);
-      }
-      .comments-panel {
-        display: none;
-        margin-top: 10px;
-      }
-      .comments-panel.open {
-        display: grid;
-        gap: 10px;
+        animation: bump 200ms var(--ease-out);
       }
       .comments {
         display: grid;
@@ -584,6 +1737,1462 @@
         font-size: 11px;
         pointer-events: none;
       }
+      /* Column footer: "Add a card" and the template button share the row. */
+      .column-foot {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+      }
+      .column-foot > .composer,
+      .template-picker {
+        flex: 1 1 100%;
+        min-width: 0;
+        grid-template-columns: minmax(0, 1fr);
+      }
+      .template-picker {
+        display: grid;
+        gap: 2px;
+        padding: 6px;
+        background: var(--surface-raised);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+      }
+      .template-picker .section-label {
+        padding: 2px 6px 4px;
+        font-size: 11px;
+      }
+      .template-picker .hint {
+        margin: 4px;
+      }
+      .template-option {
+        display: flex;
+        align-items: center;
+      }
+      .template-option > button:first-child {
+        flex: 1;
+        min-width: 0;
+        justify-content: space-between;
+        color: var(--text);
+        font-weight: 500;
+      }
+      .template-option span[dir] {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .template-option .mono {
+        flex: none;
+        font-size: 11px;
+        white-space: nowrap;
+      }
+      .wip-editor {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 0 10px 8px;
+        font-size: 13px;
+      }
+      .wip-editor input {
+        width: 72px;
+        padding: 4px 8px;
+      }
+      .wip-editor button {
+        padding: 4px 10px;
+      }
+      .column-count.at-limit {
+        color: var(--warn);
+      }
+      .column-count.over-limit {
+        padding: 0 6px;
+        border-radius: 999px;
+        background: color-mix(in srgb, var(--danger) 18%, transparent);
+        color: var(--danger);
+        font-weight: 700;
+      }
+      .column.over-limit {
+        border-color: color-mix(in srgb, var(--danger) 45%, transparent);
+      }
+      .column-points {
+        font-family: var(--mono);
+        font-size: 11px;
+        color: var(--muted);
+        white-space: nowrap;
+      }
+      /* Card face additions. */
+      .kanban-card {
+        position: relative;
+      }
+      /* Aging shows in the card's frame; the text keeps full contrast. */
+      .kanban-card.aging-1 {
+        background: color-mix(in srgb, var(--surface-raised) 85%, var(--bg));
+      }
+      .kanban-card.aging-2 {
+        background: color-mix(in srgb, var(--surface-raised) 70%, var(--bg));
+        border-style: dashed;
+      }
+      .kanban-card.blocked {
+        box-shadow: inset 3px 0 0 var(--danger);
+      }
+      .card-badges {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+      .blocked-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 1px 6px;
+        border-radius: 4px;
+        background: color-mix(in srgb, var(--danger) 16%, transparent);
+        color: var(--danger);
+        font-family: var(--mono);
+        font-size: 11px;
+        font-weight: 700;
+        white-space: nowrap;
+      }
+      .blocked-badge .icon {
+        width: 12px;
+        height: 12px;
+      }
+      .points-chip {
+        display: inline-grid;
+        place-items: center;
+        min-width: 20px;
+        padding: 0 6px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        background: var(--surface);
+        color: var(--text);
+        font-family: var(--mono);
+        font-size: 11px;
+        font-weight: 700;
+        line-height: 18px;
+      }
+      .points-chip.large {
+        padding: 1px 10px;
+        font-size: 12px;
+      }
+      .checklist-count.complete {
+        color: var(--accent);
+      }
+      .checklist-bar {
+        height: 3px;
+        border-radius: 2px;
+        background: var(--border);
+        overflow: hidden;
+      }
+      .checklist-bar span {
+        display: block;
+        height: 100%;
+        border-radius: inherit;
+        background: var(--info);
+        transform: scaleX(var(--p, 0));
+        transform-origin: left;
+        transition:
+          transform 220ms var(--ease-out),
+          background-color 220ms ease;
+      }
+      .checklist-bar.large {
+        height: 6px;
+        border-radius: 3px;
+      }
+      .checklist-bar.complete span {
+        background: var(--accent);
+      }
+      .kanban-card-meta .card-assignees {
+        margin-left: auto;
+      }
+      .reaction-summary {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        letter-spacing: 0.02em;
+      }
+      .avatar-stack {
+        display: inline-flex;
+        align-items: center;
+      }
+      .stack-face {
+        display: inline-grid;
+        place-items: center;
+        width: 20px;
+        height: 20px;
+        margin-left: -6px;
+        border-radius: 50%;
+        background: var(--bg);
+        box-shadow: 0 0 0 2px var(--surface-raised);
+        overflow: hidden;
+      }
+      .stack-face:first-child {
+        margin-left: 0;
+      }
+      .stack-face .identicon {
+        width: 14px;
+        height: 14px;
+      }
+      .stack-face .identicon.avatar {
+        width: 20px;
+        height: 20px;
+      }
+      .stack-face.more {
+        font-family: var(--mono);
+        font-size: 10px;
+        color: var(--muted);
+      }
+      .card-viewers {
+        position: absolute;
+        top: 6px;
+        right: 6px;
+        z-index: 1;
+        padding: 1px;
+        border-radius: 999px;
+        background: var(--accent);
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+      }
+      .card-viewers .stack-face {
+        width: 16px;
+        height: 16px;
+        box-shadow: none;
+      }
+      .card-viewers .stack-face .identicon {
+        width: 12px;
+        height: 12px;
+      }
+      /* Header: who is online now. */
+      .presence {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-family: var(--mono);
+        font-size: 12px;
+        color: var(--board-ink, var(--muted));
+      }
+      .presence .stack-face {
+        width: 24px;
+        height: 24px;
+        box-shadow: 0 0 0 2px var(--bg);
+      }
+      .presence .stack-face .identicon.avatar {
+        width: 24px;
+        height: 24px;
+      }
+      .presence-label::before {
+        content: '';
+        display: inline-block;
+        width: 6px;
+        height: 6px;
+        margin-right: 6px;
+        border-radius: 50%;
+        background: var(--accent);
+        vertical-align: middle;
+      }
+      #my-work-button .count {
+        min-width: 18px;
+        padding: 0 5px;
+        border-radius: 999px;
+        background: var(--border);
+        font-family: var(--mono);
+        font-size: 11px;
+        line-height: 18px;
+      }
+      #filter-mine.active {
+        color: var(--accent);
+      }
+      .my-work-item .kanban-card-meta {
+        gap: 8px;
+      }
+      /* View switch: Board / Table / Calendar. */
+      .view-switch {
+        display: inline-flex;
+        gap: 2px;
+        padding: 3px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: var(--surface);
+      }
+      .view-switch button {
+        padding: 5px 10px;
+        font-size: 13px;
+        font-weight: 600;
+      }
+      .view-switch button[aria-pressed='true'] {
+        background: var(--surface-raised);
+        color: var(--text);
+        box-shadow: inset 0 0 0 1px var(--border);
+      }
+      .board-view {
+        min-height: 200px;
+      }
+      .view-empty {
+        padding: 40px 20px;
+        border: 1px dashed var(--border);
+        border-radius: 12px;
+        color: var(--muted);
+        text-align: center;
+      }
+      .table-scroll {
+        max-height: calc(100vh - 200px);
+        overflow: auto;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: var(--surface);
+      }
+      .cards-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+      }
+      .cards-table th {
+        position: sticky;
+        top: 0;
+        z-index: 1;
+        padding: 0;
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+        text-align: left;
+      }
+      .table-sort {
+        width: 100%;
+        justify-content: flex-start;
+        gap: 4px;
+        padding: 10px 12px;
+        border-radius: 0;
+        background: transparent;
+        color: var(--muted);
+        font-family: var(--mono);
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        white-space: nowrap;
+      }
+      .table-sort.active,
+      .table-sort:hover {
+        color: var(--text);
+      }
+      .cards-table .due-badge {
+        white-space: nowrap;
+      }
+      .cards-table td {
+        padding: 8px 12px;
+        border-bottom: 1px solid var(--border);
+        vertical-align: middle;
+      }
+      .cards-table tr:last-child td {
+        border-bottom: 0;
+      }
+      .table-row {
+        cursor: pointer;
+      }
+      .table-row:hover,
+      .table-row:focus-visible {
+        background: var(--surface-raised);
+      }
+      .table-row:focus-visible {
+        outline-offset: -2px;
+      }
+      .table-row.archived {
+        opacity: 0.55;
+      }
+      .cell-title {
+        max-width: 360px;
+        min-width: 180px;
+      }
+      .cell-title span[dir] {
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+        overflow: hidden;
+        overflow-wrap: anywhere;
+        font-weight: 600;
+      }
+      .cell-title .blocked-badge {
+        margin-top: 4px;
+      }
+      .cards-table .label-list {
+        flex-wrap: nowrap;
+        max-width: 220px;
+      }
+      .column-pill {
+        display: inline-block;
+        max-width: 160px;
+        padding: 1px 8px 1px 6px;
+        border-left: 3px solid var(--column-color);
+        border-radius: 4px;
+        background: var(--surface-raised);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 13px;
+      }
+      /* Calendar: a month of days, cards on their due date. */
+      .calendar-head {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 10px;
+      }
+      .calendar-title {
+        min-width: 180px;
+        margin: 0;
+        color: var(--board-ink, var(--text));
+      }
+      .calendar-head .row button {
+        padding: 6px 12px;
+      }
+      .calendar-head .hint {
+        margin-left: auto;
+        color: var(--board-ink, var(--muted));
+      }
+      .calendar-grid {
+        display: grid;
+        grid-template-columns: repeat(7, minmax(0, 1fr));
+        gap: 1px;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        background: var(--border);
+        /* clip, not hidden: focusing a card can't scroll the grid sideways. */
+        overflow: clip;
+      }
+      .calendar-weekday {
+        padding: 6px 8px;
+        background: var(--surface);
+        color: var(--muted);
+        font-family: var(--mono);
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+      .calendar-day {
+        display: grid;
+        align-content: start;
+        gap: 4px;
+        min-height: 92px;
+        padding: 6px;
+        background: var(--surface);
+        transition: background-color 120ms ease;
+      }
+      .calendar-day.outside {
+        background: color-mix(in srgb, var(--surface) 60%, var(--bg));
+      }
+      .calendar-day.outside .calendar-date {
+        opacity: 0.5;
+      }
+      .calendar-day.drop-target {
+        background: var(--surface-raised);
+        box-shadow: inset 0 0 0 2px var(--accent);
+      }
+      .calendar-date {
+        justify-self: start;
+        min-width: 22px;
+        padding: 1px 4px;
+        border-radius: 6px;
+        color: var(--muted);
+        font-family: var(--mono);
+        font-size: 12px;
+        text-align: center;
+      }
+      .calendar-day.today .calendar-date {
+        background: var(--accent);
+        color: var(--accent-ink);
+        font-weight: 700;
+      }
+      .calendar-card {
+        justify-content: flex-start;
+        min-width: 0;
+        padding: 3px 6px;
+        border-left: 3px solid var(--label-color);
+        border-radius: 5px;
+        background: var(--surface-raised);
+        color: var(--text);
+        font-size: 12px;
+        font-weight: 600;
+        text-align: left;
+      }
+      .calendar-card span {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .calendar-card.done span {
+        color: var(--muted);
+        text-decoration: line-through;
+      }
+      .calendar-card.blocked {
+        box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--danger) 50%, transparent);
+      }
+      .calendar-card.dragging {
+        opacity: 0.4;
+      }
+      /* Card details: presence, assignees, estimate, checklist, links, tabs. */
+      .card-viewers-detail {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        margin-left: auto;
+        color: var(--accent);
+        font-size: 13px;
+      }
+      .card-detail-sub .blocked-badge {
+        font-size: 12px;
+      }
+      .assign-anchor {
+        position: relative;
+      }
+      .assignee-list {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 6px;
+      }
+      .assignee-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        max-width: 100%;
+        padding: 2px 2px 2px 6px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        background: var(--surface-raised);
+        font-size: 13px;
+      }
+      .assignee-chip span {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .assignee-chip button {
+        padding: 2px 6px;
+        border-radius: 999px;
+        font-size: 11px;
+      }
+      .assign-me {
+        font-size: 13px;
+      }
+      .assign-popover {
+        width: 260px;
+        padding: 6px;
+      }
+      .assign-options {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 2px;
+        max-height: 240px;
+        overflow-y: auto;
+      }
+      .assign-options.compact {
+        max-height: 140px;
+        padding: 4px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+      }
+      .assign-option {
+        justify-content: flex-start;
+        gap: 8px;
+        padding: 6px 8px;
+        background: transparent;
+        color: var(--text);
+        font-weight: 500;
+        text-align: left;
+      }
+      .assign-option:hover {
+        background: var(--border);
+      }
+      .assign-option span[dir] {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .assign-option .identicon {
+        width: 20px;
+        height: 20px;
+      }
+      .check-mark {
+        color: var(--accent);
+        font-weight: 700;
+      }
+      .estimate {
+        display: grid;
+        gap: 8px;
+      }
+      .poker-deck {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 3px;
+      }
+      .poker-card {
+        min-width: 34px;
+        padding: 7px 4px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        background: var(--surface-raised);
+        color: var(--text);
+        font-family: var(--mono);
+        font-size: 13px;
+      }
+      .poker-card:hover {
+        border-color: var(--border-strong);
+      }
+      .poker-card.on {
+        border-color: var(--accent);
+        background: var(--accent);
+        color: var(--accent-ink);
+      }
+      .poker-status {
+        gap: 6px;
+        font-size: 13px;
+      }
+      .poker-status button {
+        padding: 4px 10px;
+        font-size: 13px;
+      }
+      .poker-votes {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-right: auto;
+      }
+      .poker-vote {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        padding: 2px 6px 2px 3px;
+        border-radius: 999px;
+        background: var(--surface-raised);
+      }
+      .poker-value {
+        font-family: var(--mono);
+        font-size: 12px;
+        font-weight: 700;
+      }
+      .poker-value.hidden {
+        color: var(--muted);
+      }
+      .reaction-bar:empty {
+        display: none;
+      }
+      .reaction-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 4px;
+      }
+      .comment .reaction-row {
+        margin-top: 2px;
+      }
+      .reaction {
+        gap: 4px;
+        min-height: 26px;
+        padding: 2px 8px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        background: var(--surface-raised);
+        color: var(--text);
+        font-size: 13px;
+        font-weight: 500;
+      }
+      .reaction .mono {
+        font-size: 12px;
+      }
+      .reaction.mine {
+        border-color: var(--accent);
+        background: color-mix(in srgb, var(--accent) 14%, var(--surface-raised));
+      }
+      .reaction.add {
+        color: var(--muted);
+        border-style: dashed;
+      }
+      .reaction.add:hover {
+        color: var(--text);
+      }
+      .reaction.add .icon {
+        width: 14px;
+        height: 14px;
+      }
+      /* Comment reactions stay quiet until hovered, unless someone reacted. */
+      .comment .reaction.add {
+        min-height: 22px;
+        padding: 1px 6px;
+        border-color: transparent;
+        opacity: 0;
+        transition:
+          opacity 120ms ease,
+          transform 160ms var(--ease-out);
+      }
+      .comment:hover .reaction.add,
+      .comment .reaction.add:focus-visible,
+      .comment .reaction.add[aria-expanded='true'] {
+        opacity: 1;
+      }
+      .reaction-picker {
+        display: flex;
+        gap: 2px;
+        padding: 3px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        background: var(--surface-raised);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+        transform-origin: left center;
+      }
+      .reaction-picker button {
+        padding: 3px 6px;
+        border-radius: 999px;
+        font-size: 16px;
+      }
+      .reaction-picker button:hover {
+        background: var(--border);
+      }
+      @media (hover: hover) and (pointer: fine) {
+        .reaction-picker button {
+          transition: transform 120ms var(--ease-out);
+        }
+        .reaction-picker button:hover {
+          transform: scale(1.1);
+        }
+      }
+      .reaction-picker button.mine {
+        background: color-mix(in srgb, var(--accent) 22%, transparent);
+      }
+      .checklist {
+        display: grid;
+        gap: 2px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+      .checklist:empty {
+        display: none;
+      }
+      .checklist-item {
+        display: flex;
+        align-items: flex-start;
+        gap: 8px;
+        min-height: 32px;
+        padding: 2px 4px;
+        border-radius: 6px;
+      }
+      .checklist-item:hover,
+      .checklist-item:focus-within {
+        background: var(--surface-raised);
+      }
+      /* Aligned with the first line of text, which may wrap. */
+      .checklist-item input[type='checkbox'] {
+        flex: none;
+        width: 16px;
+        height: 16px;
+        margin: 6px 0 0;
+        accent-color: var(--accent);
+      }
+      .item-text {
+        flex: 1;
+        min-width: 0;
+        padding: 3px 4px;
+        border-radius: 4px;
+        overflow-wrap: anywhere;
+        cursor: text;
+      }
+      .checklist-item.done .item-text {
+        color: var(--muted);
+        text-decoration: line-through;
+      }
+      .item-edit {
+        flex: 1;
+        padding: 3px 6px;
+      }
+      .checklist-item > button {
+        padding: 4px;
+        opacity: 0;
+        transition:
+          opacity 120ms ease,
+          transform 160ms var(--ease-out);
+      }
+      .checklist-item:hover > button,
+      .checklist-item:focus-within > button {
+        opacity: 1;
+      }
+      .checklist-add {
+        display: flex;
+        gap: 8px;
+      }
+      .checklist-add input {
+        flex: 1;
+        padding: 7px 10px;
+      }
+      .checklist-add button {
+        padding: 7px 12px;
+      }
+      .links-list {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 4px;
+      }
+      .link-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 4px 4px 4px 8px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--surface-raised);
+        font-size: 14px;
+      }
+      .link-kind {
+        flex: none;
+        width: 76px;
+        color: var(--muted);
+        font-family: var(--mono);
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      .link-kind.blocking {
+        color: var(--danger);
+      }
+      .link-title {
+        display: block;
+        flex: 1;
+        min-width: 0;
+        justify-content: flex-start;
+        padding: 2px 0;
+        background: transparent;
+        color: var(--text);
+        font-weight: 600;
+        text-align: left;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .link-title:hover {
+        color: var(--info);
+        text-decoration: underline;
+      }
+      .link-title.inline {
+        display: inline;
+        padding: 0;
+        white-space: normal;
+        overflow-wrap: anywhere;
+      }
+      .link-column {
+        flex: none;
+        max-width: 120px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 12px;
+      }
+      .link-column.done {
+        color: var(--accent);
+      }
+      .link-row > button.ghost {
+        padding: 4px 6px;
+        font-size: 12px;
+      }
+      .link-form {
+        display: grid;
+        gap: 6px;
+      }
+      .link-form .row {
+        flex-wrap: nowrap;
+      }
+      .link-form select {
+        flex: none;
+      }
+      .link-form input {
+        flex: 1;
+        padding: 8px 10px;
+      }
+      .link-results {
+        display: grid;
+        gap: 2px;
+      }
+      .link-result {
+        justify-content: space-between;
+        gap: 12px;
+        padding: 6px 10px;
+        background: transparent;
+        color: var(--text);
+        font-weight: 500;
+        text-align: left;
+      }
+      .link-result:hover,
+      .link-result:focus-visible {
+        background: var(--surface-raised);
+      }
+      .link-result span {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .link-result .muted {
+        flex: none;
+        max-width: 40%;
+        font-size: 12px;
+      }
+      .tabs {
+        display: flex;
+        gap: 2px;
+      }
+      .tab {
+        padding: 4px 10px;
+        border-radius: 6px;
+        background: transparent;
+        color: var(--muted);
+        font-family: var(--mono);
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      .tab[aria-selected='true'] {
+        background: var(--surface-raised);
+        color: var(--text);
+      }
+      /* Always takes its line, so the comment box below never moves. */
+      .typing {
+        min-height: 18px;
+        margin: 0;
+        font-size: 12px;
+        font-style: italic;
+        transition: opacity 150ms var(--ease-out);
+      }
+      .typing.idle {
+        opacity: 0;
+      }
+      /* A checkbox drawn as an on/off switch. */
+      .switch {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        cursor: pointer;
+        font-size: 14px;
+      }
+      .card-detail-foot .switch {
+        margin-right: auto;
+        color: var(--muted);
+      }
+      .switch input {
+        appearance: none;
+        position: relative;
+        flex: none;
+        width: 32px;
+        height: 18px;
+        margin: 0;
+        padding: 0;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        background: var(--bg);
+        cursor: pointer;
+        transition: background-color 150ms ease;
+      }
+      .switch input::after {
+        content: '';
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: var(--muted);
+        transition:
+          transform 150ms var(--ease-out),
+          background-color 150ms ease;
+      }
+      .switch input:checked {
+        border-color: var(--accent);
+        background: color-mix(in srgb, var(--accent) 30%, var(--bg));
+      }
+      .switch input:checked::after {
+        background: var(--accent);
+        transform: translateX(14px);
+      }
+      .switch input:focus {
+        box-shadow: none;
+      }
+      .switch input:focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+      .activity-list {
+        display: grid;
+        gap: 2px;
+      }
+      .activity-list.scroll {
+        max-height: 62vh;
+        overflow-y: auto;
+      }
+      .activity-entry {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        align-items: start;
+        gap: 10px;
+        padding: 8px 6px;
+        border-bottom: 1px solid var(--border);
+        font-size: 14px;
+      }
+      .activity-entry:last-child {
+        border-bottom: 0;
+      }
+      .activity-entry > .identicon {
+        width: 20px;
+        height: 20px;
+        margin-top: 1px;
+      }
+      .activity-text {
+        display: grid;
+        gap: 2px;
+        min-width: 0;
+        overflow-wrap: anywhere;
+      }
+      .activity-text .snippet {
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 2;
+        overflow: hidden;
+        font-size: 13px;
+      }
+      .activity-entry .time {
+        white-space: nowrap;
+      }
+      /* Shared overlay for the board's panels (activity, stats, rules, …). */
+      .overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 12;
+        align-items: flex-start;
+        justify-content: center;
+        padding: 48px 20px;
+        overflow-y: auto;
+        background: var(--scrim);
+        backdrop-filter: blur(4px);
+      }
+      .overlay.open {
+        display: flex;
+        animation: fade-in 150ms var(--ease-out);
+      }
+      .overlay.open .modal-card {
+        animation: pop-in 180ms var(--ease-out);
+      }
+      .overlay.top {
+        z-index: 30;
+        align-items: center;
+      }
+      .modal-card.wide {
+        display: grid;
+        gap: 12px;
+        width: min(720px, 100%);
+      }
+      #confirm-modal .modal-card {
+        width: min(420px, 100%);
+      }
+      #confirm-body {
+        overflow-wrap: anywhere;
+      }
+      .stats {
+        display: grid;
+        gap: 20px;
+      }
+      .stat-tiles {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+        gap: 8px;
+      }
+      .stat-tiles.two {
+        grid-template-columns: 1fr 1fr;
+      }
+      .stat-tiles.two .hint {
+        grid-column: 1 / -1;
+        margin: 0;
+      }
+      .stat-tile {
+        display: grid;
+        gap: 2px;
+        padding: 10px 12px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: var(--surface-raised);
+      }
+      .stat-value {
+        font-family: var(--mono);
+        font-size: 22px;
+        font-weight: 700;
+        color: var(--text);
+      }
+      .stat-tile.warn .stat-value {
+        color: var(--danger);
+      }
+      .stat-label {
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .chart-legend {
+        display: inline-flex;
+        gap: 12px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .chart-legend span {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .swatch-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 3px;
+      }
+      .swatch-dot.done,
+      .chart-done {
+        background: var(--accent);
+        fill: var(--accent);
+      }
+      .swatch-dot.created,
+      .chart-created {
+        background: color-mix(in srgb, var(--muted) 70%, var(--bg));
+        fill: color-mix(in srgb, var(--muted) 70%, var(--bg));
+      }
+      .throughput-chart {
+        width: 100%;
+        height: auto;
+        overflow: visible;
+      }
+      .chart-grid {
+        stroke: var(--border);
+        stroke-width: 1;
+      }
+      .chart-tick {
+        fill: var(--muted);
+        font-family: var(--mono);
+        font-size: 10px;
+      }
+      .chart-hit {
+        fill: transparent;
+      }
+      .chart-hit:hover {
+        fill: color-mix(in srgb, var(--text) 5%, transparent);
+      }
+      .hbars {
+        display: grid;
+        gap: 6px;
+      }
+      .hbar-row {
+        display: grid;
+        grid-template-columns: minmax(80px, 160px) minmax(0, 1fr) 14ch;
+        align-items: center;
+        gap: 10px;
+        font-size: 13px;
+      }
+      .hbar-name {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .hbar-track {
+        position: relative;
+        height: 10px;
+        border-radius: 3px;
+        background: var(--surface-raised);
+      }
+      .hbar-fill {
+        display: block;
+        height: 100%;
+        border-radius: 3px;
+        background: var(--info);
+      }
+      .hbar-fill.over {
+        background: var(--danger);
+      }
+      .wip-mark {
+        position: absolute;
+        top: -3px;
+        bottom: -3px;
+        width: 2px;
+        margin-left: -1px;
+        border-radius: 1px;
+        background: var(--text);
+      }
+      .hbar-value {
+        text-align: right;
+        color: var(--muted);
+        font-family: var(--mono);
+        font-size: 12px;
+        white-space: nowrap;
+      }
+      .stats-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 14px;
+      }
+      .stats-table th {
+        padding: 6px 8px;
+        border-bottom: 1px solid var(--border);
+        color: var(--muted);
+        font-family: var(--mono);
+        font-size: 11px;
+        font-weight: 600;
+        text-align: left;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+      .stats-table td {
+        padding: 6px 8px;
+        border-bottom: 1px solid var(--border);
+        font-family: var(--mono);
+      }
+      .stats-table td:first-child {
+        width: 100%;
+        max-width: 0;
+      }
+      .stats-table td:not(:first-child),
+      .stats-table th {
+        white-space: nowrap;
+      }
+      .stats-table .identity {
+        display: flex;
+        min-width: 0;
+      }
+      .stats-table .identity .name {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .rules-list {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 6px;
+      }
+      .rule-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 10px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--surface-raised);
+      }
+      .rule-row.editing {
+        border-color: var(--accent);
+      }
+      .rule-row.disabled .rule-text {
+        opacity: 0.55;
+      }
+      .rule-text {
+        display: grid;
+        flex: 1;
+        gap: 2px;
+        min-width: 0;
+        font-size: 14px;
+        overflow-wrap: anywhere;
+      }
+      .rule-text .muted {
+        font-size: 13px;
+      }
+      .rule-form {
+        display: grid;
+        gap: 10px;
+        padding-top: 12px;
+        border-top: 1px solid var(--border);
+      }
+      .rule-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 10px;
+      }
+      .rule-grid select {
+        width: 100%;
+      }
+      .rule-actions {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+        gap: 14px;
+        font-size: 14px;
+      }
+      .rule-actions .stack {
+        align-content: start;
+        gap: 6px;
+      }
+      label.check {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 6px;
+        cursor: pointer;
+      }
+      label.check input[type='checkbox'] {
+        width: 16px;
+        height: 16px;
+        margin: 0;
+        accent-color: var(--accent);
+      }
+      .inline-number {
+        width: 64px;
+        padding: 3px 6px;
+      }
+      .board-templates {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+        gap: 8px;
+      }
+      .board-template {
+        display: grid;
+        justify-items: start;
+        gap: 4px;
+        padding: 14px;
+        border: 1px solid var(--border);
+        background: var(--surface-raised);
+        color: var(--text);
+        font-weight: 400;
+        text-align: left;
+      }
+      .board-template:hover {
+        border-color: var(--accent);
+      }
+      .board-template strong {
+        font-size: 15px;
+      }
+      .board-template .muted {
+        font-size: 13px;
+      }
+      .toast {
+        position: fixed;
+        left: 50%;
+        bottom: 24px;
+        z-index: 40;
+        max-width: min(520px, calc(100vw - 32px));
+        padding: 10px 16px;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: var(--surface-raised);
+        box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+        color: var(--text);
+        font-size: 14px;
+        transform: translateX(-50%);
+        transition:
+          opacity 180ms var(--ease-out),
+          transform 180ms var(--ease-out);
+      }
+      .toast.warn {
+        border-color: color-mix(in srgb, var(--warn) 60%, transparent);
+      }
+      .toast.warn::before {
+        content: '⚠ ';
+        color: var(--warn);
+      }
+      .confetti-layer {
+        position: fixed;
+        inset: 0;
+        z-index: 50;
+        overflow: hidden;
+        pointer-events: none;
+      }
+      .confetti-piece {
+        position: absolute;
+        border-radius: 1px;
+        will-change: transform, opacity;
+      }
+      .confetti-check {
+        position: absolute;
+        display: grid;
+        place-items: center;
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        background: var(--accent);
+        color: var(--accent-ink);
+        font-size: 26px;
+        font-weight: 700;
+        transform: translate(-50%, -50%);
+      }
+      .poker-value.reveal {
+        animation: pop-in 180ms var(--ease-out) both;
+        animation-delay: calc(min(var(--i), 6) * 40ms);
+      }
+      .stack-face.enter {
+        animation: face-in 200ms var(--ease-out) both;
+      }
+      .checklist-count.bump {
+        display: inline-block;
+        animation: bump 200ms var(--ease-out);
+      }
+      .activity-entry.enter {
+        animation: rise-in 220ms var(--ease-out) both;
+      }
+      .label-chip.more {
+        flex: none;
+        overflow: visible;
+      }
+      .notifications-board .board-label {
+        display: flex;
+        min-width: 0;
+      }
+      .notifications-board .board-label strong {
+        min-width: 0;
+      }
+      .notifications-board .open-tag {
+        flex: none;
+        font-weight: 700;
+      }
+      .calendar-more {
+        justify-content: flex-start;
+        padding: 2px 6px;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 600;
+      }
+      .calendar-more:hover {
+        color: var(--text);
+      }
+      #board-calendar {
+        position: relative;
+      }
+      .calendar-popover {
+        position: absolute;
+        box-sizing: border-box;
+        z-index: 4;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 4px;
+        max-height: 320px;
+        overflow-y: auto;
+        padding: 8px;
+        background: var(--surface-raised);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+        transform-origin: top left;
+        transition:
+          opacity 150ms var(--ease-out),
+          transform 150ms var(--ease-out);
+      }
+      .calendar-popover .calendar-card {
+        background: var(--surface);
+      }
+      .calendar-popover-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        color: var(--muted);
+        font-family: var(--mono);
+        font-size: 11px;
+        text-transform: uppercase;
+      }
+      .calendar-popover-head button {
+        padding: 2px 6px;
+      }
+      .show-all {
+        justify-self: start;
+        font-size: 13px;
+      }
+      @keyframes face-in {
+        from {
+          opacity: 0;
+          transform: scale(0.85);
+        }
+      }
       @keyframes shimmer {
         from {
           background-position: 200% 0;
@@ -617,8 +3226,55 @@
       }
       @keyframes bump {
         40% {
-          transform: scale(1.35);
+          transform: scale(1.15);
           color: var(--accent);
+        }
+      }
+      /* Disclosure panels and drop markers enter; closing stays instant. */
+      #filter-panel,
+      #theme-panel,
+      .column-colors.entering {
+        transition:
+          opacity 160ms var(--ease-out),
+          transform 160ms var(--ease-out);
+      }
+      /* Anchored to its button, so it grows from there (transform-origin). */
+      .due-popover,
+      .settings-menu {
+        transition:
+          opacity 150ms var(--ease-out),
+          transform 150ms var(--ease-out);
+      }
+      .drop-marker,
+      .column-drop-marker {
+        transition:
+          opacity 120ms var(--ease-out),
+          transform 120ms var(--ease-out);
+      }
+      @starting-style {
+        #filter-panel,
+        #theme-panel,
+        .column-colors.entering {
+          opacity: 0;
+          transform: translateY(-4px);
+        }
+        .due-popover,
+        .settings-menu,
+        .calendar-popover {
+          opacity: 0;
+          transform: scale(0.97);
+        }
+        .toast {
+          opacity: 0;
+          transform: translate(-50%, 8px);
+        }
+        .drop-marker {
+          opacity: 0;
+          transform: scaleX(0.5);
+        }
+        .column-drop-marker {
+          opacity: 0;
+          transform: scaleY(0.5);
         }
       }
       @media (prefers-reduced-motion: reduce) {
@@ -626,7 +3282,23 @@
         *::before,
         *::after {
           animation: none !important;
-          transition: none !important;
+          /* Keep fades and color changes; drop anything that moves. */
+          transition-property: opacity, color, background-color, border-color !important;
+        }
+        /* Gentler, not zero: keep the fades, drop the movement. */
+        #card-modal.open .card-detail,
+        #notifications-modal.open .modal-card,
+        #labels-modal.open .modal-card,
+        #members-modal.open .modal-card,
+        #profile-modal.open .modal-card,
+        .overlay.open .modal-card {
+          animation: fade-in 180ms var(--ease-out) !important;
+        }
+        .poker-value.reveal {
+          animation: fade-in 150ms var(--ease-out) both !important;
+        }
+        .kanban-card:active {
+          transform: none;
         }
       }
       @media (max-width: 600px) {
@@ -664,7 +3336,7 @@
         <div id="recent-boards" aria-label="Joined boards"></div>
         <div id="room-create-form" class="stack">
           <p class="muted">Choose a name for your new private board.</p>
-          <input id="room-name" placeholder="Board name" />
+          <input id="room-name" placeholder="Board name" maxlength="100" />
           <div class="row">
             <button id="room-create-back" class="secondary">Back</button>
             <button id="room-create">Create board</button>
@@ -699,32 +3371,216 @@
       <section id="chat">
         <div class="topbar">
           <div>
-            <h1 id="board-name">OpenCollab</h1>
-            <p class="muted prompt">private peer-to-peer board</p>
+            <div class="board-title">
+              <span id="board-icon" class="board-icon" hidden></span>
+              <h1 id="board-name" dir="auto">OpenCollab</h1>
+            </div>
+            <div id="board-description-view" class="board-description">
+              <div id="board-description" class="markdown" dir="auto"></div>
+              <button id="board-description-more" type="button" class="ghost" hidden>More</button>
+            </div>
+            <button id="board-description-add" type="button" class="ghost prompt" hidden>
+              Add a board description
+            </button>
+            <form id="board-description-form" class="stack" hidden>
+              <textarea
+                id="board-description-input"
+                rows="3"
+                maxlength="2000"
+                dir="auto"
+                placeholder="What is this board for? Markdown works."
+                aria-label="Board description"
+              ></textarea>
+              <div class="row">
+                <button>Save</button>
+                <button id="board-description-cancel" type="button" class="ghost">Cancel</button>
+                <span class="muted hint">Everyone on the board sees it</span>
+              </div>
+            </form>
           </div>
           <div class="topbar-meta">
+            <span id="presence" class="presence" hidden></span>
             <span id="status-chip" class="status-chip" role="status" aria-live="polite">
               <span class="status-dot" aria-hidden="true"></span>
-              <span id="peer-status">0 peers</span>
+              <span class="peer-status">0 peers</span>
               <span aria-hidden="true">·</span>
-              <span id="sync-status">syncing…</span>
+              <span class="sync-status">syncing…</span>
             </span>
+            <button id="my-work-button" class="secondary" data-icon="user">My work</button>
+            <button id="notifications-button" class="secondary" aria-label="Notifications">
+              <span id="notifications-icon" aria-hidden="true"></span
+              ><span id="notifications-count" class="count"></span>
+            </button>
+            <div class="settings-anchor">
+              <button
+                id="board-settings-button"
+                class="secondary"
+                aria-label="Board settings"
+                aria-haspopup="menu"
+                aria-expanded="false"
+              ></button>
+              <div
+                id="board-settings-menu"
+                class="settings-menu"
+                role="menu"
+                aria-label="Board settings"
+                hidden
+              >
+                <button
+                  id="board-edit"
+                  type="button"
+                  class="ghost"
+                  role="menuitem"
+                  data-icon="edit"
+                >
+                  Edit board
+                </button>
+                <button
+                  id="labels-open"
+                  type="button"
+                  class="ghost"
+                  role="menuitem"
+                  data-icon="tag"
+                >
+                  Labels
+                </button>
+                <button
+                  id="theme-toggle"
+                  type="button"
+                  class="ghost"
+                  role="menuitem"
+                  aria-expanded="false"
+                  data-icon="palette"
+                >
+                  Customize
+                </button>
+                <button id="rules-open" type="button" class="ghost" role="menuitem" data-icon="zap">
+                  Automation
+                </button>
+                <button
+                  id="board-templates-open"
+                  type="button"
+                  class="ghost"
+                  role="menuitem"
+                  data-icon="template"
+                >
+                  Start from a template
+                </button>
+              </div>
+            </div>
             <button id="identity-label" class="secondary" aria-label="Open connection details">
               @DisplayName
             </button>
           </div>
         </div>
         <div class="new-object-bar">
-          <span class="section-label">Board</span>
-          <button id="new-object-toggle" data-icon="plus" aria-expanded="false">New</button>
+          <div class="view-switch" role="group" aria-label="View">
+            <button type="button" class="ghost" data-view="board" aria-pressed="true">Board</button>
+            <button type="button" class="ghost" data-view="table" aria-pressed="false">
+              Table
+            </button>
+            <button type="button" class="ghost" data-view="calendar" aria-pressed="false">
+              Calendar
+            </button>
+          </div>
+          <div class="row">
+            <button id="members-open" class="ghost">Members</button>
+            <button id="filter-mine" class="ghost" aria-pressed="false">Assigned to me</button>
+            <button id="filter-toggle" class="ghost" aria-expanded="false">Filter</button>
+            <button id="activity-open" class="ghost" data-icon="activity">Activity</button>
+            <button id="stats-open" class="ghost" data-icon="chart">Stats</button>
+            <button id="archived-toggle" class="ghost" aria-pressed="false">Show archived</button>
+            <button id="board-export" class="ghost">Export</button>
+            <button id="new-object-toggle" data-icon="plus" aria-expanded="false">New card</button>
+          </div>
+        </div>
+        <div id="theme-panel" class="card stack" hidden>
+          <div class="filter-group">
+            <span class="section-label">Template</span>
+            <div id="theme-templates" class="template-tiles"></div>
+          </div>
+          <div class="filter-group">
+            <span class="section-label">Background</span>
+            <div id="theme-backgrounds" class="swatches"></div>
+          </div>
+          <div class="filter-group">
+            <span class="section-label">Background image</span>
+            <div class="media-actions">
+              <span id="theme-image-thumb" class="media-thumb" hidden></span>
+              <button id="theme-image-upload" type="button" class="secondary" data-icon="image">
+                Upload image
+              </button>
+              <button id="theme-image-remove" type="button" class="ghost" hidden>Remove</button>
+              <input id="theme-image-input" type="file" accept="image/*" hidden />
+            </div>
+          </div>
+          <div class="filter-group">
+            <span class="section-label">Accent</span>
+            <div id="theme-accents" class="swatches"></div>
+          </div>
+          <div class="filter-group">
+            <span class="section-label">Board icon</span>
+            <div class="media-actions">
+              <span id="board-icon-thumb" class="media-thumb icon" hidden></span>
+              <button id="board-icon-upload" type="button" class="secondary" data-icon="image">
+                Upload icon
+              </button>
+              <button id="board-icon-remove" type="button" class="ghost" hidden>Remove</button>
+              <input id="board-icon-input" type="file" accept="image/*" hidden />
+            </div>
+          </div>
+          <p id="theme-error" class="error" role="alert" hidden></p>
+          <p class="muted hint">Everyone on this board sees the same theme.</p>
+          <div class="filter-group device-theme">
+            <span class="section-label">On this device</span>
+            <div class="device-theme-controls">
+              <div class="view-switch" role="group" aria-label="Appearance">
+                <button type="button" class="ghost" data-theme-mode="system">System</button>
+                <button type="button" class="ghost" data-theme-mode="light">Light</button>
+                <button type="button" class="ghost" data-theme-mode="dark">Dark</button>
+              </div>
+              <label class="device-template muted"
+                >Your theme
+                <select id="theme-override" aria-label="Your theme"></select>
+              </label>
+              <span id="theme-override-hint" class="muted hint" hidden>
+                Boards use your theme here; others still see the board's.
+              </span>
+            </div>
+          </div>
+        </div>
+        <div id="filter-panel" class="card stack" hidden>
+          <div class="filter-group">
+            <span class="section-label">Labels</span>
+            <div id="filter-labels" class="row"></div>
+          </div>
+          <div class="filter-group">
+            <span class="section-label">Mentioned</span>
+            <select id="filter-member" aria-label="Mentioned member"></select>
+          </div>
+          <div class="filter-group">
+            <span class="section-label">Assigned</span>
+            <select id="filter-assignee" aria-label="Assigned member"></select>
+          </div>
+          <div class="filter-group">
+            <span class="section-label">Due</span>
+            <select id="filter-due" aria-label="Due date">
+              <option value="">Any time</option>
+              <option value="overdue">Overdue</option>
+              <option value="week">Due in the next 7 days</option>
+              <option value="none">No due date</option>
+            </select>
+          </div>
+          <div class="row">
+            <span id="filter-summary" class="muted"></span>
+            <button id="filter-clear" type="button" class="ghost">Clear filters</button>
+          </div>
         </div>
         <form id="new-object-form" class="card stack">
-          <h2>Add an object</h2>
-          <input id="object-title" placeholder="Title" /><textarea
-            id="object-body"
-            rows="3"
-            placeholder="Description or proposal"
-          ></textarea>
+          <h2>Add a card</h2>
+          <input id="object-title" placeholder="Title" />
+          <select id="object-column" aria-label="Column"></select
+          ><textarea id="object-body" rows="3" placeholder="Description or proposal"></textarea>
           <div id="image-previews" class="image-previews"></div>
           <input id="object-images" type="file" accept="image/*" multiple hidden />
           <p id="image-error" class="error" role="alert"></p>
@@ -733,9 +3589,16 @@
               Attach images
             </button>
             <button type="button" id="object-cancel" class="secondary">Cancel</button>
-            <button type="submit" id="object-add">Add to board</button>
+            <button type="submit" id="object-add">Add card</button>
           </div>
         </form>
+        <div id="banned-banner" class="card waiting" role="status" hidden>
+          <strong>You were removed from this board.</strong>
+          <span class="muted"
+            >An owner or admin removed you. You can still see the board, but nobody else sees the
+            changes you make here.</span
+          >
+        </div>
         <div id="board-loading" aria-label="Syncing board">
           <div id="board-waiting" class="card waiting" role="status" hidden>
             <strong>Waiting for a board member to come online…</strong>
@@ -749,6 +3612,8 @@
           <div class="skeleton"></div>
         </div>
         <div id="board-objects"></div>
+        <div id="board-table" class="board-view" hidden></div>
+        <div id="board-calendar" class="board-view" hidden></div>
       </section>
     </main>
     <div
@@ -767,6 +3632,9 @@
           <strong>Peers connected</strong><span id="modal-peers" class="mono"></span>
         </div>
         <div class="modal-actions">
+          <button id="edit-profile" class="secondary" data-icon="edit">
+            Edit name &amp; avatar
+          </button>
           <button id="copy-invite" data-icon="copy">Copy invite</button>
           <button id="share-invite" class="secondary" data-icon="share">Share invite</button>
           <button id="switch-board" class="secondary" data-icon="users">Switch board</button>
@@ -777,6 +3645,580 @@
         </div>
       </div>
     </div>
+    <div id="card-modal" role="dialog" aria-modal="true" aria-label="Card details">
+      <div class="modal-card card-detail">
+        <div class="card-detail-head">
+          <textarea
+            id="card-title"
+            aria-label="Card title"
+            maxlength="200"
+            rows="1"
+            dir="auto"
+          ></textarea>
+          <button id="close-card-modal" class="ghost icon-only" aria-label="Close">✕</button>
+        </div>
+        <div class="card-detail-sub">
+          <span id="card-author"></span>
+          <label class="muted"
+            >in
+            <select id="card-column" aria-label="Column"></select
+          ></label>
+          <span id="card-archived-badge" class="badge" hidden>Archived</span>
+          <span id="card-template-badge" class="badge" hidden>Template</span>
+          <span id="card-blocked-badge" class="blocked-badge" hidden>Blocked</span>
+          <span id="card-viewers" class="card-viewers-detail" role="status" hidden></span>
+        </div>
+        <div class="card-detail-props">
+          <section class="stack">
+            <div class="row card-detail-bar">
+              <h3 class="section-label">Labels</h3>
+              <button id="card-labels-manage" type="button" class="ghost">Manage labels</button>
+            </div>
+            <div class="label-picker">
+              <div id="card-labels" class="label-list" role="group" aria-label="Labels"></div>
+              <input
+                id="card-label-new"
+                class="label-new"
+                placeholder="+ New label"
+                maxlength="40"
+                aria-label="New label: type a name and press Enter"
+              />
+            </div>
+          </section>
+          <section class="stack">
+            <h3 class="section-label">Due date</h3>
+            <div class="due-anchor">
+              <button
+                id="card-due-button"
+                type="button"
+                class="ghost due-button"
+                aria-haspopup="dialog"
+                aria-expanded="false"
+              ></button>
+              <form id="due-popover" class="due-popover" role="dialog" aria-label="Due date" hidden>
+                <label class="stack"
+                  ><span class="section-label">Date</span>
+                  <input id="card-due-date" type="date" required
+                /></label>
+                <label class="stack"
+                  ><span class="section-label">Time (optional)</span>
+                  <input id="card-due-time" type="time"
+                /></label>
+                <div class="row">
+                  <button>Save</button>
+                  <button id="card-due-remove" type="button" class="ghost">Remove</button>
+                </div>
+              </form>
+            </div>
+          </section>
+          <section class="stack">
+            <h3 class="section-label">Assignees</h3>
+            <div class="assign-anchor">
+              <div id="card-assignees" class="assignee-list"></div>
+              <div
+                id="assign-popover"
+                class="due-popover assign-popover"
+                role="dialog"
+                aria-label="Assign members"
+                hidden
+              >
+                <div
+                  id="assign-options"
+                  class="assign-options"
+                  role="group"
+                  aria-label="Members"
+                ></div>
+              </div>
+            </div>
+          </section>
+          <section class="stack">
+            <div class="row card-detail-bar">
+              <h3 class="section-label">Estimate</h3>
+              <span id="card-points" class="points-chip large" hidden></span>
+            </div>
+            <div id="card-estimate" class="estimate"></div>
+          </section>
+        </div>
+        <section class="stack">
+          <div class="row card-detail-bar">
+            <h3 class="section-label">Description</h3>
+            <button id="card-body-edit" type="button" class="ghost">Edit</button>
+          </div>
+          <div id="card-body-view" class="markdown" dir="auto"></div>
+          <textarea
+            id="card-body"
+            rows="8"
+            placeholder="Add a more detailed description… Markdown and @mentions work."
+            hidden
+          ></textarea>
+          <div id="card-body-actions" class="row" hidden>
+            <button id="card-body-save" type="button">Save</button>
+            <button id="card-body-image" type="button" class="secondary" data-icon="image">
+              Add image
+            </button>
+            <input id="card-body-image-input" type="file" accept="image/*" multiple hidden />
+            <button id="card-body-cancel" type="button" class="secondary">Cancel</button>
+            <span class="muted hint">Markdown · ⌘/Ctrl+Enter saves</span>
+          </div>
+          <div id="card-reactions" class="reaction-bar" role="group" aria-label="Reactions"></div>
+        </section>
+        <section class="stack">
+          <div class="row card-detail-bar">
+            <h3 class="section-label">
+              Checklist <span id="card-checklist-count" class="checklist-count"></span>
+            </h3>
+            <button
+              id="card-checklist-hide"
+              type="button"
+              class="ghost"
+              aria-pressed="false"
+              hidden
+            >
+              Hide checked
+            </button>
+          </div>
+          <div id="card-checklist-progress" class="checklist-bar large" hidden><span></span></div>
+          <ul id="card-checklist" class="checklist" aria-label="Checklist"></ul>
+          <form id="card-checklist-form" class="checklist-add">
+            <input
+              id="card-checklist-new"
+              placeholder="Add an item"
+              maxlength="300"
+              dir="auto"
+              aria-label="New checklist item"
+            />
+            <button type="submit" class="secondary">Add</button>
+          </form>
+        </section>
+        <section class="stack">
+          <div class="row card-detail-bar">
+            <h3 class="section-label">Links</h3>
+            <button
+              id="card-link-add"
+              type="button"
+              class="ghost"
+              data-icon="link"
+              aria-expanded="false"
+            >
+              Add link
+            </button>
+          </div>
+          <div id="card-links" class="links-list"></div>
+          <div id="card-link-form" class="link-form" hidden>
+            <div class="row">
+              <select id="card-link-kind" aria-label="Link type">
+                <option value="blocks">This card blocks…</option>
+                <option value="blocked-by">This card is blocked by…</option>
+                <option value="relates">This card relates to…</option>
+              </select>
+              <input
+                id="card-link-search"
+                placeholder="Search cards by title"
+                aria-label="Search cards to link"
+                autocomplete="off"
+              />
+            </div>
+            <div
+              id="card-link-results"
+              class="link-results"
+              role="listbox"
+              aria-label="Cards"
+            ></div>
+          </div>
+        </section>
+        <div class="row card-detail-bar">
+          <h3 class="section-label">Attachments</h3>
+          <button id="card-attach-video" type="button" class="ghost" data-icon="video">
+            Attach video
+          </button>
+        </div>
+        <p id="card-image-error" class="error" role="alert" hidden></p>
+        <div id="card-images" class="object-images"></div>
+        <section class="stack">
+          <div class="row card-detail-bar">
+            <div class="tabs" role="tablist" aria-label="Card history">
+              <button
+                id="card-tab-comments"
+                type="button"
+                role="tab"
+                class="tab"
+                aria-selected="true"
+                aria-controls="card-comments-panel"
+              >
+                Comments
+              </button>
+              <button
+                id="card-tab-activity"
+                type="button"
+                role="tab"
+                class="tab"
+                aria-selected="false"
+                aria-controls="card-activity-panel"
+              >
+                Activity
+              </button>
+            </div>
+            <div class="vote-inline">
+              <button data-card-vote="1" aria-label="Upvote"></button>
+              <span id="card-score" class="score" aria-label="Score">0</span>
+              <button data-card-vote="-1" aria-label="Downvote"></button>
+            </div>
+          </div>
+          <div
+            id="card-comments-panel"
+            class="stack"
+            role="tabpanel"
+            aria-labelledby="card-tab-comments"
+          >
+            <div id="card-comments" class="comments"></div>
+            <p id="card-typing" class="typing muted idle" aria-live="polite"></p>
+            <form id="card-comment-form" class="comment-form">
+              <input id="card-comment" placeholder="Add a comment" aria-label="Add a comment" />
+              <button>Comment</button>
+            </form>
+          </div>
+          <div id="card-activity-panel" role="tabpanel" aria-labelledby="card-tab-activity" hidden>
+            <div id="card-activity" class="activity-list"></div>
+          </div>
+        </section>
+        <div class="row card-detail-foot">
+          <label
+            class="switch"
+            title="Template cards are hidden from the board and offered under “From template…”"
+          >
+            <input id="card-template-toggle" type="checkbox" role="switch" />
+            <span>Use as template</span>
+          </label>
+          <button id="card-archive" type="button" class="secondary">Archive</button>
+        </div>
+      </div>
+    </div>
+    <div id="labels-modal" role="dialog" aria-modal="true" aria-labelledby="labels-title">
+      <div class="modal-card labels-manager">
+        <div class="row card-detail-bar">
+          <h2 id="labels-title">Labels</h2>
+          <button id="close-labels-modal" class="ghost icon-only" aria-label="Close">✕</button>
+        </div>
+        <p class="muted hint">Shared by everyone on this board. Changes apply to every card.</p>
+        <div id="labels-list" class="labels-list"></div>
+        <form id="label-create" class="label-create">
+          <span class="section-label">New label</span>
+          <div class="row">
+            <button
+              id="label-create-color"
+              type="button"
+              class="swatch"
+              aria-label="Pick a color"
+              aria-expanded="false"
+            ></button>
+            <input
+              id="label-create-name"
+              placeholder="Label name"
+              maxlength="40"
+              aria-label="Label name"
+            />
+            <button>Create</button>
+          </div>
+          <div
+            id="label-create-colors"
+            class="swatches"
+            role="group"
+            aria-label="Color"
+            hidden
+          ></div>
+        </form>
+      </div>
+    </div>
+    <div id="members-modal" role="dialog" aria-modal="true" aria-labelledby="members-title">
+      <div class="modal-card labels-manager">
+        <div class="row card-detail-bar">
+          <h2 id="members-title">Members</h2>
+          <button id="close-members-modal" class="ghost icon-only" aria-label="Close">✕</button>
+        </div>
+        <span class="status-chip members-status">
+          <span class="status-dot" aria-hidden="true"></span>
+          <span class="peer-status">0 peers</span>
+          <span aria-hidden="true">·</span>
+          <span class="sync-status">syncing…</span>
+        </span>
+        <p id="members-hint" class="muted hint"></p>
+        <div id="members-list" class="members-list"></div>
+      </div>
+    </div>
+    <div id="profile-modal" role="dialog" aria-modal="true" aria-labelledby="profile-title">
+      <form id="profile-form" class="modal-card labels-manager">
+        <h2 id="profile-title">Edit name &amp; avatar</h2>
+        <div class="avatar-edit">
+          <button id="profile-avatar" type="button" class="avatar-pick" aria-label="Change avatar">
+            <span id="profile-avatar-image"></span>
+            <span id="profile-avatar-badge" class="avatar-badge" aria-hidden="true"></span>
+          </button>
+          <button id="profile-avatar-remove" type="button" class="ghost" hidden>
+            Remove avatar
+          </button>
+          <input id="profile-avatar-input" type="file" accept="image/*" hidden />
+        </div>
+        <input
+          id="profile-name"
+          maxlength="48"
+          dir="auto"
+          placeholder="Display name"
+          aria-label="Display name"
+        />
+        <p class="muted hint">Everyone on this board sees your name and avatar.</p>
+        <p id="profile-modal-error" class="error" role="alert" hidden></p>
+        <div class="row" style="justify-content: flex-end">
+          <button id="profile-cancel" type="button" class="ghost">Cancel</button>
+          <button>Save</button>
+        </div>
+      </form>
+    </div>
+    <div
+      id="notifications-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="notifications-title"
+    >
+      <div class="modal-card">
+        <div class="row card-detail-bar">
+          <h2 id="notifications-title">Notifications</h2>
+          <button id="notifications-read" class="ghost">Mark all read</button>
+        </div>
+        <div id="notifications-list" class="notifications-list"></div>
+        <label class="sound-setting muted"
+          >Sound
+          <select id="notification-sound" aria-label="Notification sound">
+            <option value="off">Off</option>
+            <option value="chime">Chime</option>
+            <option value="pop">Pop</option>
+            <option value="ding">Ding</option>
+          </select>
+          <span class="hint">on this device, for new notifications</span>
+        </label>
+        <div class="row" style="justify-content: flex-end; margin-top: 12px">
+          <button id="close-notifications-modal" class="ghost">Close</button>
+        </div>
+      </div>
+    </div>
+    <div
+      id="activity-modal"
+      class="overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="activity-title"
+    >
+      <div class="modal-card wide">
+        <div class="row card-detail-bar">
+          <h2 id="activity-title">Activity</h2>
+          <button class="ghost icon-only" data-close aria-label="Close">✕</button>
+        </div>
+        <div id="board-activity" class="activity-list scroll"></div>
+      </div>
+    </div>
+    <div
+      id="stats-modal"
+      class="overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="stats-title"
+    >
+      <div class="modal-card wide">
+        <div class="row card-detail-bar">
+          <h2 id="stats-title">Stats</h2>
+          <button class="ghost icon-only" data-close aria-label="Close">✕</button>
+        </div>
+        <div id="board-stats" class="stats"></div>
+      </div>
+    </div>
+    <div
+      id="my-work-modal"
+      class="overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="my-work-title"
+    >
+      <div class="modal-card wide">
+        <div class="row card-detail-bar">
+          <h2 id="my-work-title">My work</h2>
+          <button class="ghost icon-only" data-close aria-label="Close">✕</button>
+        </div>
+        <p class="muted hint">
+          Open cards assigned to you on every board you joined, soonest due first.
+        </p>
+        <div id="my-work-list" class="notifications-list"></div>
+      </div>
+    </div>
+    <div
+      id="rules-modal"
+      class="overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="rules-title"
+    >
+      <div class="modal-card wide labels-manager">
+        <div class="row card-detail-bar">
+          <h2 id="rules-title">Automation</h2>
+          <button class="ghost icon-only" data-close aria-label="Close">✕</button>
+        </div>
+        <p class="muted hint">
+          Rules run on the device of whoever triggers them, as that person. Changes made by a rule
+          never trigger other rules.
+        </p>
+        <div id="rules-list" class="rules-list"></div>
+        <form id="rule-form" class="rule-form" novalidate>
+          <div class="row card-detail-bar">
+            <span id="rule-form-title" class="section-label">New rule</span>
+            <button id="rule-form-reset" type="button" class="ghost" hidden>Cancel editing</button>
+          </div>
+          <input
+            id="rule-name"
+            placeholder="Rule name (optional)"
+            maxlength="80"
+            aria-label="Rule name"
+          />
+          <div class="rule-grid">
+            <label class="stack"
+              ><span class="section-label">When</span>
+              <select id="rule-trigger">
+                <option value="enter">A card enters a column</option>
+                <option value="create">A card is created</option>
+                <option value="schedule">On a schedule</option>
+              </select></label
+            >
+            <label id="rule-every-field" class="stack" hidden
+              ><span class="section-label">Every</span>
+              <select id="rule-every">
+                <option value="day">Day</option>
+                <option value="week">Week (Monday)</option>
+                <option value="month">Month (the 1st)</option>
+              </select></label
+            >
+            <label class="stack"
+              ><span id="rule-column-label" class="section-label">Column</span>
+              <select id="rule-column"></select
+            ></label>
+          </div>
+          <div id="rule-card-fields" class="stack" hidden>
+            <span class="section-label">Create this card</span>
+            <input
+              id="rule-card-title"
+              placeholder="Card title"
+              maxlength="200"
+              aria-label="Card title"
+            />
+            <textarea
+              id="rule-card-checklist"
+              rows="3"
+              placeholder="Checklist, one item per line (optional)"
+              aria-label="Checklist items, one per line"
+            ></textarea>
+          </div>
+          <span class="section-label">Then</span>
+          <div class="rule-actions">
+            <div class="stack">
+              <span class="muted">Add labels</span>
+              <div
+                id="rule-labels"
+                class="label-list"
+                role="group"
+                aria-label="Labels to add"
+              ></div>
+            </div>
+            <div class="stack">
+              <span class="muted">Assign</span>
+              <div
+                id="rule-assignees"
+                class="assign-options compact"
+                role="group"
+                aria-label="Members to assign"
+              ></div>
+              <label class="check"
+                ><input id="rule-assign-actor" type="checkbox" /> The person who triggered it</label
+              >
+            </div>
+            <div class="stack">
+              <label class="check"
+                ><input id="rule-due-on" type="checkbox" /> Set due date in
+                <input
+                  id="rule-due-days"
+                  type="number"
+                  min="0"
+                  max="365"
+                  value="3"
+                  class="inline-number"
+                  aria-label="Days"
+                />
+                days</label
+              >
+              <label class="check"
+                ><input id="rule-complete" type="checkbox" /> Check every checklist item</label
+              >
+              <label class="check"
+                ><input id="rule-archive" type="checkbox" /> Archive the card</label
+              >
+            </div>
+          </div>
+          <p id="rule-error" class="error" role="alert" hidden></p>
+          <div class="row" style="justify-content: flex-end">
+            <button id="rule-save" type="submit">Add rule</button>
+          </div>
+        </form>
+      </div>
+    </div>
+    <div
+      id="templates-modal"
+      class="overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="templates-title"
+    >
+      <div class="modal-card wide">
+        <div class="row card-detail-bar">
+          <h2 id="templates-title">Start from a template</h2>
+          <button class="ghost icon-only" data-close aria-label="Close">✕</button>
+        </div>
+        <p class="muted hint">
+          Renames the columns in order, adds the missing ones, removes empty extras and adds the
+          template's labels. Cards stay where they are.
+        </p>
+        <div class="board-templates">
+          <button type="button" class="board-template" data-board-template="sprint">
+            <strong>Sprint</strong>
+            <span class="muted">Backlog · To do · In progress · Review · Done</span>
+            <span class="hint muted">Labels: bug, feature, chore</span>
+          </button>
+          <button type="button" class="board-template" data-board-template="bugs">
+            <strong>Bug triage</strong>
+            <span class="muted">Reported · Triaged · Fixing · Verifying · Closed</span>
+            <span class="hint muted">Labels: critical, major, minor</span>
+          </button>
+          <button type="button" class="board-template" data-board-template="personal">
+            <strong>Personal</strong>
+            <span class="muted">Inbox · Today · This week · Waiting · Done</span>
+            <span class="hint muted">Labels: home, work, health</span>
+          </button>
+        </div>
+        <p id="templates-error" class="error" role="alert" hidden></p>
+      </div>
+    </div>
+    <div
+      id="confirm-modal"
+      class="overlay top"
+      role="alertdialog"
+      aria-modal="true"
+      aria-labelledby="confirm-title"
+      aria-describedby="confirm-body"
+    >
+      <div class="modal-card">
+        <h2 id="confirm-title"></h2>
+        <p id="confirm-body" class="muted"></p>
+        <div class="row" style="justify-content: flex-end">
+          <button id="confirm-cancel" type="button" class="ghost">Cancel</button>
+          <button id="confirm-ok" type="button"></button>
+        </div>
+      </div>
+    </div>
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
     <div id="image-viewer" role="dialog" aria-modal="true" aria-label="Image">
       <img alt="" />
     </div>

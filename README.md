@@ -1,3 +1,5 @@
+![OpenCollab: team boards that sync peer to peer](apps/landing/assets/og.jpg)
+
 # OpenCollab
 
 Private team boards that sync peer to peer. Post ideas, attach images, comment and vote
@@ -21,7 +23,10 @@ It suits teams that want internal tools without SaaS lock-in, privacy-sensitive 
 and ad-hoc collaboration at events or on a shared network.
 
 The trade-off: with no server holding a copy, two peers have to be online together to
-sync. Run an always-on peer (`opencollab watch` on a small server) to cover the gaps.
+sync. Run a [blind peer](apps/blind-peer/README.md) on a small server to cover the gaps: it
+keeps an encrypted copy of your boards online without being able to read them.
+
+How can this work with no server at all? See the [FAQ](docs/faq.md).
 
 ## Clients
 
@@ -33,6 +38,24 @@ UI only sends commands to it and renders what it reports back.
 | Desktop      | `electron/`, `renderer/`                | `npm start`                                  |
 | iOS          | [`apps/mobile/`](apps/mobile/README.md) | `npm run --workspace @opencollab/mobile ios` |
 | Command line | [`apps/cli/`](apps/cli/README.md)       | `npm run cli -- --help`                      |
+
+## What's in the repo
+
+An npm workspaces monorepo. The desktop app sits at the root; `apps/mobile`, `apps/cli`
+and `packages/*` are workspaces, and the blind peer and landing page stand alone.
+
+| Path                                                         | What it is                                                                                                                            |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| [`workers/`](workers/main.js)                                | The shared P2P backend on Bare: boards, sync, attachments, alerts, rules. Every client runs it                                        |
+| [`packages/board-protocol/`](packages/board-protocol/)       | `@opencollab/board-protocol`: signed ops, the board reducer that every device converges on, activity and stats, and the message names |
+| `electron/`, `renderer/`                                     | Desktop app: Electron main process and the plain-JS UI (board, table, calendar)                                                       |
+| [`apps/mobile/`](apps/mobile/README.md)                      | `@opencollab/mobile`: the iOS app (React Native and Expo), with the backend bundled by `bare-pack`                                    |
+| [`apps/cli/`](apps/cli/README.md)                            | `@opencollab/cli`: command-line client and always-on board peer                                                                       |
+| [`apps/blind-peer/`](apps/blind-peer/README.md)              | `@opencollab/blind-peer`: keeps encrypted boards available while everyone is offline, without reading them                            |
+| [`apps/landing/`](apps/landing/index.html)                   | Static website, plus the [design system](apps/landing/design-system.html) page                                                        |
+| `build/`, `flatpak/`, `forge.config.js`                      | Icons, MSIX assets and packaging config for macOS, Windows and Linux                                                                  |
+| `scripts/`                                                   | Tests (`npm run test:kanban` and others), the board relay, and the design-system CSS sync                                             |
+| [`docs/`](docs/development.md), [`agent_docs/`](agent_docs/) | Development and deployment guides, FAQ, plans, and notes for coding agents                                                            |
 
 ## Stack
 
@@ -85,4 +108,11 @@ npm start             # desktop app in dev mode
 
 - [Development and deployment](docs/development.md): architecture and OTA diagrams,
   storage, releases, store submissions, developer FAQ and troubleshooting
+- [FAQ](docs/faq.md): how OpenCollab works without servers
+- [Blind peer](apps/blind-peer/README.md): keep boards available while everyone is offline
+- [Running on a server](docs/server.md): the CLI on a VPS, bots and automations
+- [Landing page](apps/landing/index.html): static site explaining the app, no build step
+- [Design system](apps/landing/design-system.html): brand, tokens and every website and app
+  component on one page. After changing desktop styles, run
+  `node scripts/sync-design-system.mjs` to refresh the app components' CSS
 - [Pear documentation](https://docs.pears.com)

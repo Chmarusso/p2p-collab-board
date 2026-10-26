@@ -4,7 +4,8 @@
 > rebranding or changing signing. Only non-obvious, code-verified facts — the
 > code is the reference for everything else. Index: [AGENTS.md](../AGENTS.md).
 
-- `packagerConfig.ignore` excludes `apps/` (mobile + CLI workspaces). Without it the
+- `packagerConfig.ignore` excludes `apps/` (mobile + CLI workspaces) and `.claude/` (local
+  agent worktrees, whose `node_modules` symlink back to the repo). Without the first, the
   mobile sources, Pods and native builds were copied into every desktop package
   (~470 MB). Anything the desktop app or its worker needs must live outside `apps/`.
 - Verify packaged builds from a copy **outside the repo**. Run from `out/`, Bare's

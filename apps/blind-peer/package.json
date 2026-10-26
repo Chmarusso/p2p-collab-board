@@ -1,0 +1,12 @@
+{
+  "name": "@opencollab/blind-peer",
+  "version": "1.0.0",
+  "description": "Always-on blind peer that keeps encrypted OpenCollab boards available",
+  "private": true,
+  "scripts": {
+    "start": "blind-peer --storage ./storage"
+  },
+  "dependencies": {
+    "blind-peer-cli": "^1.15.1"
+  }
+}

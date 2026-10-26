@@ -1,1 +1,7 @@
 out
+# Generated: bare-pack output, Xcode and Expo prebuild files
+apps/mobile/src/worker.bundle.js
+apps/mobile/ios/build
+apps/mobile/ios/Pods
+apps/mobile/ios/**/*.xcassets
+apps/mobile/android

@@ -46,8 +46,9 @@ async function cdp(expression) {
       if (message.id !== id) return
       socket.close()
       if (message.error) return reject(new Error(message.error.message))
-      if (message.result?.result?.exceptionDetails)
+      if (message.result?.result?.exceptionDetails) {
         return reject(new Error(message.result.result.exceptionDetails.text))
+      }
       resolve(message.result?.result?.value)
     })
     socket.on('error', reject)
