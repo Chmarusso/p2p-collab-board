@@ -23,6 +23,7 @@ const { expo } = require(path.join(mobile, 'app.json'))
 const version = expo.version
 const tag = `android-v${version}`
 const upload = !process.argv.includes('--no-upload')
+let repo
 
 const run = (cmd, args, options = {}) =>
   execFileSync(cmd, args, { cwd: mobile, stdio: 'inherit', ...options })
@@ -64,7 +65,18 @@ if (upload) {
   if (read('git', ['rev-parse', 'HEAD']) !== read('git', ['rev-parse', '@{upstream}'])) {
     fail('main is not in sync with GitHub; push or pull first')
   }
-  const releases = read('gh', ['release', 'list', '--json', 'tagName', '--jq', '.[].tagName'])
+  // Without --repo, gh may pick another remote (origin is the upstream template).
+  repo = read('git', ['remote', 'get-url', read('git', ['config', 'branch.main.remote'])])
+  const releases = read('gh', [
+    'release',
+    'list',
+    '--repo',
+    repo,
+    '--json',
+    'tagName',
+    '--jq',
+    '.[].tagName'
+  ])
   if (releases.split('\n').includes(tag)) fail(`${tag} already exists; raise app.json version`)
 }
 
@@ -112,6 +124,8 @@ run('gh', [
   'release',
   'create',
   tag,
+  '--repo',
+  repo,
   files.apk,
   files.sha,
   '--draft',
