@@ -213,6 +213,15 @@
       #room-choice button {
         flex: 1;
       }
+      .room-sample {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        margin: 10px 0 0;
+      }
+      .room-sample button {
+        color: var(--accent);
+      }
       #recent-boards {
         display: grid;
         gap: 8px;
@@ -3333,6 +3342,12 @@
           <button id="room-create-choice" data-icon="plus">Create a board</button>
           <button id="room-join-choice" class="secondary" data-icon="users">Join a board</button>
         </div>
+        <p id="room-sample-row" class="muted room-sample">
+          New here?
+          <button id="room-sample" type="button" class="ghost" data-icon="template">
+            Try a sample board
+          </button>
+        </p>
         <div id="recent-boards" aria-label="Joined boards"></div>
         <div id="room-create-form" class="stack">
           <p class="muted">Choose a name for your new private board.</p>

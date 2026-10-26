@@ -155,7 +155,7 @@ class Session {
     return this.state.publicKey
   }
 
-  async openBoard(invite, name) {
+  async openBoard(invite, name, { sample = false } = {}) {
     this.state.synced = false
     // Comma-separated blind peer keys; replaces the built-in list (empty clears it).
     const blindPeers = process.env.OPENCOLLAB_BLIND_PEERS
@@ -163,7 +163,7 @@ class Session {
       const keys = blindPeers.split(',').map((key) => key.trim())
       this.send({ type: messageTypes.blindPeersSet, keys: keys.filter(Boolean) })
     }
-    this.send({ type: messageTypes.roomStart, invite: invite || null, name })
+    this.send({ type: messageTypes.roomStart, invite: invite || null, name, sample })
     const message = await this.wait(
       (message) =>
         message.type === messageTypes.roomStatus &&
@@ -171,6 +171,13 @@ class Session {
           (message.status === 'error' && new Error(message.error || 'Could not open board'))),
       { timeout: 60000, label: 'board to open' }
     )
+    // A sample board is seeded after "ready": wait for the last card too.
+    if (sample) {
+      await this.wait((reply) => reply.type === messageTypes.sampleReady, {
+        timeout: 60000,
+        label: 'sample board'
+      })
+    }
     return message
   }
 

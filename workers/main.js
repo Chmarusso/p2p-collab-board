@@ -1275,6 +1275,131 @@ async function applyBoardTemplate(name) {
   }
 }
 
+// A private board for new users to try things on. Each card teaches one
+// feature; the user can delete them all and keep the board.
+const SAMPLE_BOARD = Object.freeze({
+  name: 'Sample board',
+  template: 'ocean',
+  columns: ['To do', 'Doing', 'Done'],
+  labels: [
+    ['start here', '#3e63dd'],
+    ['tip', '#30a46c'],
+    ['team', '#d6409f']
+  ],
+  cards: [
+    {
+      column: 0,
+      label: 'start here',
+      title: 'Drag this card to Doing',
+      body: 'Cards move between columns by dragging. Try it now, then drag it to **Done**.'
+    },
+    {
+      column: 0,
+      label: 'start here',
+      title: 'Open this card and tick the list',
+      body: 'Cards hold a description, a checklist, images and comments.',
+      checklist: ['Open the card', 'Tick an item', 'Add your own item']
+    },
+    {
+      column: 0,
+      label: 'tip',
+      title: 'Plan with due dates',
+      body: 'This one is due in three days and assigned to you, so it shows in **My work**.',
+      dueInDays: 3,
+      assignMe: true
+    },
+    {
+      column: 0,
+      label: 'team',
+      title: 'Invite a teammate',
+      body: 'Share the board’s invite link. Devices sync directly with each other: there is no server and no account.'
+    },
+    {
+      column: 1,
+      label: 'tip',
+      title: 'Change how the board looks',
+      body: 'Open **Customize** to pick a template. Everyone on the board sees it.\nLight or dark mode is set per device.'
+    },
+    {
+      column: 1,
+      label: 'tip',
+      title: 'Find cards fast',
+      body: 'Filter by label, by person or by what’s assigned to you. Switch to the table or calendar view for a different angle.',
+      comment: 'Comments live on the card. Type @ to mention someone.'
+    },
+    {
+      column: 2,
+      label: 'tip',
+      title: 'Work offline',
+      body: 'Edits made offline sync the next time you and a teammate are online together.'
+    },
+    {
+      column: 2,
+      label: 'tip',
+      title: 'See what changed',
+      body: '**Activity** lists every change on the board. **Stats** shows how work moves.'
+    }
+  ]
+})
+
+async function seedSampleBoard() {
+  const identity = await unlockedIdentity()
+  const columns = [...boardState.columns]
+  for (let i = 0; i < SAMPLE_BOARD.columns.length; i++) {
+    const name = SAMPLE_BOARD.columns[i]
+    if (columns[i]) {
+      if (columns[i].name !== name) {
+        await sendOwnOp({ type: 'column:upsert', columnId: columns[i].id, name })
+      }
+    } else {
+      const columnId = newId('col')
+      await sendOwnOp({
+        type: 'column:upsert',
+        columnId,
+        name,
+        position: positionAt(boardState.columns)
+      })
+      columns.push({ id: columnId })
+    }
+  }
+  for (const column of columns.slice(SAMPLE_BOARD.columns.length)) {
+    await sendOwnOp({ type: 'column:delete', columnId: column.id })
+  }
+  const labelIds = {}
+  for (const [name, color] of SAMPLE_BOARD.labels) {
+    labelIds[name] = newId('label')
+    await sendOwnOp({ type: 'label:upsert', labelId: labelIds[name], name, color })
+  }
+  for (const card of SAMPLE_BOARD.cards) {
+    const id = await createCard(uniqueId(identity), {
+      title: card.title,
+      body: card.body,
+      columnId: columns[card.column].id,
+      labelIds: [labelIds[card.label]],
+      checklist: card.checklist,
+      ...(card.dueInDays && {
+        dueDate: isoDate(new Date(Date.now() + card.dueInDays * 24 * 3600 * 1000))
+      }),
+      ...(card.assignMe && { assignees: [identity] })
+    })
+    if (card.comment) {
+      await sendOwnOp({
+        type: 'comment',
+        objectId: id,
+        text: card.comment,
+        comment: {
+          id: uniqueId(identity),
+          author: identity,
+          text: card.comment,
+          createdAt: new Date().toISOString(),
+          mentions: []
+        }
+      })
+    }
+  }
+  await sendOwnOp({ type: 'board:theme', template: SAMPLE_BOARD.template })
+}
+
 function handleRoomMessage(peer, message) {
   if (message.type === 'room:hello') {
     pipe.write(JSON.stringify({ type: 'room-debug', status: 'hello-received' }))
@@ -1624,7 +1749,14 @@ pipe.on('data', async (data) => {
           throw new Error('Unlock your identity before opening a board')
         }
         await identityReady
-        await inRoomQueue(() => startRoom(msg.invite, msg.name))
+        // A sample board is always a new one: never seed a board joined by invite.
+        const sample = msg.sample === true && !msg.invite
+        await inRoomQueue(async () => {
+          await startRoom(msg.invite, sample ? SAMPLE_BOARD.name : msg.name)
+          if (!sample) return
+          await seedSampleBoard()
+          pipe.write(JSON.stringify({ type: messageTypes.sampleReady }))
+        })
       } catch (err) {
         pipe.write(JSON.stringify({ type: 'room-status', status: 'error', error: err.message }))
       }

@@ -321,6 +321,34 @@ try {
   board = await until('restored board', (b) => b.objects.length === 5 && b.columns.length === 3)
   assert.equal(JSON.stringify(board), before, 'board after restart differs')
   console.log('✓ board restores identically from the log after a restart')
+
+  // A sample board is a new board the worker fills with teaching cards.
+  const sample = await session.openBoard(null, undefined, { sample: true })
+  assert.equal(sample.boardName, 'Sample board')
+  assert.notEqual(sample.invite, room.invite, 'sample reused an old board')
+  board = await until('sample board', (b) => b.objects.length === 8 && b.theme.template)
+  assert.deepEqual(
+    board.columns.map((column) => column.name),
+    ['To do', 'Doing', 'Done']
+  )
+  assert.equal(board.labels.length, 3)
+  assert.equal(board.theme.template, 'ocean')
+  assert.ok(board.objects.every((card) => card.labelIds.length === 1 && card.body))
+  assert.ok(board.objects.some((card) => card.checklist?.length === 3))
+  assert.ok(board.objects.some((card) => card.dueDate && card.assignees?.length === 1))
+  assert.ok(board.objects.some((card) => card.comments.length === 1))
+  console.log('✓ the sample board is seeded with columns, labels, cards and a theme')
+
+  // `sample` with an invite only opens that board: nothing is added to it.
+  await session.openBoard(room.invite, undefined, { sample: false })
+  session.send({ type: messageTypes.roomStart, invite: room.invite, sample: true })
+  board = await until(
+    'joined board, unseeded',
+    (b) => b.objects.length === 5 && b.columns.length === 3
+  )
+  await session.sleep(1000)
+  assert.equal(state().objects.length, 5, 'sample seeded a board opened by invite')
+  console.log('✓ sample is ignored for a board opened by invite')
 } finally {
   if (session) await session.close().catch(() => {})
   await fs.rm(storage, { recursive: true, force: true })
