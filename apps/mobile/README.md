@@ -86,8 +86,8 @@ GitHub, or when `android-v<version>` already exists. Output lands in `apps/mobil
 (ignored): the APK and its SHA-256 go to a draft release `android-v<version>`, and the
 AAB is for uploading to Google Play by hand. Review the draft on GitHub, then publish.
 
-`.github/workflows/android-release.yml` does the same in CI on an `android-v<version>` tag
-or by hand, for when the key should live in GitHub secrets (`ANDROID_KEYSTORE_BASE64`,
+`.github/workflows/android-release.yml` does the same in CI, run by hand from the Actions
+tab, for when the key should live in GitHub secrets (`ANDROID_KEYSTORE_BASE64`,
 `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD` in the `release`
 environment). Never tag `v*`: that publishes to npm.
 
@@ -96,3 +96,6 @@ upload this keystore, so the Play and GitHub builds can update each other. Every
 needs a higher `versionCode`. The privacy policy is [`PRIVACY.md`](../../PRIVACY.md); give Play its GitHub URL.
 Listing text, Data safety and content rating answers, and graphics are in
 [`store/`](store/play-listing.md).
+
+**App Store:** listing text, App Privacy, age rating and export compliance answers, and
+review notes are in [`store/app-store.md`](store/app-store.md).

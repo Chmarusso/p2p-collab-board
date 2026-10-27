@@ -77,6 +77,15 @@ const { version, upgrade, productName } = require('../package.json') as {
   upgrade: string
   productName: string
 }
+// The version people see: an OTA's package.json version is always higher than
+// the binary's app.json version, so the higher of the two is what's running.
+const binaryVersion = (require('../app.json') as { expo: { version: string } }).expo.version
+const newer = (a: string, b: string) => {
+  const [x, y] = [a, b].map((v) => v.split('.').map(Number))
+  const i = x.findIndex((n, j) => n !== y[j])
+  return i >= 0 && x[i] > (y[i] ?? 0)
+}
+const shownVersion = newer(binaryVersion, version) ? binaryVersion : version
 
 const emptyBoard: BoardData = {
   objects: [],
@@ -1345,7 +1354,7 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
             />
             <StatusChip peers={peerCount} synced={synced} />
             <Text style={styles.metaMono}>{networkStatus}</Text>
-            <Text style={styles.metaMono}>OpenCollab v{version}</Text>
+            <Text style={styles.metaMono}>OpenCollab v{shownVersion}</Text>
             <Button title='Share invitation' icon='share-2' onPress={shareInvitation} />
             <Button
               title={exporting ? 'Exporting…' : 'Export board'}
@@ -1492,7 +1501,7 @@ function Screen({
             {headerRight}
           </View>
           {children}
-          <Text style={styles.versionLabel}>v{version}</Text>
+          <Text style={styles.versionLabel}>v{shownVersion}</Text>
         </ScrollView>
       </KeyboardAvoidingView>
       {/* Rendered last so it stays above the content. */}

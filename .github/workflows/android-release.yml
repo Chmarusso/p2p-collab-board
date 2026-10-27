@@ -1,12 +1,12 @@
 name: Android Release
 
 # Builds the Android app as a signed arm64 APK and attaches it to a draft GitHub
-# release. Tags are `android-v<version>`, never plain `v*`: those trigger the npm
-# publish in publish.yml. The version comes from apps/mobile/app.json.
+# release `android-v<version>` (never plain `v*`: those trigger the npm publish in
+# publish.yml). The version comes from apps/mobile/app.json. Manual only: the
+# release tag is created when a draft is published, often one drafted by the
+# local `release:android`, and a tag trigger would then build it a second time.
 
 on:
-  push:
-    tags: ['android-v*']
   workflow_dispatch:
 
 jobs:

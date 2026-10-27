@@ -11,8 +11,9 @@
   and staging stay manual.
 - `publish.yml` npm-publishes on any `v*` tag (what `npm version` creates) — don't
   tag unless releasing.
-- `android-release.yml`: `android-v*` tag (must equal `apps/mobile/app.json`
-  `expo.version`) or manual dispatch → signed arm64 APK on a **draft** GitHub release.
+- `android-release.yml`: manual dispatch only → signed arm64 APK on a **draft**
+  GitHub release `android-v<version>` (`apps/mobile/app.json` `expo.version`). No tag
+  trigger: publishing a draft creates that tag.
   Signing secrets live in the `release` environment; without them the job fails
   rather than ship a debug-signed APK. The usual path is local instead:
   `npm run --workspace @opencollab/mobile release:android` (APK + AAB, same checks,
