@@ -866,10 +866,11 @@ async function boardSpace(key) {
   if (!id) {
     // First open since spaces: a board whose log is already stored here was
     // opened before, in the root namespace. Anything else is a new join.
-    const core = boardStore.get({ key, active: false })
-    await core.ready()
-    id = core.length > 0 ? 'legacy' : hex
-    await core.close()
+    // Ask the storage rather than opening the log: a session opened and
+    // closed here leaves it unable to replicate when Autobee opens it next,
+    // so a fresh join never synced until the app restarted.
+    const stored = await boardStore.storage.hasCore(crypto.discoveryKey(key))
+    id = stored ? 'legacy' : hex
     await rememberSpace(hex, id)
   }
   return { id, store: id === 'legacy' ? boardStore.session() : boardStore.namespace(id) }
