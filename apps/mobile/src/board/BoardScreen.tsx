@@ -100,6 +100,8 @@ type Props = {
   onOpenMyCard: (board: AlertBoard, card: MyCard) => void
   sound: SoundName
   openCardRequest: { cardId: string; nonce: number } | null
+  // Bumped by the profile menu's "Board settings".
+  settingsRequest: number
   subscribe: (listener: (message: WorkerMessage) => void) => () => void
   nameFor: (identity: string) => string
   shortKey: (hex: string) => string
@@ -183,6 +185,9 @@ export function BoardScreen(props: Props) {
       setOpenCardId(props.openCardRequest.cardId)
     }
   }, [props.openCardRequest?.nonce])
+  useEffect(() => {
+    if (props.settingsRequest) setSheet('settings')
+  }, [props.settingsRequest])
   // Opening a card reads its alerts on this board.
   useEffect(() => {
     if (openCardId) {
@@ -330,14 +335,6 @@ export function BoardScreen(props: Props) {
               {props.unreadCount > 99 ? '99+' : props.unreadCount}
             </Text>
           ) : null}
-        </PressableScale>
-        <PressableScale
-          style={[styles.bell]}
-          onPress={() => setSheet('settings')}
-          accessibilityRole='button'
-          accessibilityLabel='Board settings'
-        >
-          <Feather name='settings' size={18} color={colors.muted} />
         </PressableScale>
         <PressableScale
           style={[styles.user]}
