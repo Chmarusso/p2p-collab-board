@@ -90,8 +90,9 @@ xcrun simctl io booted screenshot board.png                 # one per screen
 sips -s format jpeg board.png --out board.jpg               # drops the alpha channel
 ```
 
-Reuse the Play screens (board, card, agenda, stats), from a board with real-looking
-content rather than the near-empty sample board.
+iPhone 6.9" screenshots are in `app-store-screenshots/` (1320 × 2868 JPEG): board, card,
+comments, agenda and the invite QR code, the same screens as the Play set. iPad
+screenshots are not made yet.
 
 ## App Privacy
 
