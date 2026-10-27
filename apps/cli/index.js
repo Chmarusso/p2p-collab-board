@@ -726,6 +726,40 @@ const images = command(
   })
 )
 
+// Adds images to an existing card, like the card sheet's "Add image" in the apps.
+// The worker stores them in this member's encrypted blob core and replies with
+// the keys it added, or an error when the card is full.
+const attach = command(
+  'attach',
+  summary('Attach images to an existing card (up to 12 per card)'),
+  arg('<card>', 'card number, id prefix or title'),
+  arg('<file>', '.jpg, .png, .gif or .webp image up to 5 MB'),
+  ...boardFlags(),
+  flag('--image|-i [file]', 'another image (repeatable)').multiple(),
+  action(async ({ args, flags }) => {
+    const files = [args.file, ...[].concat(flags.image || [])]
+    const images = []
+    for (const file of files) {
+      const type = imageType(file)
+      if (!type) throw new Error(`${file}: use a .jpg, .png, .gif or .webp image`)
+      const data = await fs.readFile(file)
+      if (data.length > MAX_IMAGE_BYTES) throw new Error(`${file}: larger than 5 MB`)
+      images.push({ data: data.toString('base64'), type, ...imageSize(data, type) })
+    }
+    await onCard(flags, args.card, async (session, card) => {
+      const requestId = `attach-${Date.now()}-${Math.random().toString(36).slice(2)}`
+      session.send({ type: messageTypes.cardImagesAdd, objectId: card.id, images, requestId })
+      const reply = await session.wait(
+        (message) => message.type === 'card-images-added' && message.requestId === requestId,
+        { timeout: 60000, label: 'images to be attached' }
+      )
+      if (reply.error) throw new Error(`${reply.error} ("${card.title}")`)
+      const added = reply.keys.length
+      say(`Attached ${added} image${added === 1 ? '' : 's'} to "${card.title}".`)
+    })
+  })
+)
+
 const watch = command(
   'watch',
   summary('Stay online for a board and print new activity'),
@@ -2532,6 +2566,7 @@ const cli = command(
   mine,
   notifications,
   images,
+  attach,
   watch,
   mcp,
   update,
