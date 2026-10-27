@@ -67,8 +67,8 @@ so the default 1080×2400 emulator screen is not accepted)
 **App access:** All functionality is available without special access. There is no
 login; the reviewer creates an identity on first launch and can open the sample board.
 
-**Target audience:** 18 and over. Not designed for children (see PRIVACY.md); picking
-younger age groups brings in the Families policy.
+**Target audience:** 13–15, 16–17 and 18 and over. Not directed at children under 13
+(see PRIVACY.md); picking an under-13 group brings in the Families policy.
 
 **Content rating** (IARC questionnaire), category _All other app types_:
 
