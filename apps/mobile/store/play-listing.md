@@ -48,7 +48,7 @@ Because there is no server, a board is only reachable while at least one member 
 
 **Feature graphic:** `feature-graphic.png` (1024×500)
 
-**Phone screenshots:** `screenshots/*.png` (1080×1920; Play rejects sides more than 2:1,
+**Phone screenshots:** `screenshots/*.png`: board, card, comments, agenda, invite QR (1080×1920; Play rejects sides more than 2:1,
 so the default 1080×2400 emulator screen is not accepted)
 
 ## Store settings
