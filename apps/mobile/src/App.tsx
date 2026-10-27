@@ -201,6 +201,7 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
   const [profileOpen, setProfileOpen] = useState(false)
   const [editProfileOpen, setEditProfileOpen] = useState(false)
   const [qrOpen, setQrOpen] = useState(false)
+  const [boardSettingsRequest, setBoardSettingsRequest] = useState(0)
   const [scannerOpen, setScannerOpen] = useState(false)
   const { width: windowWidth } = useWindowDimensions()
   const [composerOpen, setComposerOpen] = useState(false)
@@ -1237,6 +1238,7 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
         onOpenMyCard={(board, card) => openBoardCard(board, card.id)}
         sound={sound}
         openCardRequest={openCardRequest}
+        settingsRequest={boardSettingsRequest}
         subscribe={subscribe}
         nameFor={nameFor}
         shortKey={shortKey}
@@ -1386,6 +1388,15 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
               icon='download'
               variant='secondary'
               onPress={exportBoard}
+            />
+            <Button
+              title='Board settings'
+              icon='sliders'
+              variant='secondary'
+              onPress={() => {
+                setProfileOpen(false)
+                setBoardSettingsRequest((n) => n + 1)
+              }}
             />
             <Button
               title='Settings'
