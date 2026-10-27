@@ -4,6 +4,7 @@ import { celebrate } from './confetti.js'
 import { renderStats } from './stats.js'
 import { renderTable, renderCalendar } from './views.js'
 import { THEME_TEMPLATES, THEME_MODES, themeTemplate } from './themes.js'
+import { encode } from '../node_modules/uqr/dist/index.mjs'
 
 const bridge = window.bridge
 const normalizeInvite = (value) => {
@@ -142,6 +143,9 @@ let assigneeDraft = null
 
 const icons = {
   plus: '<path d="M12 5v14M5 12h14"/>',
+  qr: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3h-3zM20 14v.01M14 20h.01M17 17h4v4h-4"/>',
+  download:
+    '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5M12 15V3"/>',
   copy: '<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
   share:
     '<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4"/>',
@@ -615,6 +619,8 @@ function openConnectionModal() {
   document.getElementById('modal-peers').innerText = peerCount
   document.getElementById('copy-invite').disabled = !currentInvite
   document.getElementById('share-invite').disabled = !currentInvite
+  document.getElementById('show-invite-qr').disabled = !currentInvite
+  document.getElementById('invite-qr').hidden = true
   connectionModal.classList.add('open')
   document.getElementById('close-connection-modal').focus()
 }
@@ -3486,6 +3492,52 @@ document.getElementById('share-invite').onclick = async () => {
   } catch (error) {
     if (error.name !== 'AbortError') await copyInvite()
   }
+}
+
+// The invite as a QR code, for a phone to scan from this screen. Drawn as SVG,
+// dark on white whatever the theme, since scanners expect that.
+function inviteQrSvg(text, moduleSize = 8) {
+  const { data } = encode(text, { ecc: 'M', border: 2 })
+  const size = data.length * moduleSize
+  let path = ''
+  const m = moduleSize
+  data.forEach((row, y) =>
+    row.forEach((dark, x) => {
+      if (dark) path += `M${x * m} ${y * m}h${m}v${m}h-${m}z`
+    })
+  )
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${size} ${size}" width="${size}" height="${size}" shape-rendering="crispEdges"><rect width="${size}" height="${size}" fill="#fff"/><path d="${path}" fill="#000"/></svg>`
+}
+
+document.getElementById('show-invite-qr').onclick = () => {
+  if (!currentInvite) return
+  const panel = document.getElementById('invite-qr')
+  panel.hidden = !panel.hidden
+  if (!panel.hidden) {
+    document.getElementById('invite-qr-image').innerHTML = inviteQrSvg(inviteLink(currentInvite))
+  }
+}
+
+document.getElementById('save-invite-qr').onclick = () => {
+  if (!currentInvite) return
+  const image = new window.Image()
+  image.onload = () => {
+    const canvas = document.createElement('canvas')
+    canvas.width = image.width
+    canvas.height = image.height
+    canvas.getContext('2d').drawImage(image, 0, 0)
+    canvas.toBlob((blob) => {
+      const name = (document.getElementById('board-name').innerText || 'board')
+        .replace(/[^\w-]+/g, '-')
+        .slice(0, 40)
+      const link = document.createElement('a')
+      link.href = URL.createObjectURL(blob)
+      link.download = `${name || 'board'}-invite-qr.png`
+      link.click()
+      setTimeout(() => URL.revokeObjectURL(link.href), 10000)
+    }, 'image/png')
+  }
+  image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(inviteQrSvg(inviteLink(currentInvite), 16))}`
 }
 
 // Board settings: the gear next to the bell holds what edits the board itself.

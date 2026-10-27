@@ -290,6 +290,22 @@
         padding: 22px;
         box-shadow: 0 24px 80px rgba(0, 0, 0, 0.5);
       }
+      #invite-qr {
+        display: grid;
+        justify-items: center;
+        gap: 10px;
+        margin-top: 14px;
+        text-align: center;
+      }
+      #invite-qr[hidden] {
+        display: none;
+      }
+      #invite-qr-image svg {
+        display: block;
+        width: min(260px, 70vw);
+        height: auto;
+        border-radius: 8px;
+      }
       .modal-row {
         display: flex;
         justify-content: space-between;
@@ -3652,8 +3668,17 @@
           </button>
           <button id="copy-invite" data-icon="copy">Copy invite</button>
           <button id="share-invite" class="secondary" data-icon="share">Share invite</button>
+          <button id="show-invite-qr" class="secondary" data-icon="qr">QR code</button>
           <button id="switch-board" class="secondary" data-icon="users">Switch board</button>
           <button id="modal-logout" class="secondary" data-icon="logout">Log out</button>
+        </div>
+        <div id="invite-qr" hidden>
+          <div id="invite-qr-image"></div>
+          <p class="muted">
+            On a phone, open OpenCollab, tap Join, then Scan QR code. Anyone with this code can join
+            the board.
+          </p>
+          <button id="save-invite-qr" class="secondary" data-icon="download">Save as image</button>
         </div>
         <div class="row" style="justify-content: flex-end; margin-top: 12px">
           <button id="close-connection-modal" class="ghost">Close</button>

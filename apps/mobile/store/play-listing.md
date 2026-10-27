@@ -28,7 +28,7 @@ PLAN THE WORK
 • Templates for cards you create often, and simple automation rules
 
 WORK TOGETHER, PEER TO PEER
-• Invite teammates by sharing a link
+• Invite teammates with a link, or a QR code they scan with their phone
 • Changes sync between members as soon as they're online together
 • Works offline: keep working and it catches up when a teammate is reachable
 • Owners and admins can remove members; anyone can block or report a member

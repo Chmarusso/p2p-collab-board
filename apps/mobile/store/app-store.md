@@ -61,7 +61,7 @@ PLAN THE WORK
 • Templates for cards you create often, and simple automation rules
 
 WORK TOGETHER, PEER TO PEER
-• Invite teammates by sharing a link
+• Invite teammates with a link, or a QR code they scan with their phone
 • Changes sync between members as soon as they're online together
 • Works offline: keep working and it catches up when a teammate is reachable
 • Owners and admins can remove members; anyone can block or report a member
@@ -157,7 +157,7 @@ OpenCollab needs no account. On first launch, tap "Create new identity" (a key p
 
 Sync is peer to peer with no server: boards are shared by invite link and sync only while another member's device is online. To see sync, open this invite link on the device while our always-on demo peer is running: [INVITE LINK]
 
-The local network permission lets devices on the same Wi-Fi find each other for faster sync.
+The local network permission lets devices on the same Wi-Fi find each other for faster sync. The camera is used only to scan invitation QR codes (Join, then Scan QR code); nothing is recorded or sent.
 
 User-generated content: boards are private and invite-only; content is visible only to people the owner invited. Owners and admins can remove a member, which revokes their access. Any member can block another member (hides their comments and notifications on that device) and report them (in the member's menu: opens a prefilled report at github.com/Chmarusso/p2p-collab-board/issues). We review reports within 24 hours.
 
