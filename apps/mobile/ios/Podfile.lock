@@ -38,6 +38,12 @@ PODS:
     - ExpoModulesCore
   - ExpoAudio (55.0.18):
     - ExpoModulesCore
+  - ExpoCamera (55.0.23):
+    - ExpoModulesCore
+  - ExpoCameraBarcodeScanning (55.0.23):
+    - ExpoCamera
+    - ZXingObjC/OneD
+    - ZXingObjC/PDF417
   - ExpoClipboard (55.0.17):
     - ExpoModulesCore
   - ExpoDomWebView (55.0.6):
@@ -91,6 +97,8 @@ PODS:
     - React-runtimescheduler
     - ReactCommon
   - ExpoSecureStore (15.0.8):
+    - ExpoModulesCore
+  - ExpoSplashScreen (55.0.25):
     - ExpoModulesCore
   - ExpoVideo (55.0.21):
     - ExpoModulesCore
@@ -1997,7 +2005,7 @@ PODS:
     - React-RCTFBReactNativeSpec
     - ReactCommon/turbomodule/core
     - SocketRocket
-  - "react-native-bare-kit (0.12.3+129992)":
+  - "react-native-bare-kit (0.12.3+9c3c00)":
     - boost
     - DoubleConversion
     - fast_float
@@ -2588,6 +2596,11 @@ PODS:
     - SDWebImage/Core (~> 5.17)
   - SocketRocket (0.7.1)
   - Yoga (0.0.0)
+  - ZXingObjC/Core (3.6.9)
+  - ZXingObjC/OneD (3.6.9):
+    - ZXingObjC/Core
+  - ZXingObjC/PDF417 (3.6.9):
+    - ZXingObjC/Core
 
 DEPENDENCIES:
   - boost (from `../../../node_modules/react-native/third-party-podspecs/boost.podspec`)
@@ -2596,6 +2609,8 @@ DEPENDENCIES:
   - Expo (from `../../../node_modules/expo`)
   - ExpoAsset (from `../../../node_modules/expo-asset/ios`)
   - ExpoAudio (from `../../../node_modules/expo-audio/ios`)
+  - ExpoCamera (from `../../../node_modules/expo-camera/ios`)
+  - ExpoCameraBarcodeScanning (from `../../../node_modules/expo-camera/ios`)
   - ExpoClipboard (from `../../../node_modules/expo-clipboard/ios`)
   - "ExpoDomWebView (from `../../../node_modules/@expo/dom-webview/ios`)"
   - ExpoFileSystem (from `../../../node_modules/expo-file-system/ios`)
@@ -2607,6 +2622,7 @@ DEPENDENCIES:
   - ExpoModulesCore (from `../../../node_modules/expo-modules-core`)
   - ExpoModulesJSI (from `../../../node_modules/expo-modules-core`)
   - ExpoSecureStore (from `../../../node_modules/expo-secure-store/ios`)
+  - ExpoSplashScreen (from `../../../node_modules/expo-splash-screen/ios`)
   - ExpoVideo (from `../../../node_modules/expo-video/ios`)
   - fast_float (from `../../../node_modules/react-native/third-party-podspecs/fast_float.podspec`)
   - FBLazyVector (from `../../../node_modules/react-native/Libraries/FBLazyVector`)
@@ -2693,6 +2709,7 @@ SPEC REPOS:
     - SDWebImage
     - SDWebImageWebPCoder
     - SocketRocket
+    - ZXingObjC
 
 EXTERNAL SOURCES:
   boost:
@@ -2707,6 +2724,10 @@ EXTERNAL SOURCES:
     :path: "../../../node_modules/expo-asset/ios"
   ExpoAudio:
     :path: "../../../node_modules/expo-audio/ios"
+  ExpoCamera:
+    :path: "../../../node_modules/expo-camera/ios"
+  ExpoCameraBarcodeScanning:
+    :path: "../../../node_modules/expo-camera/ios"
   ExpoClipboard:
     :path: "../../../node_modules/expo-clipboard/ios"
   ExpoDomWebView:
@@ -2729,6 +2750,8 @@ EXTERNAL SOURCES:
     :path: "../../../node_modules/expo-modules-core"
   ExpoSecureStore:
     :path: "../../../node_modules/expo-secure-store/ios"
+  ExpoSplashScreen:
+    :path: "../../../node_modules/expo-splash-screen/ios"
   ExpoVideo:
     :path: "../../../node_modules/expo-video/ios"
   fast_float:
@@ -2892,6 +2915,8 @@ SPEC CHECKSUMS:
   Expo: 5d8177d99e030d112b7d2b0a3f14dc60db4f4b2b
   ExpoAsset: f3c42967e877b950418c217508ac1c6f32be4f99
   ExpoAudio: 507b44eb640d1e0e49d55f38d0b153d3b1fd0f2b
+  ExpoCamera: 8c699b7e65d479a25e4bb693c11f6a4c407a5e9a
+  ExpoCameraBarcodeScanning: 5a70a41981162f2498b810cf8e93ca7748b145fa
   ExpoClipboard: ded290c5207322d41d34da299a0aeda94d6680e3
   ExpoDomWebView: b2e9d601f9cb77d3c97da73234e175b64be91928
   ExpoFileSystem: bdb067c7739d9f7405227154a7280e2d6653bbc8
@@ -2903,6 +2928,7 @@ SPEC CHECKSUMS:
   ExpoModulesCore: 7b3c64e937d0af15ae9f52ce54338008e440e4c7
   ExpoModulesJSI: 1bf2fab061d2c9635ff63b6fcc26747a68af9f12
   ExpoSecureStore: d32f751874a2ceb5aaeebeb3578e165c1ba2b24a
+  ExpoSplashScreen: b7c56a0ae848fb5e34c6217255a5ac211ffa261a
   ExpoVideo: d060cc8f61ef6ad74b078969478b7242fc121b13
   fast_float: b32c788ed9c6a8c584d114d0047beda9664e7cc6
   FBLazyVector: f1200e6ef6cf24885501668bdbb9eff4cf48843f
@@ -2946,7 +2972,7 @@ SPEC CHECKSUMS:
   React-logger: 49a2029a7c055bf0ef005fec0955c2548fe88f12
   React-Mapbuffer: 2859d1e7202df918c8578db97deb5767b337dff9
   React-microtasksnativemodule: e811b68410bc71e77b91a700b527dc39661f6fc4
-  react-native-bare-kit: 7159efb09a28c0dd9892aded44bdfe901bc2c4a9
+  react-native-bare-kit: 04bff28b0c5527a12dd1749258d7c1be5a8307a0
   React-NativeModulesApple: 5327be5c0d9734f0c6db2219f3c20c13aef13884
   React-networking: 659753d9f58d683f3aee733c542bdae2b23f85d1
   React-oscompat: 173f032a95ee30e92bbd28cd9b4626de0977f828
@@ -2984,6 +3010,7 @@ SPEC CHECKSUMS:
   SDWebImageWebPCoder: 0e06e365080397465cc73a7a9b472d8a3bd0f377
   SocketRocket: d4aabe649be1e368d1318fdf28a022d714d65748
   Yoga: 3d56e80930898685da43cbf53b5843932df8e765
+  ZXingObjC: 8898711ab495761b2dbbdec76d90164a6d7e14c5
 
 PODFILE CHECKSUM: 5b21e14d5715e41942ad2defba1fe28e2028dceb
 
