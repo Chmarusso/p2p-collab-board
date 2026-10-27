@@ -1096,6 +1096,49 @@
         font-size: 13px;
         font-weight: 400;
       }
+      /* Board chat */
+      .chat-unread {
+        margin-left: 6px;
+        padding: 0 6px;
+        border-color: var(--info);
+        color: var(--info);
+      }
+      .chat-card .chat-hint {
+        margin-right: auto;
+        margin-left: 12px;
+        font-size: 12px;
+      }
+      .chat-list {
+        display: grid;
+        gap: 14px;
+        align-content: start;
+        min-height: 120px;
+        max-height: min(60vh, 640px);
+        overflow-y: auto;
+        padding: 4px 4px 4px 0;
+      }
+      .chat-message.mentions-me {
+        border-left: 3px solid var(--info);
+        padding-left: 9px;
+      }
+      .chat-message .chat-delete {
+        margin-left: auto;
+        padding: 0 6px;
+        font-size: 11px;
+        opacity: 0;
+      }
+      .chat-message:hover .chat-delete,
+      .chat-message .chat-delete:focus-visible {
+        opacity: 1;
+      }
+      .chat-form {
+        margin-top: 12px;
+      }
+      .chat-empty {
+        color: var(--muted);
+        text-align: center;
+        padding: 24px 0;
+      }
       .vote-inline {
         display: flex;
         align-items: center;
@@ -3916,6 +3959,7 @@
               Assigned to me
             </button>
             <button id="filter-toggle" class="ghost" aria-expanded="false">Filter</button>
+            <button id="chat-open" class="ghost" data-icon="chat">Chat</button>
             <button id="activity-open" class="ghost" data-icon="activity">Activity</button>
             <button id="stats-open" data-feature="stats" class="ghost" data-icon="chart">
               Stats
@@ -4486,6 +4530,32 @@
         <div class="row">
           <button id="kind-save">Change type</button>
         </div>
+      </div>
+    </div>
+    <div
+      id="chat-modal"
+      class="overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="chat-title"
+    >
+      <div class="modal-card wide chat-card">
+        <div class="row card-detail-bar">
+          <h2 id="chat-title">Chat</h2>
+          <span class="muted chat-hint">Everyone on this board · @name to mention</span>
+          <button class="ghost icon-only" data-close aria-label="Close">✕</button>
+        </div>
+        <div id="board-chat" class="chat-list" aria-live="polite"></div>
+        <form id="chat-form" class="comment-form chat-form">
+          <input
+            id="chat-input"
+            placeholder="Message the board"
+            aria-label="Message the board"
+            maxlength="2000"
+            autocomplete="off"
+          />
+          <button>Send</button>
+        </form>
       </div>
     </div>
     <div

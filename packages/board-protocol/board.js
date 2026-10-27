@@ -35,7 +35,10 @@ const LIMITS = Object.freeze({
   wipLimit: 999,
   points: 1000,
   sourceUrl: 2000,
-  sourceText: 200
+  sourceText: 200,
+  chat: 2000,
+  // The board state carries the latest chat messages; older ones stay in the log.
+  chatShown: 500
 })
 
 const OP_TYPES = Object.freeze([
@@ -61,7 +64,9 @@ const OP_TYPES = Object.freeze([
   'card:link',
   'estimate',
   'rule:upsert',
-  'rule:delete'
+  'rule:delete',
+  'chat',
+  'chat:delete'
 ])
 
 const ROLES = Object.freeze(['admin', 'member'])
@@ -335,6 +340,9 @@ function deriveBoard(
   const columns = new Map()
   const labels = new Map()
   const rules = new Map()
+  // Board chat: messages are add-only like comments; a delete hides one.
+  const chat = new Map()
+  const chatDeletes = []
   const theme = {}
   const info = {}
   let maxTs = 0
@@ -482,6 +490,27 @@ function deriveBoard(
         }
       }
       rules.set(payload.ruleId, registers)
+    } else if (payload.type === 'chat') {
+      const entry = payload.message
+      const text = typeof entry?.text === 'string' ? entry.text.trim().slice(0, LIMITS.chat) : ''
+      if (!isId(entry?.id) || !text) continue
+      const known = chat.get(entry.id)
+      if (known && !earlier(stamp, known.stamp)) continue
+      const createdAt = Number.isFinite(Date.parse(entry.createdAt))
+        ? entry.createdAt
+        : new Date(stamp.ts).toISOString()
+      chat.set(entry.id, {
+        stamp,
+        message: {
+          id: entry.id,
+          author: message.identity,
+          text,
+          createdAt,
+          mentions: cleanList(entry.mentions, isIdentity, LIMITS.mentions) || []
+        }
+      })
+    } else if (payload.type === 'chat:delete') {
+      if (isId(payload.messageId)) chatDeletes.push({ id: payload.messageId, by: message.identity })
     } else if (payload.type === 'board:info') {
       if (typeof payload.description === 'string') {
         assign(info, 'description', payload.description.slice(0, LIMITS.description), stamp)
@@ -753,8 +782,32 @@ function deriveBoard(
     (a, b) => columnIndex.get(a.columnId) - columnIndex.get(b.columnId) || byPosition(a, b)
   )
 
+  // The author, an admin or the owner can delete a chat message.
+  const deleted = new Set()
+  for (const { id, by } of chatDeletes) {
+    const entry = chat.get(id)
+    if (!entry) continue
+    if (by === entry.message.author || ['owner', 'admin'].includes(moderation.roleOf(by))) {
+      deleted.add(id)
+    }
+  }
+  const chatList = [...chat.values()]
+    .filter((entry) => !deleted.has(entry.message.id))
+    .sort((a, b) =>
+      earlier(a.stamp, b.stamp)
+        ? -1
+        : earlier(b.stamp, a.stamp)
+          ? 1
+          : a.message.id < b.message.id
+            ? -1
+            : 1
+    )
+    .slice(-LIMITS.chatShown)
+    .map((entry) => entry.message)
+
   return {
     objects,
+    chat: chatList,
     columns: liveColumns,
     labels: liveLabels,
     theme: {

@@ -5,7 +5,8 @@
 // Kinds: mention (you were @mentioned), assigned (someone else assigned you),
 // comment / moved / edited / archived (someone else acted on a card you
 // created), new-card (someone else added a card), due-soon / overdue (any open
-// card with a due date).
+// card with a due date), chat-mention (you were @mentioned in the board chat;
+// cardId is null).
 
 const DAY = 24 * 3600 * 1000
 const MAX_ALERTS = 50
@@ -74,6 +75,23 @@ function boardAlerts(messages, state, me, { now = Date.now(), since = now - 14 *
     const payload = message.payload
     if (message.identity === me || banned.has(message.identity) || !payload) continue
     if (stampOf(payload) < since) continue
+    if (payload.type === 'chat') {
+      const text = payload.message?.text || ''
+      const live = (state.chat || []).some((entry) => entry.id === payload.message?.id)
+      if (live && payload.message?.mentions?.includes(me)) {
+        alerts.push({
+          id: `chat-mention:${message.id}`,
+          kind: 'chat-mention',
+          cardId: null,
+          cardTitle: 'Board chat',
+          author: message.identity,
+          authorName: state.profiles[message.identity] || null,
+          at: stampOf(payload),
+          text
+        })
+      }
+      continue
+    }
     const card = cards.get(payload.type === 'create' ? payload.object?.id : payload.objectId)
     if (!card || card.archived) continue
     const mine = card.author === me

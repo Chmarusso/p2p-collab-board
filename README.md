@@ -2,7 +2,7 @@
 
 # OpenCollab
 
-Private team boards that sync peer to peer. Post ideas, attach images, comment and vote
+Private team boards that sync peer to peer. Post ideas, attach images, comment, vote and chat
 from the desktop app, the iPhone app or the terminal. There is no server, no account
 and no cloud database: devices talk to each other directly.
 

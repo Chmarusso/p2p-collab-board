@@ -43,6 +43,7 @@ opencollab mine --json           # [{ board, cards: [...] }] open cards assigned
 opencollab activity [<id>] --json   # newest first: { kind, detail, cardTitle, authorName, at }
 opencollab stats --json          # throughput per week, cycle time, columns, members, totals
 opencollab rules list --json
+opencollab chat show --json      # { board, profiles, chat: [{ id, author, text, createdAt, mentions }] }
 ```
 
 A post has `id`, `title`, `body` (Markdown), `author` (identity key), `columnId`,
@@ -67,6 +68,8 @@ opencollab attach <id> shot.png -i demo.mp4            # images/videos onto an e
 opencollab add "Title" --column "To do" --assign me --item "Step" --due 2026-12-31
 opencollab add "Title" --from-template <id>            # copy a template card
 printf '%s' "$TEXT" | opencollab comment <id> -        # comment; text from stdin
+printf '%s' "$TEXT" | opencollab chat send -           # board chat (everyone); @Name mentions
+opencollab chat delete <message-id>                    # own message, or any as admin
 opencollab move <id> "In progress"                     # column by name, number or id (--top)
 opencollab edit <id> --title "New" --body "…"
 opencollab label <id> add bug                          # creates the label if new
