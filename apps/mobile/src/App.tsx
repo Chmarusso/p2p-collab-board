@@ -18,7 +18,8 @@ import {
   Text,
   TextInput,
   View,
-  useColorScheme
+  useColorScheme,
+  useWindowDimensions
 } from 'react-native'
 import { Feather } from '@expo/vector-icons'
 import * as SecureStore from 'expo-secure-store'
@@ -51,6 +52,7 @@ import {
   themed
 } from './ui'
 import { BoardScreen } from './board/BoardScreen'
+import { QrCode, QrScanner } from './QrInvite'
 import { avatarOf, hideBlocked, hideBlockedAlerts, isVideo } from './board/model'
 import type { AlertBoard, BoardAlert, BoardData } from './board/model'
 import { KeychainChoice, SettingsSheet, keychainCopy } from './Settings'
@@ -198,6 +200,9 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
   const [invitationLink, setInvitationLink] = useState('')
   const [profileOpen, setProfileOpen] = useState(false)
   const [editProfileOpen, setEditProfileOpen] = useState(false)
+  const [qrOpen, setQrOpen] = useState(false)
+  const [scannerOpen, setScannerOpen] = useState(false)
+  const { width: windowWidth } = useWindowDimensions()
   const [composerOpen, setComposerOpen] = useState(false)
   const [pendingImages, setPendingImages] = useState<PendingImage[]>([])
   const [imageCache, setImageCache] = useState<Record<string, CachedImage>>({})
@@ -1037,8 +1042,9 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
     return (
       <Screen title='Join board'>
         <Text style={styles.muted}>
-          Paste the invitation link you received from a board member.
+          Scan a board member's invitation QR code, or paste the link they sent you.
         </Text>
+        <Button title='Scan QR code' icon='camera' onPress={() => setScannerOpen(true)} />
         <TextInput
           style={[styles.input, styles.monoInput]}
           value={invite}
@@ -1059,6 +1065,16 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
           onPress={pasteInvitation}
         />
         {entryError ? <Text style={styles.error}>{entryError}</Text> : null}
+        <QrScanner
+          visible={scannerOpen}
+          onClose={() => setScannerOpen(false)}
+          onScan={(scanned) => {
+            setScannerOpen(false)
+            setInvite(scanned)
+            setEntryError('')
+            send({ type: messageTypes.roomStart, invite: normalizeInvite(scanned) })
+          }}
+        />
         <View style={styles.row}>
           <Button
             title='Back'
@@ -1357,6 +1373,15 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
             <Text style={styles.metaMono}>OpenCollab v{shownVersion}</Text>
             <Button title='Share invitation' icon='share-2' onPress={shareInvitation} />
             <Button
+              title='Show QR code'
+              icon='maximize'
+              variant='secondary'
+              onPress={() => {
+                setProfileOpen(false)
+                setQrOpen(true)
+              }}
+            />
+            <Button
               title={exporting ? 'Exporting…' : 'Export board'}
               icon='download'
               variant='secondary'
@@ -1382,6 +1407,29 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
             />
             <Button title='Log out' icon='log-out' variant='secondary' onPress={logout} />
             <Button title='Close' variant='ghost' onPress={() => setProfileOpen(false)} />
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <Modal
+        visible={qrOpen && !!invitationLink}
+        transparent
+        animationType='fade'
+        onRequestClose={() => setQrOpen(false)}
+      >
+        <Pressable style={styles.modalBackdrop} onPress={() => setQrOpen(false)}>
+          <Pressable style={styles.modalCard} onPress={(event) => event.stopPropagation()}>
+            <Text style={styles.heading}>Scan to join {boardName || 'this board'}</Text>
+            <Text style={styles.muted}>
+              On the other phone, open OpenCollab, tap Join, then Scan QR code.
+            </Text>
+            <View style={styles.qrWrap}>
+              <QrCode value={inviteLink(invitationLink)} size={Math.min(windowWidth - 88, 320)} />
+            </View>
+            <View style={styles.row}>
+              <Button title='Close' variant='secondary' onPress={() => setQrOpen(false)} />
+              <Button title='Share link' icon='share-2' grow onPress={shareInvitation} />
+            </View>
           </Pressable>
         </Pressable>
       </Modal>
@@ -1916,6 +1964,7 @@ const styles = themed(() => ({
     justifyContent: 'center',
     padding: 24
   },
+  qrWrap: { alignItems: 'center', padding: 12, borderRadius: 12, backgroundColor: '#ffffff' },
   modalCard: {
     backgroundColor: colors.surface,
     borderColor: colors.border,

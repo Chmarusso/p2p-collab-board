@@ -41,8 +41,16 @@
         "expo-image-picker",
         {
           "photosPermission": "OpenCollab uses your photo library so you can attach images to board posts.",
-          "cameraPermission": false,
+          "cameraPermission": "OpenCollab uses the camera to scan board invitation QR codes.",
           "microphonePermission": false
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "OpenCollab uses the camera to scan board invitation QR codes.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
         }
       ],
       [
