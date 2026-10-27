@@ -24,7 +24,7 @@ opencollab posts --comments
 opencollab comment 1 "Agreed"   # or `comment 1 -` to read the text from stdin
 opencollab vote 1 up             # up | down | clear
 opencollab images 1 --out ./downloads
-opencollab attach 1 shot.png -i chart.png   # add images to an existing card
+opencollab attach 1 shot.png -i demo.mp4    # add images or videos to an existing card
 opencollab watch                 # stay online and print new activity
 ```
 

@@ -726,36 +726,48 @@ const images = command(
   })
 )
 
-// Adds images to an existing card, like the card sheet's "Add image" in the apps.
-// The worker stores them in this member's encrypted blob core and replies with
-// the keys it added, or an error when the card is full.
+// Adds images and videos to an existing card, like "Add image" and "Add video"
+// in the apps. Images go as bytes; videos go as file paths the worker streams
+// into this member's encrypted blob core (the same path the desktop picker uses).
+const VIDEO_EXTENSIONS = ['.mp4', '.mov', '.webm']
 const attach = command(
   'attach',
-  summary('Attach images to an existing card (up to 12 per card)'),
+  summary('Attach images or videos to an existing card (up to 12 per card)'),
   arg('<card>', 'card number, id prefix or title'),
-  arg('<file>', '.jpg, .png, .gif or .webp image up to 5 MB'),
+  arg('<file>', '.jpg, .png, .gif or .webp up to 5 MB, or .mp4, .mov or .webm up to 200 MB'),
   ...boardFlags(),
-  flag('--image|-i [file]', 'another image (repeatable)').multiple(),
+  flag('--image|-i [file]', 'another image or video (repeatable)').multiple(),
   action(async ({ args, flags }) => {
     const files = [args.file, ...[].concat(flags.image || [])]
     const images = []
+    const videos = []
     for (const file of files) {
+      if (VIDEO_EXTENSIONS.includes(path.extname(file).toLowerCase())) {
+        await fs.access(file)
+        videos.push({ path: path.resolve(file), name: path.basename(file) })
+        continue
+      }
       const type = imageType(file)
-      if (!type) throw new Error(`${file}: use a .jpg, .png, .gif or .webp image`)
+      if (!type) throw new Error(`${file}: use an image (.jpg .png .gif .webp) or a video (.mp4 .mov .webm)`)
       const data = await fs.readFile(file)
       if (data.length > MAX_IMAGE_BYTES) throw new Error(`${file}: larger than 5 MB`)
       images.push({ data: data.toString('base64'), type, ...imageSize(data, type) })
     }
     await onCard(flags, args.card, async (session, card) => {
-      const requestId = `attach-${Date.now()}-${Math.random().toString(36).slice(2)}`
-      session.send({ type: messageTypes.cardImagesAdd, objectId: card.id, images, requestId })
-      const reply = await session.wait(
-        (message) => message.type === 'card-images-added' && message.requestId === requestId,
-        { timeout: 60000, label: 'images to be attached' }
-      )
-      if (reply.error) throw new Error(`${reply.error} ("${card.title}")`)
-      const added = reply.keys.length
-      say(`Attached ${added} image${added === 1 ? '' : 's'} to "${card.title}".`)
+      let added = 0
+      const send = async (type, reply, payload, timeout) => {
+        const requestId = `attach-${Date.now()}-${Math.random().toString(36).slice(2)}`
+        session.send({ type, objectId: card.id, requestId, ...payload })
+        const result = await session.wait(
+          (message) => message.type === reply && message.requestId === requestId,
+          { timeout, label: 'attachments to be stored' }
+        )
+        if (result.error) throw new Error(`${result.error} ("${card.title}")`)
+        added += result.keys.length
+      }
+      if (images.length) await send(messageTypes.cardImagesAdd, 'card-images-added', { images }, 60000)
+      if (videos.length) await send(messageTypes.cardMediaAdd, 'card-media-added', { files: videos }, 600000)
+      say(`Attached ${added} file${added === 1 ? '' : 's'} to "${card.title}".`)
     })
   })
 )

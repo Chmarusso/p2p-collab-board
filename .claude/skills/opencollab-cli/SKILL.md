@@ -63,7 +63,7 @@ newest-first list and change as cards are added.
 
 ```sh
 opencollab post "Title" --body "Markdown details"      # new card (optional --image f.jpg)
-opencollab attach <id> shot.png -i more.png            # images onto an existing card (max 12)
+opencollab attach <id> shot.png -i demo.mp4            # images/videos onto an existing card (max 12)
 opencollab add "Title" --column "To do" --assign me --item "Step" --due 2026-12-31
 opencollab add "Title" --from-template <id>            # copy a template card
 printf '%s' "$TEXT" | opencollab comment <id> -        # comment; text from stdin
