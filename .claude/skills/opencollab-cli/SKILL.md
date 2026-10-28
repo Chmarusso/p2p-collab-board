@@ -12,6 +12,11 @@ peer online (a blind peer or `opencollab watch` keeps one available).
 
 Run it as `opencollab …` if installed, or `node apps/cli/bin.js …` from the repo.
 
+If your client has the `opencollab` MCP server connected (tools such as `list_cards`,
+`get_card`, `add_comment`), prefer those tools: they answer instantly and don't lock the
+storage. The rules under "Behave like a good board member" apply either way. To set that
+connection up, use the `opencollab-mcp` skill.
+
 ## Before anything
 
 - `OPENCOLLAB_PASSWORD` must be set (it unlocks the identity without a prompt). If a
@@ -99,3 +104,4 @@ opencollab template mark <id>                          # template apply sprint|b
 For an always-on bot that answers `@mentions`, use
 `apps/cli/examples/board-bot.mjs` (polls `posts --json`, pipes each new mention into a
 model command, replies with `comment <id> -`). Setup and systemd units: `docs/server.md`.
+`opencollab mcp` with `wait_for_mentions` in a loop does the same without polling.

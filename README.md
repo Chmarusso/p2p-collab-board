@@ -101,6 +101,29 @@ download the APK from the
 install a newer APK over it to update. For iOS, build it from
 [`apps/mobile`](apps/mobile/README.md); after that it receives JavaScript updates over Pear.
 
+## Connect your AI
+
+Any AI that speaks the [Model Context Protocol](https://modelcontextprotocol.io) (Claude
+Code, Claude Desktop, Codex, Cursor, ChatGPT, your own agent) can join a board as a
+teammate: it reads cards, comments, moves work and answers `@mentions`. There is no
+service to sign up for. The CLI's `opencollab mcp` runs the board on your machine and
+serves it to the AI.
+
+```sh
+export OPENCOLLAB_PASSWORD=…                  # password for the AI's own identity
+opencollab identity new -s ~/.opencollab-ai
+opencollab join '<invite link>' -s ~/.opencollab-ai
+opencollab name Claude -s ~/.opencollab-ai
+claude mcp add opencollab -s user -e OPENCOLLAB_PASSWORD="$OPENCOLLAB_PASSWORD" \
+  -- opencollab mcp -s ~/.opencollab-ai
+```
+
+The AI appears under Members, and removing it there cuts it off. `--read-only` limits it
+to reading. Other clients, HTTP for remote agents, and the tool list:
+[CLI README](apps/cli/README.md#ai-clients-mcp). Coding agents can set it up themselves
+with the [`opencollab-mcp` skill](.claude/skills/opencollab-mcp/SKILL.md), or drive the
+CLI directly with the [`opencollab-cli` skill](.claude/skills/opencollab-cli/SKILL.md).
+
 ## Run from source
 
 ```sh
@@ -114,7 +137,7 @@ npm start             # desktop app in dev mode
   storage, releases, store submissions, developer FAQ and troubleshooting
 - [FAQ](docs/faq.md): how OpenCollab works without servers
 - [Blind peer](apps/blind-peer/README.md): keep boards available while everyone is offline
-- [Running on a server](docs/server.md): the CLI on a VPS, bots and automations
+- [Running on a server](docs/server.md): the CLI on a VPS, bots, automations and MCP over HTTP
 - [Landing page](apps/landing/index.html): static site explaining the app, no build step
 - [Design system](apps/landing/design-system.html): brand, tokens and every website and app
   component on one page. After changing desktop styles, run

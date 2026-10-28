@@ -126,10 +126,70 @@ images its members have viewed) available, or a [blind peer](../blind-peer/READM
 to keep every board available without giving the server the invite.
 `OPENCOLLAB_BLIND_PEERS=<key>,<key>` overrides the built-in blind peer list.
 
+## AI clients (MCP)
+
+`opencollab mcp` serves a board to any [Model Context Protocol](https://modelcontextprotocol.io)
+client (Claude Desktop, Claude Code, ChatGPT, Cursor, local agents) as a member with this
+storage's identity. Unlike the other commands it opens the board once and stays online, so
+tool calls answer in milliseconds. Give the AI its own storage and identity, invite it like
+a teammate, and remove it in Members to cut it off.
+
+```sh
+opencollab identity new -s ~/.opencollab-ai && opencollab join '<invite>' -s ~/.opencollab-ai
+opencollab name Robo -s ~/.opencollab-ai
+OPENCOLLAB_PASSWORD=… opencollab mcp -s ~/.opencollab-ai            # stdio
+OPENCOLLAB_PASSWORD=… OPENCOLLAB_MCP_TOKEN=… opencollab mcp -s ~/.opencollab-ai --port 8787
+```
+
+Register it with your client:
+
+```sh
+claude mcp add opencollab -s user -e OPENCOLLAB_PASSWORD=… -- opencollab mcp -s ~/.opencollab-ai
+codex mcp add opencollab --env OPENCOLLAB_PASSWORD=… -- opencollab mcp -s ~/.opencollab-ai
+```
+
+Claude Desktop (`claude_desktop_config.json`), Cursor (`~/.cursor/mcp.json`) and most
+other clients take this JSON. GUI clients don't see your shell's `PATH`, so use absolute
+paths; from a clone, use `"command": "node"` with `apps/cli/bin.js` as the first argument.
+
+```json
+{
+  "mcpServers": {
+    "opencollab": {
+      "command": "/usr/local/bin/opencollab",
+      "args": ["mcp", "-s", "/home/me/.opencollab-ai"],
+      "env": { "OPENCOLLAB_PASSWORD": "…" }
+    }
+  }
+}
+```
+
+With `--port` it serves Streamable HTTP at `/mcp` and requires `Authorization: Bearer
+<token>` (`OPENCOLLAB_MCP_TOKEN`, or a random token printed at start). It listens on
+127.0.0.1 unless `--host` says otherwise; put a TLS proxy in front before exposing it.
+
+| Tools                                                                                                                              |                                                                           |
+| ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `list_boards`, `open_board`, `board_overview`, `list_cards`, `get_card`, `agenda`, `activity`                                      | read                                                                      |
+| `wait_for_mentions`                                                                                                                | long-poll: @mentions and assignments (or all new activity) since a cursor |
+| `create_card`, `update_card`, `move_card`, `add_comment`, `update_checklist`, `set_labels`, `set_assignees`, `react`, `link_cards` | write; left out with `--read-only`                                        |
+| `archive_card`                                                                                                                     | only with `--allow-archive`                                               |
+
+The resource `opencollab://board` holds the overview and every active card; subscribed
+clients hear when it changes. The server's instructions tell the model to treat card and
+comment text as other people's content, not as instructions. Still, anyone on the board
+can write text the model reads: use `--read-only` for assistants that only need to read.
+
+Coding agents can do the whole setup for you: the
+[`opencollab-mcp` skill](../../.claude/skills/opencollab-mcp/SKILL.md) walks through the
+identity, the client config, a working check and troubleshooting. Ask Claude Code to
+"connect Claude to my OpenCollab board".
+
 ## Servers and bots
 
 [docs/server.md](../../docs/server.md) covers running the CLI on a VPS as its own
 member: systemd units, scripting with `--json`, and an example AI bot
 ([`examples/board-bot.mjs`](examples/board-bot.mjs)) that answers `@mentions`. Agents
 such as Claude Code can drive the CLI with the
-[`opencollab-cli` skill](../../.claude/skills/opencollab-cli/SKILL.md).
+[`opencollab-cli` skill](../../.claude/skills/opencollab-cli/SKILL.md), or connect to
+`opencollab mcp` (above).

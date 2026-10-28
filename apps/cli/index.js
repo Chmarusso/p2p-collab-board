@@ -2,7 +2,6 @@
 // Bare backend as the desktop and mobile apps (workers/main.js), so boards,
 // cards, columns, labels, comments, votes and encrypted images are fully
 // interoperable.
-const crypto = require('crypto')
 const fs = require('fs/promises')
 const os = require('os')
 const path = require('path')
@@ -17,6 +16,35 @@ const {
   REACTIONS
 } = require('@opencollab/board-protocol')
 const { Session } = require('./lib/session')
+const {
+  DAY,
+  EMOJI_NAMES,
+  apply,
+  cardOf,
+  deadlineOf,
+  doneColumnId,
+  ensureLabel,
+  findColumn,
+  findComment,
+  findItem,
+  findMember,
+  findMembers,
+  findLabel,
+  moveWarnings,
+  agendaGroups,
+  selectBoard,
+  findMentions,
+  findPost,
+  isOpen,
+  labelNames,
+  memberName,
+  newestFirst,
+  quiet,
+  reactionOf,
+  refused,
+  request,
+  shortKey
+} = require('./lib/board')
 const runtime = require('./lib/runtime')
 const store = require('./lib/store')
 const { MAX_IMAGE_BYTES, imageType, imageSize, imageKey, extensions } = require('./lib/images')
@@ -35,7 +63,6 @@ const boardFlags = () => [
 
 const storageOf = (flags) => path.resolve(flags.storage || defaultStorage)
 const waitOf = (flags) => Math.max(0, Number(flags.wait ?? 10) || 0)
-const shortKey = (key = '') => (key.length > 10 ? `${key.slice(0, 4)}…${key.slice(-4)}` : key)
 const say = (...lines) => console.log(lines.join('\n'))
 const warn = (text) => console.error(`! ${text}`)
 
@@ -111,18 +138,6 @@ async function withSession(flags, fn) {
   }
 }
 
-function selectBoard(boards, selector) {
-  if (!boards.length) {
-    throw new Error('No boards yet. Use `opencollab create` or `opencollab join`.')
-  }
-  if (!selector) return boards[0]
-  const index = Number(selector)
-  if (Number.isInteger(index) && index >= 1 && index <= boards.length) return boards[index - 1]
-  const match = boards.find((board) => board.name.toLowerCase() === String(selector).toLowerCase())
-  if (!match) throw new Error(`No remembered board "${selector}". See \`opencollab boards\`.`)
-  return match
-}
-
 // Unlock, open the selected (or given) board, remember it and wait for peers.
 async function openBoard(session, flags, { invite, name } = {}) {
   const storage = storageOf(flags)
@@ -153,28 +168,10 @@ function assertWritable(session, room) {
   )
 }
 
-const newestFirst = (objects) =>
-  [...objects].sort((a, b) => (Date.parse(b.createdAt) || 0) - (Date.parse(a.createdAt) || 0))
-
 async function readStdin() {
   let text = ''
   for await (const chunk of process.stdin) text += chunk
   return text
-}
-
-function findPost(objects, selector) {
-  const posts = newestFirst(objects)
-  const value = String(selector).replace(/^#/, '')
-  const index = Number(value)
-  if (Number.isInteger(index) && index >= 1 && index <= posts.length) return posts[index - 1]
-  // Then an id prefix, the exact title, and a unique part of a title.
-  const lower = value.toLowerCase()
-  const byId = posts.filter((post) => post.id.startsWith(value))
-  const byTitle = posts.filter((post) => post.title.toLowerCase() === lower)
-  const byPart = posts.filter((post) => post.title.toLowerCase().includes(lower))
-  const matches = [byId, byTitle, byPart].find((list) => list.length) || []
-  if (matches.length === 1) return matches[0]
-  throw new Error(matches.length ? `"${selector}" matches several posts` : `No post "${selector}"`)
 }
 
 function author(session, identity) {
@@ -228,21 +225,6 @@ function printPost(session, post, index, { comments = false } = {}) {
   }
 }
 
-const labelNames = (session, post) =>
-  (post.labelIds || [])
-    .map((id) => session.state.labels.find((label) => label.id === id)?.name)
-    .filter(Boolean)
-
-// Date-only due dates are due at the end of that day, local time.
-function deadlineOf(dueDate) {
-  if (!dueDate) return null
-  const [year, month, day] = dueDate.split('-').map(Number)
-  const deadline = /^\d{4}-\d{2}-\d{2}$/.test(dueDate)
-    ? new Date(year, month - 1, day, 23, 59, 59)
-    : new Date(dueDate)
-  return Number.isNaN(deadline.getTime()) ? null : deadline
-}
-
 const dueWhen = (dueDate) =>
   /^\d{4}-\d{2}-\d{2}$/.test(dueDate) ? dueDate : deadlineOf(dueDate).toLocaleString()
 
@@ -254,46 +236,7 @@ function dueText(dueDate) {
   return left < 0 ? `overdue ${when}` : left < DAY ? `due soon ${when}` : `due ${when}`
 }
 
-const DAY = 86400000
 const STALE_DAYS = 7
-
-// "Done" is the last column on every board.
-function doneColumnId(session) {
-  const { columns } = session.state
-  return columns.length > 1 ? columns[columns.length - 1].id : null
-}
-
-const memberName = (session, identity) =>
-  session.state.profiles[identity] ||
-  session.state.members.find((member) => member.identity === identity)?.name ||
-  shortKey(identity)
-
-// A member by display name, identity prefix or "me"; banned members are skipped.
-function findMember(session, selector) {
-  const value = String(selector).trim().toLowerCase()
-  if (value === 'me') return session.state.publicKey
-  const { members, profiles } = session.state
-  const banned = new Set(members.filter((entry) => entry.banned).map((entry) => entry.identity))
-  const people = [
-    ...new Set([...members.map((entry) => entry.identity), ...Object.keys(profiles)])
-  ].filter((identity) => !banned.has(identity))
-  const byName = people.filter((identity) => memberName(session, identity).toLowerCase() === value)
-  const matches = byName.length ? byName : people.filter((identity) => identity.startsWith(value))
-  if (matches.length === 1) return matches[0]
-  if (matches.length) throw new Error(`"${selector}" matches several members`)
-  throw new Error(
-    `No member "${selector}". Members: ${people.map((identity) => memberName(session, identity)).join(', ')}`
-  )
-}
-
-// Comma-separated or repeated member selectors.
-const findMembers = (session, selectors) =>
-  []
-    .concat(selectors || [])
-    .flatMap((value) => String(value).split(','))
-    .map((value) => value.trim())
-    .filter(Boolean)
-    .map((value) => findMember(session, value))
 
 const daysSince = (ms) => (ms ? Math.floor((Date.now() - ms) / DAY) : 0)
 
@@ -354,90 +297,6 @@ function table(headers, rows) {
 }
 
 const clip = (text, max) => (text.length > max ? `${text.slice(0, max - 1)}…` : text)
-
-// Columns by number (1-based, board order), name or id.
-function findColumn(columns, selector) {
-  const value = String(selector)
-  const index = Number(value)
-  if (Number.isInteger(index) && index >= 1 && index <= columns.length) return columns[index - 1]
-  const match =
-    columns.find((column) => column.id === value) ||
-    columns.find((column) => column.name.toLowerCase() === value.toLowerCase())
-  if (!match) {
-    throw new Error(
-      `No column "${selector}". Columns: ${columns.map((column, i) => `${i + 1} ${column.name}`).join(', ')}`
-    )
-  }
-  return match
-}
-
-const LABEL_COLORS = ['#4bce97', '#f5cd47', '#fea362', '#f87168', '#9f8fef']
-LABEL_COLORS.push('#579dff', '#6cc3e0', '#94c748', '#e774bb', '#8590a2')
-const newLabelId = () => `label:${crypto.randomBytes(6).toString('hex')}`
-
-// The worker answers a refused action with board-action-error.
-const refused = (reply, message) =>
-  reply.type === 'board-action-error' && reply.action === message.type && new Error(reply.error)
-
-// Sends `message`, then waits for a board-state where `check(state)` holds.
-async function apply(session, message, check, label) {
-  session.send(message)
-  await session.wait(
-    (reply, state) =>
-      refused(reply, message) || (reply.type === messageTypes.boardState && check(state)),
-    { label }
-  )
-}
-
-// Sends a request the worker answers with its own reply type.
-function request(session, message, replyType, label) {
-  const requestId = crypto.randomBytes(6).toString('hex')
-  session.send({ ...message, requestId })
-  return session.wait(
-    (reply) =>
-      refused(reply, message) || (reply.type === replyType && reply.requestId === requestId),
-    { label }
-  )
-}
-
-// Rules run in the worker after the op that triggered them; let them land
-// before the command leaves the board.
-async function quiet(session, ms = 1500) {
-  let last = Date.now()
-  const touch = (message) => {
-    if (message.type === messageTypes.boardState) last = Date.now()
-  }
-  session.waiters.add(touch)
-  while (Date.now() - last < ms) await session.sleep(100)
-  session.waiters.delete(touch)
-}
-
-// Finds a label by name, creating it (with a free color) when it is new.
-async function ensureLabel(session, labelName, color) {
-  const name = String(labelName).trim().slice(0, LIMITS.labelName)
-  const existing = session.state.labels.find(
-    (entry) => entry.name.toLowerCase() === name.toLowerCase()
-  )
-  if (existing) return existing
-  const labelId = newLabelId()
-  await apply(
-    session,
-    {
-      type: messageTypes.labelUpsert,
-      labelId,
-      name,
-      color:
-        color ||
-        LABEL_COLORS.find(
-          (value) => !session.state.labels.some((entry) => entry.color === value)
-        ) ||
-        LABEL_COLORS[0]
-    },
-    (state) => state.labels.some((entry) => entry.id === labelId),
-    'label to be created'
-  )
-  return { id: labelId, name }
-}
 
 // Opens the board for a write on one card and returns it.
 async function openCard(session, flags, selector) {
@@ -720,6 +579,7 @@ const post = command(
         type: messageTypes.boardCreate,
         title: args.title,
         body: flags.body || '',
+        mentions: findMentions(flags.body, session.state.profiles),
         images
       })
       await session.wait(
@@ -753,7 +613,12 @@ const comment = command(
       const { room } = await openBoard(session, flags)
       assertWritable(session, room)
       const target = findPost(session.state.objects, args.post)
-      session.send({ type: messageTypes.boardComment, objectId: target.id, text })
+      session.send({
+        type: messageTypes.boardComment,
+        objectId: target.id,
+        text,
+        mentions: findMentions(text, session.state.profiles)
+      })
       await session.wait(
         (message, state) =>
           message.type === messageTypes.boardState &&
@@ -1118,16 +983,7 @@ const move = command(
       const others = session.state.objects.filter(
         (entry) => entry.columnId === column.id && entry.id !== card.id
       )
-      const live = others.filter((entry) => !entry.archived && !entry.template)
-      if (column.wipLimit && card.columnId !== column.id && live.length >= column.wipLimit) {
-        warn(`${column.name} is at its WIP limit (${live.length}/${column.wipLimit}).`)
-      }
-      if (column.id === doneColumnId(session) && card.blockedBy?.length) {
-        const blockers = card.blockedBy.map(
-          (id) => session.state.objects.find((entry) => entry.id === id)?.title || id
-        )
-        warn(`"${card.title}" is still blocked by: ${blockers.join(', ')}`)
-      }
+      moveWarnings(session, card, column).forEach(warn)
       const index = flags.top ? 0 : others.length
       await apply(
         session,
@@ -1140,7 +996,7 @@ const move = command(
         'card to be moved'
       )
       say(`Moved "${card.title}" to ${column.name}${flags.top ? ' (top)' : ''}.`)
-      if (session.state.rules.some((rule) => rule.enabled)) await quiet(session)
+      await quiet(session)
       await finishWrite(session)
     })
   })
@@ -1161,7 +1017,10 @@ const edit = command(
       const { card } = await openCard(session, flags, args.card)
       const change = { type: messageTypes.cardUpdate, objectId: card.id }
       if (flags.title !== undefined) change.title = String(flags.title)
-      if (flags.body !== undefined) change.body = String(flags.body)
+      if (flags.body !== undefined) {
+        change.body = String(flags.body)
+        change.mentions = findMentions(change.body, session.state.profiles)
+      }
       await apply(
         session,
         change,
@@ -1195,10 +1054,9 @@ const label = command(
     await withSession(flags, async (session) => {
       const { card } = await openCard(session, flags, args.card)
       const name = args.name.trim().slice(0, LIMITS.labelName)
-      const known = session.state.labels.some(
-        (entry) => entry.name.toLowerCase() === name.toLowerCase()
-      )
-      if (!known && verb === 'remove') throw new Error(`No label "${name}" on this board`)
+      if (!findLabel(session, name) && verb === 'remove') {
+        throw new Error(`No label "${name}" on this board`)
+      }
       const existing = await ensureLabel(session, name, flags.color)
       const current = card.labelIds || []
       const labelIds =
@@ -1379,9 +1237,6 @@ const notifications = command(
   })
 )
 
-const cardOf = (state, id) => state.objects.find((entry) => entry.id === id)
-const isOpen = (session, card) =>
-  !card.archived && !card.template && card.columnId !== doneColumnId(session)
 const progress = (card) =>
   `${card.checklist.filter((item) => item.done).length}/${card.checklist.length} done`
 
@@ -1483,22 +1338,6 @@ const show = command(
     })
   })
 )
-
-function findItem(card, selector) {
-  const items = card.checklist || []
-  const value = String(selector)
-  const index = Number(value)
-  if (Number.isInteger(index) && index >= 1 && index <= items.length) return items[index - 1]
-  const matches = items.filter(
-    (item) => item.id.startsWith(value) || item.text.toLowerCase() === value.toLowerCase()
-  )
-  if (matches.length === 1) return matches[0]
-  throw new Error(
-    matches.length
-      ? `"${selector}" matches several items`
-      : `No checklist item "${selector}" on "${card.title}" (see \`opencollab show\`)`
-  )
-}
 
 const checklistAdd = command(
   'add',
@@ -1710,42 +1549,6 @@ const mine = command(
   })
 )
 
-const EMOJI_NAMES = {
-  '+1': '👍',
-  thumbsup: '👍',
-  heart: '❤️',
-  tada: '🎉',
-  laugh: '😂',
-  joy: '😂',
-  wow: '😮',
-  rocket: '🚀',
-  eyes: '👀',
-  fire: '🔥'
-}
-
-function reactionOf(value) {
-  const text = String(value).trim()
-  const emoji = EMOJI_NAMES[text.toLowerCase()] || text
-  if (REACTIONS.includes(emoji)) return emoji
-  if (REACTIONS.includes(`${emoji}️`)) return `${emoji}️`
-  throw new Error(`Use one of ${REACTIONS.join(' ')} (or ${Object.keys(EMOJI_NAMES).join(', ')})`)
-}
-
-// Comments by number in `opencollab show` (oldest first) or by id suffix/prefix.
-function findComment(card, selector) {
-  const comments = [...(card.comments || [])].sort(
-    (a, b) => (Date.parse(a.createdAt) || 0) - (Date.parse(b.createdAt) || 0)
-  )
-  const value = String(selector)
-  const index = Number(value)
-  if (Number.isInteger(index) && index >= 1 && index <= comments.length) return comments[index - 1]
-  const matches = comments.filter((entry) => entry.id.startsWith(value) || entry.id.endsWith(value))
-  if (matches.length === 1) return matches[0]
-  throw new Error(
-    matches.length ? `"${selector}" matches several comments` : `No comment "${selector}"`
-  )
-}
-
 const reactCommand = (on) =>
   command(
     on ? 'react' : 'unreact',
@@ -1897,11 +1700,7 @@ const cards = command(
       const { objects, columns } = session.state
       const numbers = new Map(newestFirst(objects).map((post, index) => [post.id, index + 1]))
       const assignee = flags.assignee ? findMember(session, flags.assignee) : null
-      const labelId = flags.label
-        ? session.state.labels.find(
-            (entry) => entry.name.toLowerCase() === String(flags.label).toLowerCase()
-          )?.id || ''
-        : null
+      const labelId = flags.label ? findLabel(session, flags.label)?.id || '' : null
       const column = flags.column ? findColumn(columns, flags.column) : null
       const order = new Map(columns.map((entry, index) => [entry.id, index]))
       // objects arrive in board order, so a stable sort keeps positions within a column.
@@ -1956,26 +1755,11 @@ async function agenda(flags) {
     const numbers = new Map(
       newestFirst(session.state.objects).map((post, index) => [post.id, index + 1])
     )
-    const now = new Date()
-    const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999)
-    const groups = { Overdue: [], Today: [], 'This week': [], Later: [] }
-    let undated = 0
-    for (const card of session.state.objects.filter((entry) => isOpen(session, entry))) {
-      const deadline = deadlineOf(card.dueDate)
-      if (!deadline) {
-        undated++
-        continue
-      }
-      const group =
-        deadline < now
-          ? 'Overdue'
-          : deadline <= endOfToday
-            ? 'Today'
-            : deadline - endOfToday <= 6 * DAY
-              ? 'This week'
-              : 'Later'
-      groups[group].push({ card, deadline })
-    }
+    const { noDate: undated, ...buckets } = agendaGroups(session)
+    const headings = { overdue: 'Overdue', today: 'Today', thisWeek: 'This week', later: 'Later' }
+    const groups = Object.fromEntries(
+      Object.entries(buckets).map(([key, list]) => [headings[key], list])
+    )
     if (flags.json) {
       const plain = Object.fromEntries(
         Object.entries(groups).map(([name, list]) => [name, list.map(({ card }) => card)])
@@ -1986,7 +1770,7 @@ async function agenda(flags) {
     for (const [name, list] of Object.entries(groups)) {
       if (!list.length) continue
       say('', `## ${name} (${list.length})`)
-      for (const { card } of list.sort((a, b) => a.deadline - b.deadline)) {
+      for (const { card } of list) {
         const column = session.state.columns.find((entry) => entry.id === card.columnId)
         const extras = [column?.name, ...cardBadges(session, card)].filter(Boolean)
         say(
@@ -2569,6 +2353,7 @@ const add = command(
             type: messageTypes.boardCreate,
             title,
             body: flags.body || '',
+            mentions: findMentions(flags.body, session.state.profiles),
             ...(column && { columnId: column.id }),
             ...(assignees.length && { assignees }),
             ...(flags.item && { checklist: [].concat(flags.item) }),
@@ -2589,7 +2374,7 @@ const add = command(
           { label: 'cards to be saved' }
         )
       }
-      if (session.state.rules.some((rule) => rule.enabled)) await quiet(session)
+      await quiet(session)
       const where = column?.name || session.state.columns[0]?.name
       say(
         titles.length === 1
@@ -2598,6 +2383,27 @@ const add = command(
       )
       await finishWrite(session)
     })
+  })
+)
+
+const mcp = command(
+  'mcp',
+  summary('Run an MCP server so AI clients can work on a board'),
+  description(
+    'Serves the board to any Model Context Protocol client (Claude, ChatGPT, Cursor,\n' +
+      'local agents) as a member with this identity. It opens the board once and stays\n' +
+      'online. Speaks stdio by default; --port serves Streamable HTTP at /mcp, guarded by\n' +
+      'a bearer token (OPENCOLLAB_MCP_TOKEN, or a random one printed at start).\n' +
+      'Needs OPENCOLLAB_PASSWORD. Stop with Ctrl+C.'
+  ),
+  ...commonFlags(),
+  flag('--board|-b [board]', 'board name or number from `opencollab boards` (default: latest)'),
+  flag('--port|-p [port]', 'serve Streamable HTTP on this port instead of stdio'),
+  flag('--host [host]', 'HTTP address to listen on (default 127.0.0.1)'),
+  flag('--read-only', 'only reading tools: no cards, comments or other changes'),
+  flag('--allow-archive', 'also offer the archive_card tool'),
+  action(async ({ flags }) => {
+    await require('./lib/mcp').serve(flags, { storage: storageOf(flags) })
   })
 )
 
@@ -2653,6 +2459,7 @@ const cli = command(
   notifications,
   images,
   watch,
+  mcp,
   update,
   version
 )

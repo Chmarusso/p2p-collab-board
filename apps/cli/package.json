@@ -8,12 +8,14 @@
   },
   "main": "index.js",
   "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.1",
     "@opencollab/board-protocol": "file:../../packages/board-protocol",
     "framed-stream": "^1.0.1",
     "keet-identity-key": "^3.2.0",
     "paparam": "^1.10.0",
     "pear-runtime": "^1.1.4",
-    "sodium-native": "^5.1.0"
+    "sodium-native": "^5.1.0",
+    "zod": "^3.25.76"
   },
   "upgrade": "pear://q1huw5ozxk8j36pcb8sicfr4dtgf9154r5aj3yzqa14ngxxq1kmy",
   "scripts": {
