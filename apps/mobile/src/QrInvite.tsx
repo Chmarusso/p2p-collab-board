@@ -1,5 +1,5 @@
 import React, { useMemo, useRef } from 'react'
-import { Modal, Pressable, StyleSheet, Text, View } from 'react-native'
+import { Linking, Modal, Pressable, StyleSheet, Text, View } from 'react-native'
 import { Feather } from '@expo/vector-icons'
 import { CameraView, useCameraPermissions } from 'expo-camera'
 import { encode } from 'uqr'
@@ -62,6 +62,15 @@ export function QrScanner({
   const [permission, requestPermission] = useCameraPermissions()
   const done = useRef(false)
   if (!visible) done.current = false
+  // Android reports canAskAgain=false both after "Don't allow" twice and after an
+  // "Only this time" grant expires, so always try the system prompt first. Open the
+  // app's settings only when it was already blocked and the prompt didn't change that,
+  // not right after the user declined in the prompt.
+  const allow = async () => {
+    const blocked = permission?.canAskAgain === false
+    const result = await requestPermission()
+    if (blocked && !result.granted && !result.canAskAgain) await Linking.openSettings()
+  }
   return (
     <Modal visible={visible} animationType='slide' onRequestClose={onClose}>
       <View style={styles.screen}>
@@ -79,14 +88,8 @@ export function QrScanner({
         ) : (
           <View style={styles.permission}>
             <Feather name='camera' size={32} color={colors.muted} />
-            <Text style={styles.text}>
-              {permission && !permission.canAskAgain
-                ? 'Camera access is off for OpenCollab. Turn it on in your phone settings to scan invitations.'
-                : 'Allow the camera to scan an invitation QR code.'}
-            </Text>
-            {!permission || permission.canAskAgain ? (
-              <Button title='Allow camera' icon='camera' onPress={() => void requestPermission()} />
-            ) : null}
+            <Text style={styles.text}>Allow the camera to scan an invitation QR code.</Text>
+            <Button title='Allow camera' icon='camera' onPress={() => void allow()} />
           </View>
         )}
         {permission?.granted ? (
