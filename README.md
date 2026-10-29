@@ -28,6 +28,22 @@ keeps an encrypted copy of your boards online without being able to read them.
 
 How can this work with no server at all? See the [FAQ](docs/faq.md).
 
+## Board types
+
+Every board has a type, picked when it is created; its owner can change it later.
+
+| Type           | Looks like                                                   | Good for                             |
+| -------------- | ------------------------------------------------------------ | ------------------------------------ |
+| **Kanban**     | Columns with checklists, due dates, people, estimates, rules | Team work in progress                |
+| **To-do list** | One list with checkboxes; done items fold away               | Chores, shopping, personal lists     |
+| **Feed**       | Posts newest first, with photos or generated covers          | Family or team news, links           |
+| **Recipes**    | Sections (Breakfast, Lunch, Dinner, Desserts) of photo cards | Recipes saved from TikTok or the web |
+
+A type only changes what the board shows: every board stores the same cards, sections,
+images and comments, so switching type hides details instead of deleting them. Cards
+shared from another app keep their link as **View original**. Types are defined once in
+[`packages/board-protocol/kinds.js`](packages/board-protocol/kinds.js) for every client.
+
 ## Clients
 
 All of them run the same P2P backend, [`workers/main.js`](workers/main.js), on Bare. The
