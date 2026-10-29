@@ -3722,14 +3722,26 @@
         </p>
         <div id="recent-boards" aria-label="Joined boards"></div>
         <div id="room-create-form" class="stack">
-          <p class="muted">Choose a name for your new private board.</p>
-          <input id="room-name" placeholder="Board name" maxlength="100" />
-          <span class="section-label">Board type</span>
-          <div id="room-kind" class="kind-options" role="radiogroup" aria-label="Board type"></div>
-          <p class="muted hint">The board's owner can change it later.</p>
-          <div class="row">
-            <button id="room-create-back" class="secondary">Back</button>
-            <button id="room-create">Create board</button>
+          <div id="room-create-name" class="stack">
+            <p class="muted">Choose a name for your new private board.</p>
+            <input id="room-name" placeholder="Board name" maxlength="100" />
+            <div class="row">
+              <button id="room-create-back" class="secondary">Back</button>
+              <button id="room-create-next">Next</button>
+            </div>
+          </div>
+          <div id="room-create-kind" class="stack" hidden>
+            <p id="room-kind-intro" class="muted"></p>
+            <div
+              id="room-kind"
+              class="kind-options"
+              role="radiogroup"
+              aria-label="Board type"
+            ></div>
+            <div class="row">
+              <button id="room-kind-back" class="secondary">Back</button>
+              <button id="room-create">Create board</button>
+            </div>
           </div>
         </div>
         <div id="room-join-form" class="stack">

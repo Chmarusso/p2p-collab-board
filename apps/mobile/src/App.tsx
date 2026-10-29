@@ -211,6 +211,8 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
   const [invite, setInvite] = useState('')
   const [boardName, setBoardName] = useState('')
   const [newBoardKind, setNewBoardKind] = useState<BoardKindId>('kanban')
+  // New board: the name first, then the type.
+  const [createStep, setCreateStep] = useState<'name' | 'kind'>('name')
   const [recentBoards, setRecentBoards] = useState<RecentBoard[]>([])
   const [displayName, setDisplayName] = useState('')
   const [displayNameDraft, setDisplayNameDraft] = useState('')
@@ -536,6 +538,11 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
         send({ type: messageTypes.roomLeave })
         return true
       }
+      if (identityReady && entryMode === 'create' && createStep === 'kind') {
+        setEntryError('')
+        setCreateStep('name')
+        return true
+      }
       if (identityReady && entryMode !== 'choose') {
         setEntryError('')
         setEntryMode('choose')
@@ -544,7 +551,7 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
       return false
     })
     return () => subscription.remove()
-  }, [pipe, roomReady, identityReady, entryMode])
+  }, [pipe, roomReady, identityReady, entryMode, createStep])
 
   // The worker checks every joined board in the background for notifications.
   useEffect(() => {
@@ -1231,7 +1238,12 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
       </Screen>
     )
   }
-  if (!roomReady && entryMode === 'create') {
+  if (!roomReady && entryMode === 'create' && createStep === 'name') {
+    const next = () => {
+      if (!boardName.trim()) return setEntryError('Give your board a name.')
+      setEntryError('')
+      setCreateStep('kind')
+    }
     return (
       <Screen title='New board'>
         <Text style={styles.muted}>
@@ -1244,13 +1256,12 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
             setBoardName(value)
             setEntryError('')
           }}
+          onSubmitEditing={next}
           placeholder='Board name'
           placeholderTextColor={colors.muted}
+          returnKeyType='next'
           autoFocus
         />
-        <Text style={styles.sectionLabel}>Board type</Text>
-        <KindOptions selected={newBoardKind} onPick={setNewBoardKind} />
-        <Text style={styles.hint}>The board's owner can change it later.</Text>
         {entryError ? <Text style={styles.error}>{entryError}</Text> : null}
         <View style={styles.row}>
           <Button
@@ -1262,19 +1273,41 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
               setEntryMode('choose')
             }}
           />
+          <Button title='Next' icon='arrow-right' grow onPress={next} />
+        </View>
+      </Screen>
+    )
+  }
+  if (!roomReady && entryMode === 'create') {
+    return (
+      <Screen title='Board type'>
+        <Text style={styles.muted}>
+          What is “{boardName.trim()}” for? You can change it later in Board settings.
+        </Text>
+        <KindOptions selected={newBoardKind} onPick={setNewBoardKind} />
+        {entryError ? <Text style={styles.error}>{entryError}</Text> : null}
+        <View style={styles.row}>
+          <Button
+            title='Back'
+            icon='arrow-left'
+            variant='secondary'
+            onPress={() => {
+              setEntryError('')
+              setCreateStep('name')
+            }}
+          />
           <Button
             title='Create board'
             icon='plus'
             grow
-            onPress={() => {
-              if (!boardName.trim()) return setEntryError('Give your board a name.')
+            onPress={() =>
               send({
                 type: messageTypes.roomStart,
                 invite: null,
                 name: boardName.trim(),
                 kind: newBoardKind
               })
-            }}
+            }
           />
         </View>
       </Screen>
@@ -1347,7 +1380,15 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
         headerRight={<IdentityBadge identity={identityKey} onPress={logout} icon='log-out' />}
       >
         <View style={styles.row}>
-          <Button title='New board' icon='plus' grow onPress={() => setEntryMode('create')} />
+          <Button
+            title='New board'
+            icon='plus'
+            grow
+            onPress={() => {
+              setCreateStep('name')
+              setEntryMode('create')
+            }}
+          />
           <Button
             title='Join'
             icon='log-in'

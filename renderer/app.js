@@ -3991,7 +3991,16 @@ function showRoomForm(id) {
   document.getElementById(id).style.display = 'grid'
   document.querySelector(`#${id} input`).focus()
 }
-document.getElementById('room-create-choice').onclick = () => showRoomForm('room-create-form')
+// New board: the name first, then the type.
+function showCreateStep(step) {
+  document.getElementById('room-create-name').hidden = step !== 'name'
+  document.getElementById('room-create-kind').hidden = step !== 'kind'
+  roomError.innerText = ''
+}
+document.getElementById('room-create-choice').onclick = () => {
+  showCreateStep('name')
+  showRoomForm('room-create-form')
+}
 document.getElementById('room-join-choice').onclick = () => showRoomForm('room-join-form')
 document.getElementById('room-invite-paste').onclick = async () => {
   try {
@@ -4017,12 +4026,27 @@ function renderNewBoardKind() {
   })
 }
 renderNewBoardKind()
-document.getElementById('room-create').onclick = () => {
+function createNext() {
   const name = document.getElementById('room-name').value.trim()
   if (!name) {
     roomError.innerText = 'Give your board a name.'
     return
   }
+  document.getElementById('room-kind-intro').textContent =
+    `What is “${name}” for? You can change it later in Board settings.`
+  showCreateStep('kind')
+  document.querySelector('#room-kind [aria-checked="true"]')?.focus()
+}
+document.getElementById('room-create-next').onclick = createNext
+document.getElementById('room-name').onkeydown = (event) => {
+  if (event.key === 'Enter') createNext()
+}
+document.getElementById('room-kind-back').onclick = () => {
+  showCreateStep('name')
+  document.getElementById('room-name').focus()
+}
+document.getElementById('room-create').onclick = () => {
+  const name = document.getElementById('room-name').value.trim()
   roomError.innerText = ''
   send({ type: 'room:start', invite: null, name, kind: newBoardKind })
 }
