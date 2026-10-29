@@ -68,7 +68,8 @@
           "supportsPictureInPicture": false
         }
       ],
-      "./plugins/android-release"
+      "./plugins/android-release",
+      "./plugins/share-target"
     ]
   }
 }

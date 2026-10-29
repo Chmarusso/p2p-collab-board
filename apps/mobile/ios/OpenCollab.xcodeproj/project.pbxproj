@@ -8,27 +8,58 @@
 
 /* Begin PBXBuildFile section */
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
+		266C110EDAF7AD10524ABDA7 /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F70E94C03B1C5DA74DCCBD22 /* ShareViewController.swift */; };
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
 		441903A258F5FAB2EAE8650C /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 3F69F57ACDABBE11A1179ACD /* PrivacyInfo.xcprivacy */; };
 		493E7515CF3FD8F3F3B5BE52 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = C09D0A39F675E6EF2CE3CFAA /* ExpoModulesProvider.swift */; };
+		4A54DE8EB551317872ABFE04 /* OpenCollabShare.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = C827BF22775F04F0B103817D /* OpenCollabShare.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		8D322DDEABF5C78617CD92C3 /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A3660458EC9BE11460510521 /* Foundation.framework */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
 		FC47FA09B2F76CFF8A93C42B /* libPods-OpenCollab.a in Frameworks */ = {isa = PBXBuildFile; fileRef = F964AB749E9C6855435E196F /* libPods-OpenCollab.a */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		F2E5750788E88CA28CC0913B /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 83CBB9F71A601CBA00E9B192 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = C4BABDD3D247E8101928FD13;
+			remoteInfo = OpenCollabShare;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		9B71F545E2745C4FA906339A /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				4A54DE8EB551317872ABFE04 /* OpenCollabShare.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
 		13B07F961A680F5B00A75B9A /* OpenCollab.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = OpenCollab.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = OpenCollab/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = OpenCollab/Info.plist; sourceTree = "<group>"; };
+		31C4D983A0D6F0DD3DEB4AD4 /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		3F69F57ACDABBE11A1179ACD /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; name = PrivacyInfo.xcprivacy; path = OpenCollab/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		48DCED9C74E66364B84BCEF1 /* Pods-OpenCollab.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-OpenCollab.debug.xcconfig"; path = "Target Support Files/Pods-OpenCollab/Pods-OpenCollab.debug.xcconfig"; sourceTree = "<group>"; };
 		68B67A2388B8057713649ECA /* Pods-OpenCollab.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-OpenCollab.release.xcconfig"; path = "Target Support Files/Pods-OpenCollab/Pods-OpenCollab.release.xcconfig"; sourceTree = "<group>"; };
+		A3660458EC9BE11460510521 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = OpenCollab/SplashScreen.storyboard; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
 		C09D0A39F675E6EF2CE3CFAA /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-OpenCollab/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
+		C827BF22775F04F0B103817D /* OpenCollabShare.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = OpenCollabShare.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = OpenCollab/AppDelegate.swift; sourceTree = "<group>"; };
 		F11748442D0722820044C1D9 /* OpenCollab-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "OpenCollab-Bridging-Header.h"; path = "OpenCollab/OpenCollab-Bridging-Header.h"; sourceTree = "<group>"; };
+		F70E94C03B1C5DA74DCCBD22 /* ShareViewController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
 		F964AB749E9C6855435E196F /* libPods-OpenCollab.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-OpenCollab.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -38,6 +69,14 @@
 			buildActionMask = 2147483647;
 			files = (
 				FC47FA09B2F76CFF8A93C42B /* libPods-OpenCollab.a in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6A783157C13770F516C014F2 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8D322DDEABF5C78617CD92C3 /* Foundation.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -71,6 +110,7 @@
 			children = (
 				ED297162215061F000B7C4FE /* JavaScriptCore.framework */,
 				F964AB749E9C6855435E196F /* libPods-OpenCollab.a */,
+				C684DDEECA8872C1D7F4CD6B /* iOS */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -91,6 +131,7 @@
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
 				A9339DF0980C0A25DB8A0C14 /* Pods */,
 				093D2741F33BB64CE06DFF31 /* ExpoModulesProviders */,
+				EAB9ACFA1C480F4B5D23464E /* OpenCollabShare */,
 			);
 			indentWidth = 2;
 			sourceTree = "<group>";
@@ -101,6 +142,7 @@
 			isa = PBXGroup;
 			children = (
 				13B07F961A680F5B00A75B9A /* OpenCollab.app */,
+				C827BF22775F04F0B103817D /* OpenCollabShare.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -124,6 +166,24 @@
 			path = OpenCollab/Supporting;
 			sourceTree = "<group>";
 		};
+		C684DDEECA8872C1D7F4CD6B /* iOS */ = {
+			isa = PBXGroup;
+			children = (
+				A3660458EC9BE11460510521 /* Foundation.framework */,
+			);
+			name = iOS;
+			sourceTree = "<group>";
+		};
+		EAB9ACFA1C480F4B5D23464E /* OpenCollabShare */ = {
+			isa = PBXGroup;
+			children = (
+				F70E94C03B1C5DA74DCCBD22 /* ShareViewController.swift */,
+				31C4D983A0D6F0DD3DEB4AD4 /* Info.plist */,
+			);
+			name = OpenCollabShare;
+			path = OpenCollabShare;
+			sourceTree = "<group>";
+		};
 		FFB22D3417BFADC38BEBBF1F /* OpenCollab */ = {
 			isa = PBXGroup;
 			children = (
@@ -144,6 +204,7 @@
 				13B07F871A680F5B00A75B9A /* Sources */,
 				13B07F8C1A680F5B00A75B9A /* Frameworks */,
 				13B07F8E1A680F5B00A75B9A /* Resources */,
+				9B71F545E2745C4FA906339A /* Embed Foundation Extensions */,
 				00DD1BFF1BD5951E006B06BC /* Bundle React Native code and images */,
 				800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */,
 				0D5A0336DAE381C24456ED02 /* [CP] Embed Pods Frameworks */,
@@ -151,11 +212,29 @@
 			buildRules = (
 			);
 			dependencies = (
+				685AB914B0B1A63D3402D1F5 /* PBXTargetDependency */,
 			);
 			name = OpenCollab;
 			productName = OpenCollab;
 			productReference = 13B07F961A680F5B00A75B9A /* OpenCollab.app */;
 			productType = "com.apple.product-type.application";
+		};
+		C4BABDD3D247E8101928FD13 /* OpenCollabShare */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 426472E1D46FDE706CF7DF48 /* Build configuration list for PBXNativeTarget "OpenCollabShare" */;
+			buildPhases = (
+				48B7E17D100C096D46D56F8C /* Sources */,
+				6A783157C13770F516C014F2 /* Frameworks */,
+				2EB98E8E120168E724656B8A /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = OpenCollabShare;
+			productName = OpenCollabShare;
+			productReference = C827BF22775F04F0B103817D /* OpenCollabShare.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -166,7 +245,7 @@
 				LastUpgradeCheck = 1130;
 				TargetAttributes = {
 					13B07F861A680F5B00A75B9A = {
-						DevelopmentTeam = 8PB35Z377M;
+						DevelopmentTeam = 6TD9D64326;
 						LastSwiftMigration = 1250;
 						ProvisioningStyle = Automatic;
 					};
@@ -186,6 +265,7 @@
 			projectRoot = "";
 			targets = (
 				13B07F861A680F5B00A75B9A /* OpenCollab */,
+				C4BABDD3D247E8101928FD13 /* OpenCollabShare */,
 			);
 		};
 /* End PBXProject section */
@@ -199,6 +279,13 @@
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
 				3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */,
 				441903A258F5FAB2EAE8650C /* PrivacyInfo.xcprivacy in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		2EB98E8E120168E724656B8A /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -402,7 +489,24 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		48B7E17D100C096D46D56F8C /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				266C110EDAF7AD10524ABDA7 /* ShareViewController.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		685AB914B0B1A63D3402D1F5 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = OpenCollabShare;
+			target = C4BABDD3D247E8101928FD13 /* OpenCollabShare */;
+			targetProxy = F2E5750788E88CA28CC0913B /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		13B07F941A680F5B00A75B9A /* Debug */ = {
@@ -415,7 +519,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 8PB35Z377M;
+				DEVELOPMENT_TEAM = 6TD9D64326;
 				ENABLE_BITCODE = NO;
 				GCC_PREPROCESSOR_DEFINITIONS = (
 					"$(inherited)",
@@ -454,7 +558,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = 8PB35Z377M;
+				DEVELOPMENT_TEAM = 6TD9D64326;
 				INFOPLIST_FILE = OpenCollab/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -474,6 +578,33 @@
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				VERSIONING_SYSTEM = "apple-generic";
+			};
+			name = Release;
+		};
+		815EC552EF42363810C6047A /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 6TD9D64326;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = OpenCollabShare/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.opencollab.mobile.share;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;
 		};
@@ -599,6 +730,32 @@
 			};
 			name = Release;
 		};
+		D81BB920F0BB67E20BBC32FF /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 6TD9D64326;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = OpenCollabShare/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.opencollab.mobile.share;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -607,6 +764,15 @@
 			buildConfigurations = (
 				13B07F941A680F5B00A75B9A /* Debug */,
 				13B07F951A680F5B00A75B9A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		426472E1D46FDE706CF7DF48 /* Build configuration list for PBXNativeTarget "OpenCollabShare" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				815EC552EF42363810C6047A /* Release */,
+				D81BB920F0BB67E20BBC32FF /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

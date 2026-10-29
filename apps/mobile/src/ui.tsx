@@ -106,24 +106,33 @@ export async function pickPreparedImages(
   if (result.canceled) return []
   const prepared: PendingImage[] = []
   for (const asset of result.assets.slice(0, limit)) {
-    const scale = Math.min(1, maxSide / Math.max(asset.width, asset.height))
-    const context = ImageManipulator.manipulate(asset.uri)
-    context.resize({
-      width: Math.round(asset.width * scale),
-      height: Math.round(asset.height * scale)
-    })
-    const rendered = await context.renderAsync()
-    const saved = await rendered.saveAsync({ compress: 0.8, format: SaveFormat.JPEG, base64: true })
-    if (!saved.base64 || saved.base64.length * 0.75 > MAX_IMAGE_BYTES) continue
-    prepared.push({
-      uri: `data:image/jpeg;base64,${saved.base64}`,
-      data: saved.base64,
-      type: 'image/jpeg',
-      width: saved.width,
-      height: saved.height
-    })
+    const image = await prepareImage(asset.uri, asset.width, asset.height, maxSide)
+    if (image) prepared.push(image)
   }
   return prepared
+}
+
+// Downscales an image (a local file or a URL) to `maxSide` and re-encodes it
+// as JPEG; null when it is still over 5 MB.
+export async function prepareImage(
+  uri: string,
+  width: number,
+  height: number,
+  maxSide = MAX_IMAGE_SIDE
+): Promise<PendingImage | null> {
+  const scale = Math.min(1, maxSide / Math.max(width, height))
+  const context = ImageManipulator.manipulate(uri)
+  context.resize({ width: Math.round(width * scale), height: Math.round(height * scale) })
+  const rendered = await context.renderAsync()
+  const saved = await rendered.saveAsync({ compress: 0.8, format: SaveFormat.JPEG, base64: true })
+  if (!saved.base64 || saved.base64.length * 0.75 > MAX_IMAGE_BYTES) return null
+  return {
+    uri: `data:image/jpeg;base64,${saved.base64}`,
+    data: saved.base64,
+    type: 'image/jpeg',
+    width: saved.width,
+    height: saved.height
+  }
 }
 
 export const MAX_VIDEO_BYTES = 200 * 1024 * 1024

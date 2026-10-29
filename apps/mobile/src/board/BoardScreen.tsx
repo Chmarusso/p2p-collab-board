@@ -12,6 +12,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   View
@@ -31,11 +32,12 @@ import {
   tint
 } from '../ui'
 import { SoundName } from '../sounds'
+import type { SharePref } from '../share'
 import { ActivitySheet } from './Activity'
 import { Agenda } from './Agenda'
 import { AvatarStack } from './CardExtras'
 import { CardFace } from './CardFace'
-import { CardSheet } from './CardSheet'
+import { CardSheet, Chip } from './CardSheet'
 import { Markdown } from './Markdown'
 import { MyWorkSheet } from './MyWork'
 import { BoardTemplatesSheet, RulesSheet } from './Rules'
@@ -108,6 +110,9 @@ type Props = {
   relativeTime: (iso?: string) => string
   blocked: string[]
   toggleBlocked: (identity: string) => void
+  // This device's Share menu settings for the board.
+  sharePref: SharePref
+  onSharePref: (pref: SharePref) => void
 }
 
 const screenWidth = Dimensions.get('window').width
@@ -128,6 +133,7 @@ type SheetName =
   | 'templates'
   | 'mywork'
   | 'more'
+  | 'sharing'
   | null
 
 export function BoardScreen(props: Props) {
@@ -646,6 +652,44 @@ export function BoardScreen(props: Props) {
             label='Start from a template'
             onPress={() => setSheet('templates')}
           />
+          <MenuRow icon='share' label='Share menu' onPress={() => setSheet('sharing')} />
+        </Sheet>
+      ) : null}
+      {sheet === 'sharing' ? (
+        <Sheet title='Share menu' onClose={() => setSheet('settings')}>
+          <View style={styles.menuRow}>
+            <Text style={styles.menuText}>Show this board</Text>
+            <Switch
+              value={!props.sharePref.hidden}
+              onValueChange={(show) => props.onSharePref({ ...props.sharePref, hidden: !show })}
+              trackColor={{ true: colors.accent, false: colors.border }}
+              accessibilityLabel='Show this board when sharing from other apps'
+            />
+          </View>
+          <Text style={styles.hint}>
+            Share a link or post from any app and pick OpenCollab to add it here as a card. This
+            setting is only on this device.
+          </Text>
+          {props.sharePref.hidden ? null : (
+            <>
+              <Text style={styles.sharingLabel}>New cards go to</Text>
+              <View style={styles.chips}>
+                {data.columns.map((column) => (
+                  <Chip
+                    key={column.id}
+                    label={column.name}
+                    selected={
+                      (props.sharePref.columnId &&
+                      data.columns.some((c) => c.id === props.sharePref.columnId)
+                        ? props.sharePref.columnId
+                        : data.columns[0]?.id) === column.id
+                    }
+                    onPress={() => props.onSharePref({ ...props.sharePref, columnId: column.id })}
+                  />
+                ))}
+              </View>
+            </>
+          )}
         </Sheet>
       ) : null}
       {sheet === 'more' ? (
@@ -974,6 +1018,14 @@ const styles = themed(() => ({
     backgroundColor: colors.surfaceRaised
   },
   menuText: { flex: 1, color: colors.text, fontSize: 16, fontWeight: '600' },
+  sharingLabel: {
+    color: colors.muted,
+    fontFamily: mono,
+    fontSize: 11,
+    letterSpacing: 1,
+    marginTop: 8
+  },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   tool: {
     flexDirection: 'row',
     alignItems: 'center',

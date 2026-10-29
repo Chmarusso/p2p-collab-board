@@ -51,6 +51,8 @@ pear seed <upgrade link>                                    # keep running somew
 prebuild would otherwise reset: `minSdk` 29 (required by `react-native-bare-kit`) and
 release signing from environment variables. Without those variables, release builds
 are signed with the debug key, which is fine for testing but not for publishing.
+[`plugins/share-target.js`](plugins/share-target.js) puts the app in Android's Share
+menu (see below).
 
 ```sh
 cd apps/mobile
@@ -70,6 +72,22 @@ export ANDROID_KEYSTORE_PATH=/path/to/opencollab-release.jks \
   means users must uninstall, which deletes their local boards: back it up offline.
 - Android does not receive P2P OTA updates yet (`scripts/ota.js` builds iOS only); each
   release is a new APK.
+
+## Sharing links into boards
+
+Links and posts shared from other apps (Share → OpenCollab) open the "Add to board"
+picker, then a new card filled from the page's preview (title, description, image).
+Every shared item is also kept on the device under Boards → Shared items.
+
+- Android: `plugins/share-target.js` registers for shared text and rewrites the share
+  into an `opencollab://share?text=…&subject=…` link before React Native sees it.
+- iOS: the `OpenCollabShare` share extension (`ios/OpenCollabShare/`) builds the same
+  link and opens the app. It is a second target in `OpenCollab.xcodeproj`, embedded in
+  the app; it must be signed by the same team and keep the app's version numbers.
+- Both end in `src/share.ts` (parsing, page previews), `src/ShareSheet.tsx` (board
+  picker) and `src/sharedHistory.ts` (the device-only list).
+- The preview is fetched from the phone with a link-preview user agent
+  (`facebookexternalhit/1.1`); Instagram and TikTok only return preview tags to those.
 
 **Publishing** from this machine, with `gh` logged in. The release script reads the
 keystore variables from the shell or from `apps/mobile/keys/release.env` (gitignored, next to
