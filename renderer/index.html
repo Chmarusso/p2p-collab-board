@@ -441,6 +441,308 @@
         padding-bottom: 12px;
         min-height: 200px;
       }
+      .feed {
+        display: grid;
+        gap: 16px;
+        max-width: 600px;
+        width: 100%;
+      }
+      .feed-compose {
+        align-items: center;
+        background: var(--surface-raised);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        color: var(--muted);
+        display: flex;
+        gap: 10px;
+        justify-content: flex-start;
+        padding: 10px 12px;
+      }
+      .feed-compose span {
+        flex: 1;
+        text-align: left;
+      }
+      .feed-post {
+        background: var(--surface-raised);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        cursor: pointer;
+        overflow: hidden;
+      }
+      .feed-post:hover {
+        border-color: var(--accent);
+      }
+      .feed-author {
+        align-items: center;
+        display: flex;
+        gap: 8px;
+        padding: 12px;
+      }
+      .feed-author span {
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .feed-photo {
+        aspect-ratio: 4 / 3;
+        border-radius: 0;
+        height: auto;
+        margin: 0;
+      }
+      .feed-photo img {
+        height: 100%;
+        object-fit: cover;
+        width: 100%;
+      }
+      .feed-cover {
+        aspect-ratio: 2 / 1;
+        max-height: 280px;
+        background: linear-gradient(135deg, var(--from), var(--to));
+        color: var(--ink);
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        padding: 18px;
+      }
+      .feed-cover .icon {
+        height: 22px;
+        opacity: 0.7;
+        width: 22px;
+      }
+      .feed-cover p {
+        display: -webkit-box;
+        font-size: 26px;
+        font-weight: 800;
+        line-height: 1.2;
+        margin: 0;
+        overflow: hidden;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 5;
+      }
+      .feed-text {
+        display: grid;
+        gap: 8px;
+        padding: 12px;
+      }
+      .feed-text h3 {
+        margin: 0;
+      }
+      .feed-body {
+        display: -webkit-box;
+        overflow: hidden;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 6;
+      }
+      .feed-body:empty {
+        display: none;
+      }
+      .feed-source {
+        align-items: center;
+        color: var(--accent);
+        display: inline-flex;
+        font-size: 13px;
+        font-weight: 600;
+        gap: 6px;
+        text-decoration: none;
+      }
+      .feed-text footer {
+        color: var(--muted);
+        display: flex;
+        font-size: 13px;
+        gap: 12px;
+      }
+      .feed-empty {
+        text-align: center;
+      }
+      #board-objects.as-list {
+        display: block;
+        overflow: visible;
+      }
+      .todo {
+        display: grid;
+        gap: 12px;
+        max-width: 760px;
+        width: 100%;
+      }
+      .recipes {
+        width: 100%;
+      }
+      .todo-add {
+        align-items: center;
+        background: var(--surface-raised);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        color: var(--muted);
+        display: flex;
+        gap: 10px;
+        padding: 0 12px;
+      }
+      .todo-add input {
+        background: none;
+        border: 0;
+        flex: 1;
+        padding: 12px 0;
+      }
+      .todo-add input:focus {
+        outline: none;
+      }
+      .todo-list {
+        background: var(--surface-raised);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        overflow: hidden;
+      }
+      .todo-row {
+        align-items: center;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        gap: 12px;
+        padding: 4px 12px;
+      }
+      .todo-row:last-child {
+        border-bottom: 0;
+      }
+      .todo-row input[type='checkbox'] {
+        accent-color: var(--accent);
+        flex: none;
+        height: 18px;
+        width: 18px;
+      }
+      .todo-body {
+        align-items: center;
+        display: flex;
+        flex: 1;
+        gap: 12px;
+        justify-content: space-between;
+        padding: 8px 0;
+        text-align: left;
+      }
+      .todo-title {
+        color: var(--text);
+        font-weight: 500;
+      }
+      .todo-row.done .todo-title {
+        color: var(--muted);
+        text-decoration: line-through;
+      }
+      .todo-meta {
+        align-items: center;
+        color: var(--muted);
+        display: flex;
+        font-size: 12px;
+        gap: 10px;
+      }
+      .todo-empty {
+        margin: 0;
+        padding: 16px;
+        text-align: center;
+      }
+      .todo-done-toggle {
+        justify-self: start;
+      }
+      #board-objects.as-recipes {
+        display: block;
+        overflow: visible;
+      }
+      .card-source {
+        background: var(--surface-raised);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        color: var(--text);
+        display: grid;
+        gap: 2px;
+        padding: 10px 12px;
+        text-decoration: none;
+      }
+      .card-source:hover {
+        border-color: var(--accent);
+      }
+      .card-source span {
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .recipe-tabs {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 16px;
+      }
+      .recipe-tab {
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 6px 14px;
+      }
+      .recipe-tab span {
+        color: var(--muted);
+        font-family: var(--mono, monospace);
+        font-size: 12px;
+      }
+      .recipe-tab[aria-selected='true'] {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: var(--accent-ink, #000);
+      }
+      .recipe-tab[aria-selected='true'] span {
+        color: inherit;
+      }
+      .recipe-grid {
+        display: grid;
+        gap: 16px;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      }
+      .recipe-tile {
+        background: var(--surface-raised);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        cursor: pointer;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        padding: 0;
+        text-align: left;
+      }
+      .recipe-tile:hover {
+        border-color: var(--accent);
+      }
+      .recipe-cover {
+        aspect-ratio: 1;
+        background: var(--surface);
+        border-radius: 0;
+        height: auto;
+        margin: 0;
+        overflow: hidden;
+      }
+      .recipe-cover img {
+        height: 100%;
+        object-fit: cover;
+        width: 100%;
+      }
+      .recipe-cover.empty {
+        align-items: center;
+        color: var(--muted);
+        display: flex;
+        justify-content: center;
+      }
+      .recipe-cover.empty .icon {
+        height: 32px;
+        width: 32px;
+      }
+      .recipe-text {
+        display: grid;
+        gap: 4px;
+        padding: 10px 12px 12px;
+      }
+      .recipe-text span {
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .recipe-add {
+        align-items: center;
+        aspect-ratio: 1;
+        border-style: dashed;
+        color: var(--muted);
+        gap: 6px;
+        justify-content: center;
+      }
       .column {
         flex: none;
         width: 280px;
@@ -739,6 +1041,60 @@
       }
       .badge[hidden] {
         display: none;
+      }
+      /* Board types hide what they don't use (renderer/kinds.js, applyKind). */
+      .without-checklist [data-feature='checklist'],
+      .without-due [data-feature='due'],
+      .without-assignees [data-feature='assignees'],
+      .without-labels [data-feature='labels'],
+      .without-points [data-feature='points'],
+      .without-links [data-feature='links'],
+      .without-votes [data-feature='votes'],
+      .without-rules [data-feature='rules'],
+      .without-wip [data-feature='wip'],
+      .without-stats [data-feature='stats'],
+      .without-templates [data-feature='templates'] {
+        display: none !important;
+      }
+      .kind-options {
+        display: grid;
+        gap: 8px;
+      }
+      .kind-option {
+        align-items: center;
+        background: var(--surface-raised);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        color: var(--text);
+        display: flex;
+        gap: 12px;
+        justify-content: flex-start;
+        padding: 10px 12px;
+        text-align: left;
+        width: 100%;
+      }
+      .kind-option div {
+        flex: 1;
+      }
+      #kind-sections-field span {
+        flex: 1;
+        min-width: 0;
+      }
+      .kind-option[aria-checked='true'] {
+        border-color: var(--accent);
+      }
+      .kind-option .icon {
+        flex: none;
+        height: 20px;
+        width: 20px;
+      }
+      .kind-option strong {
+        display: block;
+      }
+      .kind-option span {
+        color: var(--muted);
+        font-size: 13px;
+        font-weight: 400;
       }
       .vote-inline {
         display: flex;
@@ -3366,11 +3722,26 @@
         </p>
         <div id="recent-boards" aria-label="Joined boards"></div>
         <div id="room-create-form" class="stack">
-          <p class="muted">Choose a name for your new private board.</p>
-          <input id="room-name" placeholder="Board name" maxlength="100" />
-          <div class="row">
-            <button id="room-create-back" class="secondary">Back</button>
-            <button id="room-create">Create board</button>
+          <div id="room-create-name" class="stack">
+            <p class="muted">Choose a name for your new private board.</p>
+            <input id="room-name" placeholder="Board name" maxlength="100" />
+            <div class="row">
+              <button id="room-create-back" class="secondary">Back</button>
+              <button id="room-create-next">Next</button>
+            </div>
+          </div>
+          <div id="room-create-kind" class="stack" hidden>
+            <p id="room-kind-intro" class="muted"></p>
+            <div
+              id="room-kind"
+              class="kind-options"
+              role="radiogroup"
+              aria-label="Board type"
+            ></div>
+            <div class="row">
+              <button id="room-kind-back" class="secondary">Back</button>
+              <button id="room-create">Create board</button>
+            </div>
           </div>
         </div>
         <div id="room-join-form" class="stack">
@@ -3467,7 +3838,18 @@
                   Edit board
                 </button>
                 <button
+                  id="board-kind-open"
+                  type="button"
+                  class="ghost"
+                  role="menuitem"
+                  data-icon="grid"
+                  hidden
+                >
+                  Board type
+                </button>
+                <button
                   id="labels-open"
+                  data-feature="labels"
                   type="button"
                   class="ghost"
                   role="menuitem"
@@ -3485,11 +3867,19 @@
                 >
                   Customize
                 </button>
-                <button id="rules-open" type="button" class="ghost" role="menuitem" data-icon="zap">
+                <button
+                  id="rules-open"
+                  data-feature="rules"
+                  type="button"
+                  class="ghost"
+                  role="menuitem"
+                  data-icon="zap"
+                >
                   Automation
                 </button>
                 <button
                   id="board-templates-open"
+                  data-feature="templates"
                   type="button"
                   class="ghost"
                   role="menuitem"
@@ -3510,16 +3900,26 @@
             <button type="button" class="ghost" data-view="table" aria-pressed="false">
               Table
             </button>
-            <button type="button" class="ghost" data-view="calendar" aria-pressed="false">
+            <button
+              type="button"
+              class="ghost"
+              data-view="calendar"
+              data-feature="due"
+              aria-pressed="false"
+            >
               Calendar
             </button>
           </div>
           <div class="row">
             <button id="members-open" class="ghost">Members</button>
-            <button id="filter-mine" class="ghost" aria-pressed="false">Assigned to me</button>
+            <button id="filter-mine" data-feature="assignees" class="ghost" aria-pressed="false">
+              Assigned to me
+            </button>
             <button id="filter-toggle" class="ghost" aria-expanded="false">Filter</button>
             <button id="activity-open" class="ghost" data-icon="activity">Activity</button>
-            <button id="stats-open" class="ghost" data-icon="chart">Stats</button>
+            <button id="stats-open" data-feature="stats" class="ghost" data-icon="chart">
+              Stats
+            </button>
             <button id="archived-toggle" class="ghost" aria-pressed="false">Show archived</button>
             <button id="board-export" class="ghost">Export</button>
             <button id="new-object-toggle" data-icon="plus" aria-expanded="false">New card</button>
@@ -3581,7 +3981,7 @@
           </div>
         </div>
         <div id="filter-panel" class="card stack" hidden>
-          <div class="filter-group">
+          <div class="filter-group" data-feature="labels">
             <span class="section-label">Labels</span>
             <div id="filter-labels" class="row"></div>
           </div>
@@ -3589,11 +3989,11 @@
             <span class="section-label">Mentioned</span>
             <select id="filter-member" aria-label="Mentioned member"></select>
           </div>
-          <div class="filter-group">
+          <div class="filter-group" data-feature="assignees">
             <span class="section-label">Assigned</span>
             <select id="filter-assignee" aria-label="Assigned member"></select>
           </div>
-          <div class="filter-group">
+          <div class="filter-group" data-feature="due">
             <span class="section-label">Due</span>
             <select id="filter-due" aria-label="Due date">
               <option value="">Any time</option>
@@ -3709,7 +4109,7 @@
           <span id="card-viewers" class="card-viewers-detail" role="status" hidden></span>
         </div>
         <div class="card-detail-props">
-          <section class="stack">
+          <section class="stack" data-feature="labels">
             <div class="row card-detail-bar">
               <h3 class="section-label">Labels</h3>
               <button id="card-labels-manage" type="button" class="ghost">Manage labels</button>
@@ -3725,7 +4125,7 @@
               />
             </div>
           </section>
-          <section class="stack">
+          <section class="stack" data-feature="due">
             <h3 class="section-label">Due date</h3>
             <div class="due-anchor">
               <button
@@ -3751,7 +4151,7 @@
               </form>
             </div>
           </section>
-          <section class="stack">
+          <section class="stack" data-feature="assignees">
             <h3 class="section-label">Assignees</h3>
             <div class="assign-anchor">
               <div id="card-assignees" class="assignee-list"></div>
@@ -3771,7 +4171,7 @@
               </div>
             </div>
           </section>
-          <section class="stack">
+          <section class="stack" data-feature="points">
             <div class="row card-detail-bar">
               <h3 class="section-label">Estimate</h3>
               <span id="card-points" class="points-chip large" hidden></span>
@@ -3779,6 +4179,13 @@
             <div id="card-estimate" class="estimate"></div>
           </section>
         </div>
+        <section id="card-source" class="stack" hidden>
+          <h3 class="section-label">Original</h3>
+          <a id="card-source-link" class="card-source" target="_blank" rel="noreferrer">
+            <strong id="card-source-title"></strong>
+            <span id="card-source-site"></span>
+          </a>
+        </section>
         <section class="stack">
           <div class="row card-detail-bar">
             <h3 class="section-label">Description</h3>
@@ -3802,7 +4209,7 @@
           </div>
           <div id="card-reactions" class="reaction-bar" role="group" aria-label="Reactions"></div>
         </section>
-        <section class="stack">
+        <section class="stack" data-feature="checklist">
           <div class="row card-detail-bar">
             <h3 class="section-label">
               Checklist <span id="card-checklist-count" class="checklist-count"></span>
@@ -3830,7 +4237,7 @@
             <button type="submit" class="secondary">Add</button>
           </form>
         </section>
-        <section class="stack">
+        <section class="stack" data-feature="links">
           <div class="row card-detail-bar">
             <h3 class="section-label">Links</h3>
             <button
@@ -3898,7 +4305,7 @@
                 Activity
               </button>
             </div>
-            <div class="vote-inline">
+            <div class="vote-inline" data-feature="votes">
               <button data-card-vote="1" aria-label="Upvote"></button>
               <span id="card-score" class="score" aria-label="Score">0</span>
               <button data-card-vote="-1" aria-label="Downvote"></button>
@@ -4053,6 +4460,32 @@
           <button class="ghost icon-only" data-close aria-label="Close">✕</button>
         </div>
         <div id="board-activity" class="activity-list scroll"></div>
+      </div>
+    </div>
+    <div
+      id="kind-modal"
+      class="overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="kind-title"
+    >
+      <div class="modal-card stack">
+        <div class="row card-detail-bar">
+          <h2 id="kind-title">Board type</h2>
+          <button class="ghost icon-only" data-close aria-label="Close">✕</button>
+        </div>
+        <p class="muted">
+          Changes how this board looks for everyone. Nothing is deleted: details a type hides come
+          back when you switch again.
+        </p>
+        <div id="kind-options" class="kind-options" role="radiogroup" aria-label="Board type"></div>
+        <label id="kind-sections-field" class="check" hidden>
+          <input id="kind-sections" type="checkbox" checked />
+          <span id="kind-sections-label"></span>
+        </label>
+        <div class="row">
+          <button id="kind-save">Change type</button>
+        </div>
       </div>
     </div>
     <div

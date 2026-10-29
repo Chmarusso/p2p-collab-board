@@ -4,6 +4,7 @@ import { celebrate } from './confetti.js'
 import { renderStats } from './stats.js'
 import { renderTable, renderCalendar } from './views.js'
 import { THEME_TEMPLATES, THEME_MODES, themeTemplate } from './themes.js'
+import { BOARD_FEATURES, BOARD_KIND_IDS, boardKind, hasFeature, feedCover } from './kinds.js'
 import { encode } from '../node_modules/uqr/dist/index.mjs'
 
 const bridge = window.bridge
@@ -43,6 +44,9 @@ let theme = { background: null, accent: null, template: null, backgroundImage: n
 let boardInfo = { description: '', icon: null }
 // Moderation: the owner (board creator) and every member with role and ban.
 let boardOwner = null
+// The board's type (renderer/kinds.js): which features show.
+let boardKindId = 'kanban'
+const can = (feature) => hasFeature(boardKindId, feature)
 let members = []
 let editingDescription = false
 let descriptionExpanded = false
@@ -187,7 +191,10 @@ const icons = {
     '<rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/>',
   gauge: '<path d="M12 14 16 10"/><path d="M3.3 19a10 10 0 1 1 17.4 0"/>',
   lock: '<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>',
-  points: '<path d="M12 2 2 7l10 5 10-5z"/><path d="m2 17 10 5 10-5M2 12l10 5 10-5"/>'
+  points: '<path d="M12 2 2 7l10 5 10-5z"/><path d="m2 17 10 5 10-5M2 12l10 5 10-5"/>',
+  grid: '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>',
+  rss: '<path d="M4 11a9 9 0 0 1 9 9"/><path d="M4 4a16 16 0 0 1 16 16"/><circle cx="5" cy="19" r="1"/>',
+  book: '<path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/>'
 }
 
 function icon(name, className = 'icon') {
@@ -305,6 +312,8 @@ function resetBoardUi() {
   editingDescription = false
   descriptionExpanded = false
   boardInfo = { description: '', icon: null }
+  boardKindId = 'kanban'
+  applyKind()
   renderDescription()
   renderBoardIcon()
   colorPickerColumn = null
@@ -1025,7 +1034,7 @@ async function moveCard(cardId, columnId, visibleIndex) {
   send({ type: 'board:card-move', objectId: cardId, columnId, index })
   if (!entering) return true
   const count = wipCount(columnId) + 1
-  if (column.wipLimit && count > column.wipLimit) {
+  if (can('wip') && column.wipLimit && count > column.wipLimit) {
     showToast(`${column.name} is over its WIP limit (${count}/${column.wipLimit})`, 'warn')
   }
   if (columnId === doneColumnId()) celebrateDone(cardId)
@@ -1077,9 +1086,9 @@ function renderCard(object) {
   const comments = object.comments?.length || 0
   const videos = (object.images || []).filter(isVideoRef).length
   const images = (object.images?.length || 0) - videos
-  const chips = labelChips(object.labelIds, 4)
+  const chips = can('labels') ? labelChips(object.labelIds, 4) : ''
   const cover = object.images?.find((ref) => !isVideoRef(ref))
-  const checklist = object.checklist || []
+  const checklist = can('checklist') ? object.checklist || [] : []
   const checked = checklist.filter((item) => item.done).length
   const reactions = Object.entries(object.reactions || {}).filter(([, who]) => who.length)
   const viewers = peersOn(object.id)
@@ -1091,12 +1100,13 @@ function renderCard(object) {
     card.classList.add(`aging-${aging}`)
     card.title = `Not updated for ${Math.floor(idle / DAY_MS)} days`
   }
-  if (object.blockedBy?.length) card.classList.add('blocked')
-  const badges = object.blockedBy?.length
+  const blocked = can('links') && object.blockedBy?.length
+  if (blocked) card.classList.add('blocked')
+  const badges = blocked
     ? `<span class="blocked-badge" title="Blocked by ${escape(object.blockedBy.map((id) => cardById(id)?.title || 'a card').join(', '))}">${icon('lock')}Blocked</span>`
     : ''
   const points =
-    object.points !== null && object.points !== undefined
+    can('points') && object.points !== null && object.points !== undefined
       ? `<span class="points-chip" title="${object.points} points">${object.points}</span>`
       : ''
   card.innerHTML = `${cover ? `<div class="card-cover" data-cover-key="${escape(imageKey(cover))}"></div>` : ''}${
@@ -1110,8 +1120,8 @@ function renderCard(object) {
     ${badges ? `<div class="card-badges">${badges}</div>` : ''}
     <div class="kanban-card-meta">${[
       points,
-      dueBadge(object),
-      Object.keys(object.votes || {}).length
+      can('due') ? dueBadge(object) : '',
+      can('votes') && Object.keys(object.votes || {}).length
         ? `<span title="Score">${icon(score < 0 ? 'down' : 'up')}${score}</span>`
         : '',
       object.body?.trim() ? `<span title="Has a description">${icon('text')}</span>` : '',
@@ -1136,7 +1146,7 @@ function renderCard(object) {
             .join(' ')}${reactions.length > 3 ? ` +${reactions.length - 3}` : ''}</span>`
         : '',
       object.archived ? '<span>archived</span>' : '',
-      object.assignees?.length
+      can('assignees') && object.assignees?.length
         ? `<span class="card-assignees">${avatarStack(object.assignees, 3)}</span>`
         : ''
     ].join('')}</div>${
@@ -1294,7 +1304,7 @@ function renderColumn(column, index) {
   // With a WIP limit the count is every open card, so filters can't hide a full column.
   const count = document.createElement('span')
   const total = wipCount(column.id)
-  const limit = column.wipLimit
+  const limit = can('wip') ? column.wipLimit : null
   count.className = `column-count${limit && total > limit ? ' over-limit' : limit && total === limit ? ' at-limit' : ''}`
   count.textContent = limit ? `${total}/${limit}` : cards.length
   count.title = limit
@@ -1303,7 +1313,7 @@ function renderColumn(column, index) {
   const points = cards.reduce((sum, object) => sum + (object.archived ? 0 : object.points || 0), 0)
   const pointsChip = document.createElement('span')
   pointsChip.className = 'column-points'
-  pointsChip.hidden = !points
+  pointsChip.hidden = !points || !can('points')
   pointsChip.textContent = `${points} pts`
   pointsChip.title = `${points} points in this column`
   if (limit && total > limit) element.classList.add('over-limit')
@@ -1326,11 +1336,13 @@ function renderColumn(column, index) {
     renderBoard()
     colorPickerEntering = false
   })
-  tool('gauge', 'WIP limit', () => {
-    wipEditingColumn = wipEditingColumn === column.id ? null : column.id
-    renderBoard()
-    document.querySelector(`[data-focus-key="wip:${column.id}"]`)?.select()
-  })
+  if (can('wip')) {
+    tool('gauge', 'WIP limit', () => {
+      wipEditingColumn = wipEditingColumn === column.id ? null : column.id
+      renderBoard()
+      document.querySelector(`[data-focus-key="wip:${column.id}"]`)?.select()
+    })
+  }
   tool('left', 'Move column left', () => moveColumn(column.id, index - 1), index === 0)
   tool(
     'right',
@@ -1429,7 +1441,7 @@ function renderColumn(column, index) {
   }
 
   element.append(head)
-  if (wipEditingColumn === column.id) element.append(renderWipEditor(column))
+  if (can('wip') && wipEditingColumn === column.id) element.append(renderWipEditor(column))
   if (colorPickerColumn === column.id) {
     const colors = document.createElement('div')
     // Only the render that opens the row plays its entry, not later rebuilds.
@@ -1666,8 +1678,16 @@ function renderBoard({ animate = false } = {}) {
   )
 
   boardObjects.innerHTML = ''
-  columns.forEach((column, index) => boardObjects.append(renderColumn(column, index)))
-  boardObjects.append(renderAddColumn())
+  const layout = boardKind(boardKindId).layout
+  boardObjects.classList.toggle('as-recipes', layout === 'sections')
+  boardObjects.classList.toggle('as-list', layout === 'list' || layout === 'feed')
+  if (layout === 'sections') boardObjects.append(renderRecipes())
+  else if (layout === 'feed') boardObjects.append(renderFeed())
+  else if (layout === 'list') boardObjects.append(renderTodo())
+  else {
+    columns.forEach((column, index) => boardObjects.append(renderColumn(column, index)))
+    boardObjects.append(renderAddColumn())
+  }
 
   boardObjects.scrollLeft = scrollLeft
   for (const element of boardObjects.querySelectorAll('.column')) {
@@ -1693,6 +1713,248 @@ function renderBoard({ animate = false } = {}) {
     burstFrom(finished)
   }
   renderBoardChrome()
+}
+
+// Feed layout: every post newest first, full width. Posts without a photo get
+// a cover drawn from their text (feedCover: the same colours on every client).
+function renderFeed() {
+  const wrap = document.createElement('div')
+  wrap.className = 'feed'
+  const compose = document.createElement('button')
+  compose.type = 'button'
+  compose.className = 'feed-compose ghost'
+  compose.innerHTML = `${avatar(currentIdentity)}<span>Share something…</span>${icon('image')}`
+  compose.onclick = () => {
+    document.getElementById('object-column').value = columns[0]?.id || ''
+    openNewObject()
+  }
+  wrap.append(compose)
+  const posts = columns
+    .flatMap((column) => visibleCards(column.id))
+    .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
+  for (const object of posts) {
+    const photo = object.images?.find((ref) => !isVideoRef(ref))
+    const post = document.createElement('article')
+    post.className = 'feed-post'
+    post.tabIndex = 0
+    post.dataset.cardId = object.id
+    const cover = feedCover(object.id)
+    const comments = object.comments?.length || 0
+    const reactions = Object.entries(object.reactions || {}).filter(([, who]) => who.length)
+    post.innerHTML = `<header class="feed-author">${avatar(object.author)}<strong>${escape(memberName(object.author))}</strong><span>${escape(relativeTime(object.createdAt))}</span></header>${
+      photo
+        ? `<div class="feed-photo card-cover" data-cover-key="${escape(imageKey(photo))}"></div>`
+        : `<div class="feed-cover" style="--from: ${cover.from}; --to: ${cover.to}; --ink: ${cover.ink}">${icon('message')}<p dir="auto">${escape(object.title)}</p></div>`
+    }<div class="feed-text">${photo ? `<h3 dir="auto">${escape(object.title)}</h3>` : ''}<div class="feed-body"></div>${
+      object.source
+        ? `<a class="feed-source" href="${escape(object.source.url)}" target="_blank" rel="noreferrer">${icon('link')}${escape(sourceSite(object.source))}</a>`
+        : ''
+    }${
+      comments || reactions.length
+        ? `<footer>${reactions
+            .slice(0, 4)
+            .map(([emoji, who]) => `<span>${emoji}${who.length > 1 ? who.length : ''}</span>`)
+            .join('')}${comments ? `<span>${icon('message')}${comments}</span>` : ''}</footer>`
+        : ''
+    }</div>`
+    if (object.body?.trim()) {
+      post
+        .querySelector('.feed-body')
+        .append(markdownFor(object.body, object.mentions, object.images))
+    } else if (!photo && !object.source && !comments && !reactions.length) {
+      // The cover already says it all.
+      post.querySelector('.feed-text').remove()
+    }
+    if (photo) {
+      fillInlineImage(post.querySelector('.feed-photo'))
+      requestImage(photo)
+    }
+    post.onclick = (event) => {
+      if (!event.target.closest('a')) openCard(object.id)
+    }
+    post.onkeydown = (event) => {
+      if (event.target === post && (event.key === 'Enter' || event.key === ' ')) {
+        event.preventDefault()
+        openCard(object.id)
+      }
+    }
+    wrap.append(post)
+  }
+  if (!posts.length) {
+    const empty = document.createElement('p')
+    empty.className = 'muted feed-empty'
+    empty.textContent = 'No posts yet. Write one, or share a link from your phone.'
+    wrap.append(empty)
+  }
+  return wrap
+}
+
+// To-do list layout: one list with checkboxes. Ticking moves the item to the
+// last section (Done); done items fold away, unticking puts them back first.
+let todoShowDone = false
+// The add field is rebuilt with the board; keep what was typed.
+let todoDraft = ''
+
+function renderTodo() {
+  const wrap = document.createElement('div')
+  wrap.className = 'todo'
+  const first = columns[0]
+  const done = columns.length > 1 ? columns[columns.length - 1] : null
+  const open = columns.filter((column) => column !== done).flatMap((c) => visibleCards(c.id))
+  const finished = done ? visibleCards(done.id) : []
+
+  const form = document.createElement('form')
+  form.className = 'todo-add'
+  form.innerHTML = `${icon('plus')}<input placeholder="Add a to-do" maxlength="200" aria-label="Add a to-do" data-focus-key="todo-add" />`
+  const input = form.querySelector('input')
+  input.value = todoDraft
+  input.oninput = () => (todoDraft = input.value)
+  form.onsubmit = (event) => {
+    event.preventDefault()
+    const title = input.value.trim()
+    if (!title || !first) return
+    send({ type: 'board:create', title, body: '', columnId: first.id })
+    input.value = todoDraft = ''
+  }
+
+  const row = (object) => {
+    const checked = object.columnId === done?.id
+    const item = document.createElement('div')
+    item.className = `todo-row${checked ? ' done' : ''}`
+    item.dataset.cardId = object.id
+    const box = document.createElement('input')
+    box.type = 'checkbox'
+    box.checked = checked
+    box.setAttribute('aria-label', object.title)
+    box.onchange = () => {
+      const target = checked ? first : done
+      if (target) moveCard(object.id, target.id, Infinity)
+    }
+    const body = document.createElement('button')
+    body.type = 'button'
+    body.className = 'ghost todo-body'
+    const comments = object.comments?.length || 0
+    body.innerHTML = `<span class="todo-title" dir="auto">${escape(object.title)}</span><span class="todo-meta">${[
+      can('due') && !checked ? dueBadge(object) : '',
+      comments ? `<span>${icon('message')}${comments}</span>` : '',
+      can('assignees') && object.assignees?.length ? avatarStack(object.assignees, 3) : ''
+    ].join('')}</span>`
+    body.onclick = () => openCard(object.id)
+    item.append(box, body)
+    return item
+  }
+
+  const list = document.createElement('div')
+  list.className = 'todo-list'
+  if (open.length) list.append(...open.map(row))
+  else {
+    list.innerHTML = `<p class="muted todo-empty">${finished.length ? 'All done.' : 'Nothing to do yet.'}</p>`
+  }
+  wrap.append(form, list)
+  if (finished.length) {
+    const toggle = document.createElement('button')
+    toggle.type = 'button'
+    toggle.className = 'ghost todo-done-toggle'
+    toggle.setAttribute('aria-expanded', String(todoShowDone))
+    toggle.textContent = `${todoShowDone ? '▾' : '▸'} ${done.name} (${finished.length})`
+    toggle.onclick = () => {
+      todoShowDone = !todoShowDone
+      renderBoard()
+    }
+    wrap.append(toggle)
+    if (todoShowDone) {
+      const doneList = document.createElement('div')
+      doneList.className = 'todo-list'
+      doneList.append(...finished.map(row))
+      wrap.append(doneList)
+    }
+  }
+  return wrap
+}
+
+// Recipes layout: the sections as tabs over a grid of photo cards. null shows
+// every section, newest first.
+let recipeSection = null
+
+function sourceSite(source) {
+  return source.site || source.url.match(/^https?:\/\/(?:www\.)?([^/?#]+)/i)?.[1] || source.url
+}
+
+function renderRecipes() {
+  const wrap = document.createElement('div')
+  wrap.className = 'recipes'
+  if (!columns.some((column) => column.id === recipeSection)) recipeSection = null
+  const tabs = document.createElement('div')
+  tabs.className = 'recipe-tabs'
+  tabs.setAttribute('role', 'tablist')
+  const tab = (id, name, count) => {
+    const button = document.createElement('button')
+    button.type = 'button'
+    button.className = 'ghost recipe-tab'
+    button.setAttribute('role', 'tab')
+    button.setAttribute('aria-selected', String(recipeSection === id))
+    button.innerHTML = `${escape(name)} <span>${count}</span>`
+    button.onclick = () => {
+      recipeSection = id
+      renderBoard()
+    }
+    tabs.append(button)
+  }
+  tab(
+    null,
+    'All',
+    columns.reduce((sum, column) => sum + visibleCards(column.id).length, 0)
+  )
+  for (const column of columns) tab(column.id, column.name, visibleCards(column.id).length)
+
+  const grid = document.createElement('div')
+  grid.className = 'recipe-grid'
+  const cards = recipeSection
+    ? visibleCards(recipeSection)
+    : columns
+        .flatMap((column) => visibleCards(column.id))
+        .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
+  for (const object of cards) {
+    const cover = object.images?.find((ref) => !isVideoRef(ref))
+    const tile = document.createElement('article')
+    tile.className = 'recipe-tile'
+    tile.tabIndex = 0
+    tile.dataset.cardId = object.id
+    tile.setAttribute('role', 'button')
+    const section = recipeSection ? null : columns.find((c) => c.id === object.columnId)?.name
+    const meta = [section, object.source ? sourceSite(object.source) : null].filter(Boolean)
+    tile.innerHTML = `${
+      cover
+        ? `<div class="recipe-cover card-cover" data-cover-key="${escape(imageKey(cover))}"></div>`
+        : `<div class="recipe-cover empty">${icon('book')}</div>`
+    }<div class="recipe-text"><strong dir="auto">${escape(object.title)}</strong>${
+      meta.length ? `<span>${escape(meta.join(' · '))}</span>` : ''
+    }</div>`
+    if (cover) {
+      fillInlineImage(tile.querySelector('.recipe-cover'))
+      requestImage(cover)
+    }
+    tile.onclick = () => openCard(object.id)
+    tile.onkeydown = (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault()
+        openCard(object.id)
+      }
+    }
+    grid.append(tile)
+  }
+  const add = document.createElement('button')
+  add.type = 'button'
+  add.className = 'recipe-tile recipe-add ghost'
+  const current = columns.find((column) => column.id === recipeSection)
+  add.innerHTML = `${icon('plus')}<span>${current ? `Add to ${escape(current.name)}` : 'Add a recipe'}</span>`
+  add.onclick = () => {
+    document.getElementById('object-column').value = current?.id || columns[0]?.id || ''
+    openNewObject()
+  }
+  grid.append(add)
+  wrap.append(tabs, grid)
+  return wrap
 }
 
 // Everything around the cards that follows the board state, in every view.
@@ -2006,6 +2268,13 @@ function refreshCard() {
     `${identityHtml(object.author)}<span class="time">${escape(relativeTime(object.createdAt))}</span>`
   renderColumnOptions(cardColumn, object.columnId)
   document.getElementById('card-archived-badge').hidden = !object.archived
+  document.getElementById('card-source').hidden = !object.source
+  if (object.source) {
+    document.getElementById('card-source-link').href = object.source.url
+    document.getElementById('card-source-title').textContent =
+      object.source.title || 'View original'
+    document.getElementById('card-source-site').textContent = sourceSite(object.source)
+  }
   refreshCardExtras(object)
   renderCardLabels(object)
   renderCardGallery(object)
@@ -3418,6 +3687,8 @@ bridge.onWorkerIPC(workers.main, (data) => {
     boardInfo = { icon: null, ...(message.info || { description: '' }) }
     boardOwner = message.owner || null
     members = message.members || []
+    boardKindId = boardKind(boardInfo.kind).id
+    applyKind()
     renderDescription()
     renderBoardIcon()
     updateIdentityMenu()
@@ -3563,6 +3834,67 @@ settingsMenu.addEventListener('click', (event) => {
   if (event.target.closest('button')) closeSettingsMenu()
 })
 document.getElementById('board-edit').onclick = editDescription
+
+// Board types: body classes hide every [data-feature] the type doesn't use
+// (CSS in index.html); the card, column and menu code asks can() directly.
+function applyKind() {
+  for (const feature of BOARD_FEATURES) {
+    document.body.classList.toggle(`without-${feature}`, !can(feature))
+  }
+  document.getElementById('board-kind-open').hidden = !boardOwner || boardOwner !== currentIdentity
+  if (!can('due') && boardViewMode === 'calendar') setView('board')
+}
+
+const KIND_ICONS = { kanban: 'board', todo: 'checklist', feed: 'rss', recipes: 'book' }
+
+// A radio list of board types; `onPick` gets the id.
+function renderKindOptions(container, selected, onPick) {
+  container.replaceChildren(
+    ...BOARD_KIND_IDS.map((id) => {
+      const kind = boardKind(id)
+      const option = document.createElement('button')
+      option.type = 'button'
+      option.className = 'kind-option'
+      option.setAttribute('role', 'radio')
+      option.setAttribute('aria-checked', String(id === selected))
+      option.innerHTML = `${icon(KIND_ICONS[id])}<div><strong>${escape(kind.name)}</strong><span>${escape(kind.description)}</span></div>`
+      option.onclick = () => onPick(id)
+      return option
+    })
+  )
+}
+
+const kindModal = document.getElementById('kind-modal')
+let kindChoice = 'kanban'
+
+function renderKindModal() {
+  renderKindOptions(document.getElementById('kind-options'), kindChoice, (id) => {
+    kindChoice = id
+    renderKindModal()
+  })
+  // A type with its own sections can also rename the columns to them.
+  const sections = kindChoice !== boardKindId ? boardKind(kindChoice).sections : null
+  document.getElementById('kind-sections-field').hidden = !sections
+  document.getElementById('kind-sections-label').textContent = sections
+    ? `Rename the columns to ${sections.join(', ')} (columns holding cards are kept)`
+    : ''
+  document.getElementById('kind-save').disabled = kindChoice === boardKindId
+}
+
+document.getElementById('board-kind-open').onclick = () => {
+  kindChoice = boardKindId
+  document.getElementById('kind-sections').checked = true
+  renderKindModal()
+  openOverlay(kindModal)
+}
+document.getElementById('kind-save').onclick = () => {
+  send({
+    type: 'board:kind-set',
+    kind: kindChoice,
+    sections: !!boardKind(kindChoice).sections && document.getElementById('kind-sections').checked
+  })
+  closeOverlay(kindModal)
+}
 document.addEventListener('mousedown', (event) => {
   if (!settingsMenu.hidden && !event.target.closest('.settings-anchor')) closeSettingsMenu()
 })
@@ -3659,7 +3991,16 @@ function showRoomForm(id) {
   document.getElementById(id).style.display = 'grid'
   document.querySelector(`#${id} input`).focus()
 }
-document.getElementById('room-create-choice').onclick = () => showRoomForm('room-create-form')
+// New board: the name first, then the type.
+function showCreateStep(step) {
+  document.getElementById('room-create-name').hidden = step !== 'name'
+  document.getElementById('room-create-kind').hidden = step !== 'kind'
+  roomError.innerText = ''
+}
+document.getElementById('room-create-choice').onclick = () => {
+  showCreateStep('name')
+  showRoomForm('room-create-form')
+}
 document.getElementById('room-join-choice').onclick = () => showRoomForm('room-join-form')
 document.getElementById('room-invite-paste').onclick = async () => {
   try {
@@ -3677,14 +4018,37 @@ document.getElementById('room-invite-paste').onclick = async () => {
 }
 document.getElementById('room-create-back').onclick = showRoomChoice
 document.getElementById('room-join-back').onclick = showRoomChoice
-document.getElementById('room-create').onclick = () => {
+let newBoardKind = 'kanban'
+function renderNewBoardKind() {
+  renderKindOptions(document.getElementById('room-kind'), newBoardKind, (id) => {
+    newBoardKind = id
+    renderNewBoardKind()
+  })
+}
+renderNewBoardKind()
+function createNext() {
   const name = document.getElementById('room-name').value.trim()
   if (!name) {
     roomError.innerText = 'Give your board a name.'
     return
   }
+  document.getElementById('room-kind-intro').textContent =
+    `What is “${name}” for? You can change it later in Board settings.`
+  showCreateStep('kind')
+  document.querySelector('#room-kind [aria-checked="true"]')?.focus()
+}
+document.getElementById('room-create-next').onclick = createNext
+document.getElementById('room-name').onkeydown = (event) => {
+  if (event.key === 'Enter') createNext()
+}
+document.getElementById('room-kind-back').onclick = () => {
+  showCreateStep('name')
+  document.getElementById('room-name').focus()
+}
+document.getElementById('room-create').onclick = () => {
+  const name = document.getElementById('room-name').value.trim()
   roomError.innerText = ''
-  send({ type: 'room:start', invite: null, name })
+  send({ type: 'room:start', invite: null, name, kind: newBoardKind })
 }
 // A private board pre-filled by the worker with cards that show the features.
 document.getElementById('room-sample').onclick = () => {

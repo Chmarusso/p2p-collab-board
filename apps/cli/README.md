@@ -15,6 +15,7 @@ npx opencollab --help            # after npm install (workspace bin)
 opencollab identity new          # prints your recovery phrase — keep it offline
 opencollab create "Team board"   # prints the invitation link
 opencollab create --sample       # or a board of sample cards that show the features
+opencollab create "Meals" --kind recipes   # board type: kanban (default), todo, feed, recipes
 opencollab join <invite>         # or join someone else's board
 opencollab name Alice            # display name on the current board
 opencollab avatar me.png         # avatar on the current board ("clear" removes it)
@@ -42,6 +43,7 @@ opencollab labels
 opencollab due 3 2026-12-31 --time 17:00   # or: opencollab due 3 clear
 opencollab archive 3             # restore 3 brings it back
 opencollab describe "What this board is for"
+opencollab kind                  # board type; owner: `kind recipes --sections` changes it
 opencollab notifications         # mentions, due dates and activity across your boards
 ```
 
@@ -174,6 +176,10 @@ With `--port` it serves Streamable HTTP at `/mcp` and requires `Authorization: B
 | `wait_for_mentions`                                                                                                                | long-poll: @mentions and assignments (or all new activity) since a cursor |
 | `create_card`, `update_card`, `move_card`, `add_comment`, `update_checklist`, `set_labels`, `set_assignees`, `react`, `link_cards` | write; left out with `--read-only`                                        |
 | `archive_card`                                                                                                                     | only with `--allow-archive`                                               |
+
+`board_overview` reports the board's type (Kanban, To-do list, Feed, Recipes) and the card
+fields its members see; `create_card` and `update_card` take a `source` link ("View
+original") for cards made from a web page or a shared post.
 
 The resource `opencollab://board` holds the overview and every active card; subscribed
 clients hear when it changes. The server's instructions tell the model to treat card and

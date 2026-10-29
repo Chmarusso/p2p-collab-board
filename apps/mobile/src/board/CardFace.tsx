@@ -3,7 +3,8 @@
 import React, { useEffect } from 'react'
 import { Image, Pressable, Text, View } from 'react-native'
 import { Feather } from '@expo/vector-icons'
-import { REACTIONS } from '@opencollab/board-protocol'
+import { REACTIONS, hasFeature } from '@opencollab/board-protocol'
+import type { BoardFeature } from '@opencollab/board-protocol'
 import {
   CachedImage,
   ImageRef,
@@ -61,16 +62,20 @@ export function CardFace({
   useEffect(() => {
     if (cover && !cached) requestImage(cover)
   }, [cover && imageKey(cover), !!cached])
-  const labels = (card.labelIds || [])
-    .map((id) => data.labels.find((label) => label.id === id))
-    .filter((label): label is NonNullable<typeof label> => !!label)
-  const due = dueInfo(card.dueDate)
+  // Badges only for what the board's type shows (see board-protocol/kinds.js).
+  const can = (feature: BoardFeature) => hasFeature(data.info.kind, feature)
+  const labels = can('labels')
+    ? (card.labelIds || [])
+        .map((id) => data.labels.find((label) => label.id === id))
+        .filter((label): label is NonNullable<typeof label> => !!label)
+    : []
+  const due = can('due') ? dueInfo(card.dueDate) : null
   const score = scoreOf(card)
-  const votes = Object.keys(card.votes || {}).length
-  const checklist = checklistProgress(card)
-  const blocked = !done && !!card.blockedBy?.length
+  const votes = can('votes') ? Object.keys(card.votes || {}).length : 0
+  const checklist = can('checklist') ? checklistProgress(card) : { done: 0, total: 0 }
+  const blocked = can('links') && !done && !!card.blockedBy?.length
   const age = done || card.archived ? '' : ageOf(card)
-  const assignees = card.assignees || []
+  const assignees = can('assignees') ? card.assignees || [] : []
   const reactions = REACTIONS.filter((emoji) => card.reactions?.[emoji]?.length)
   return (
     <PressableScale
@@ -179,7 +184,7 @@ export function CardFace({
             </Text>
           </View>
         ) : null}
-        {typeof card.points === 'number' ? (
+        {can('points') && typeof card.points === 'number' ? (
           <Text style={styles.points}>{card.points} pts</Text>
         ) : null}
         {votes ? (
@@ -191,7 +196,9 @@ export function CardFace({
         ) : null}
         {images.length ? <Meta icon='image' text={String(images.length)} /> : null}
         {videos.length ? <Meta icon='film' text={String(videos.length)} /> : null}
-        {card.links?.length ? <Meta icon='link' text={String(card.links.length)} /> : null}
+        {can('links') && card.links?.length ? (
+          <Meta icon='link' text={String(card.links.length)} />
+        ) : null}
         {reactions.length ? (
           <Text style={styles.metaMono}>
             {reactions

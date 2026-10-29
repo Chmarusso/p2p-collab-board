@@ -4,6 +4,7 @@
 // stamp taken from the signed payload: (ts, author identity, payload JSON).
 // Same ops in, same board out, on every peer.
 const { isTemplateId } = require('./themes')
+const { isBoardKind, DEFAULT_BOARD_KIND } = require('./kinds')
 
 const DEFAULT_COLUMNS = Object.freeze([
   { id: 'col:new', name: 'New', position: 'H' },
@@ -32,7 +33,9 @@ const LIMITS = Object.freeze({
   rules: 50,
   ruleName: 80,
   wipLimit: 999,
-  points: 1000
+  points: 1000,
+  sourceUrl: 2000,
+  sourceText: 200
 })
 
 const OP_TYPES = Object.freeze([
@@ -155,6 +158,19 @@ const cleanBody = (value) => (typeof value === 'string' ? value.slice(0, LIMITS.
 const cleanName = (value, max) => (typeof value === 'string' ? value.trim().slice(0, max) : null)
 const cleanList = (value, valid, max) =>
   Array.isArray(value) ? [...new Set(value.filter(valid))].slice(0, max) : null
+
+// Where a card came from (a shared post, a recipe page): its link, the site's
+// name and the page title. null clears it; undefined means "not a valid source".
+function cleanSource(value) {
+  if (value === null) return null
+  const url = typeof value?.url === 'string' ? value.url.trim() : ''
+  if (!/^https?:\/\/\S+$/i.test(url) || url.length > LIMITS.sourceUrl) return undefined
+  const text = (field) =>
+    typeof value[field] === 'string' && value[field].trim()
+      ? value[field].trim().slice(0, LIMITS.sourceText)
+      : null
+  return { url, site: text('site'), title: text('title') }
+}
 
 const isPoints = (value) =>
   value === null || (typeof value === 'number' && value >= 0 && value <= LIMITS.points)
@@ -374,6 +390,7 @@ function deriveBoard(
         stamp
       )
       assign(registers, 'template', object.template === true, stamp)
+      assign(registers, 'source', cleanSource(object.source ?? null) ?? null, stamp)
       // A card can start with checklist items (templates, scheduled cards).
       const checklist = new Map()
       let itemPosition = null
@@ -397,7 +414,13 @@ function deriveBoard(
         },
         stamp
       )
-      const { checklist: _items, assignees: _assignees, points: _points, ...base } = object
+      const {
+        checklist: _items,
+        assignees: _assignees,
+        points: _points,
+        source: _source,
+        ...base
+      } = object
       cards.set(object.id, {
         base: { ...base, images: images(object.images), author: message.identity },
         stamp,
@@ -465,6 +488,10 @@ function deriveBoard(
       }
       const icon = payload.icon === undefined ? undefined : imageRef(payload.icon)
       if (icon !== undefined) assign(info, 'icon', icon, stamp)
+      // Only the owner picks the board's type.
+      if (isBoardKind(payload.kind) && owner && message.identity === owner) {
+        assign(info, 'kind', payload.kind, stamp)
+      }
     } else if (payload.type === 'board:theme') {
       if (payload.background === null || isBackground(payload.background)) {
         assign(theme, 'background', payload.background, stamp)
@@ -532,6 +559,10 @@ function deriveBoard(
       }
       if (typeof payload.template === 'boolean') {
         assign(registers, 'template', payload.template, stamp)
+      }
+      if (payload.source !== undefined) {
+        const source = cleanSource(payload.source)
+        if (source !== undefined) assign(registers, 'source', source, stamp)
       }
     } else if (payload.type === 'card:checklist') {
       // One register set per item: concurrent ticks of different items, or a
@@ -684,6 +715,7 @@ function deriveBoard(
       points: read(registers, 'points'),
       revealEstimates: read(registers, 'revealEstimates', false),
       template: read(registers, 'template'),
+      source: read(registers, 'source', null),
       checklist,
       links,
       estimates,
@@ -731,7 +763,11 @@ function deriveBoard(
       template: read(theme, 'template', null),
       backgroundImage: read(theme, 'backgroundImage', null)
     },
-    info: { description: read(info, 'description', ''), icon: read(info, 'icon', null) },
+    info: {
+      description: read(info, 'description', ''),
+      icon: read(info, 'icon', null),
+      kind: read(info, 'kind', DEFAULT_BOARD_KIND)
+    },
     rules: [...rules]
       .filter(([, registers]) => !read(registers, 'deleted', false) && registers.rule)
       .sort(([a, x], [b, y]) =>

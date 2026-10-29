@@ -40,7 +40,10 @@ export type Card = {
   blockedBy?: string[]
   reactions?: Reactions
   updatedAt?: number
+  // Where it came from, e.g. a shared post ("View original").
+  source?: CardSource | null
 }
+export type CardSource = { url: string; site: string | null; title: string | null }
 export type Column = {
   id: string
   name: string
@@ -55,7 +58,7 @@ export type Theme = {
   template?: string | null
   backgroundImage?: ImageRef | null
 }
-export type BoardInfo = { description: string; icon?: ImageRef | null }
+export type BoardInfo = { description: string; icon?: ImageRef | null; kind?: string }
 export type MemberRole = 'owner' | 'admin' | 'member'
 export const avatarOf = (data: BoardData, identity: string) =>
   data.members.find((member) => member.identity === identity)?.avatar || null
@@ -351,6 +354,10 @@ export function alertText(alert: BoardAlert, shortKey: (hex: string) => string) 
 // Cards hold images and videos in one list. Videos are fetched as files and
 // played, never shown as a cover or requested as an image.
 export const isVideo = (ref: ImageRef) => ref.type.startsWith('video/')
+// The source's site name, or the link's host when the page had none.
+export const sourceSite = (source: CardSource) =>
+  source.site || source.url.match(/^https?:\/\/(?:www\.)?([^/?#]+)/i)?.[1] || source.url
+
 export const imagesOf = (card: Card) => (card.images || []).filter((ref) => !isVideo(ref))
 export const videosOf = (card: Card) => (card.images || []).filter(isVideo)
 

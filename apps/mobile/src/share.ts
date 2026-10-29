@@ -44,7 +44,7 @@ export function parseShare(url: string | null): SharedItem | null {
   }
 }
 
-export type LinkPreview = { title?: string; description?: string; image?: string }
+export type LinkPreview = { title?: string; description?: string; image?: string; site?: string }
 
 // Instagram and some others only return their preview tags to link-preview
 // crawlers; with this user agent they answer like they do for chat apps.
@@ -66,6 +66,7 @@ export async function fetchPreview(link: string): Promise<LinkPreview> {
     const image = tags['og:image'] || tags['twitter:image']
     return {
       title: tags['og:title'] || tags['twitter:title'],
+      site: tags['og:site_name'],
       description: tags['og:description'] || tags['twitter:description'] || tags.description,
       image: image ? absolute(image, response.url || link) : undefined
     }

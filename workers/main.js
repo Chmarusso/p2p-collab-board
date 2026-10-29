@@ -29,7 +29,9 @@ const {
   OP_TYPES,
   ROLES,
   LIMITS,
-  BLIND_PEERS
+  BLIND_PEERS,
+  boardKind,
+  isBoardKind
 } = require('@opencollab/board-protocol')
 
 const argv = (index) => Bare.argv[index + (isBareKit ? 0 : 2)]
@@ -1206,6 +1208,7 @@ async function createCard(id, fields) {
           assignees: fields.assignees
         }),
       ...(typeof fields.points === 'number' && { points: fields.points }),
+      ...(fields.source && { source: fields.source }),
       ...(Array.isArray(fields.checklist) &&
         fields.checklist.length && {
           checklist: fields.checklist.map((text) => ({ id: newId('item'), text, done: false }))
@@ -1247,33 +1250,43 @@ const BOARD_TEMPLATES = Object.freeze({
 async function applyBoardTemplate(name) {
   const template = BOARD_TEMPLATES[name]
   if (!template) throw new Error('Unknown template')
-  const existing = [...boardState.columns]
-  for (let i = 0; i < template.columns.length; i++) {
-    if (existing[i]) {
-      if (existing[i].name !== template.columns[i]) {
-        await sendOwnOp({
-          type: 'column:upsert',
-          columnId: existing[i].id,
-          name: template.columns[i]
-        })
-      }
-    } else {
-      await sendOwnOp({
-        type: 'column:upsert',
-        columnId: newId('col'),
-        name: template.columns[i],
-        position: positionAt(boardState.columns)
-      })
-    }
-  }
-  for (const column of existing.slice(template.columns.length)) {
-    if (!cardsIn(column.id).length) await sendOwnOp({ type: 'column:delete', columnId: column.id })
-  }
+  await applyColumns(template.columns)
   const names = new Set(boardState.labels.map((label) => label.name.toLowerCase()))
   for (const [labelName, color] of template.labels) {
     if (names.has(labelName)) continue
     await sendOwnOp({ type: 'label:upsert', labelId: newId('label'), name: labelName, color })
   }
+}
+
+// Renames the columns in order to `names`, adds missing ones and deletes the
+// empty leftovers; cards stay in the column they are in.
+async function applyColumns(names) {
+  const existing = [...boardState.columns]
+  for (let i = 0; i < names.length; i++) {
+    if (existing[i]) {
+      if (existing[i].name !== names[i]) {
+        await sendOwnOp({ type: 'column:upsert', columnId: existing[i].id, name: names[i] })
+      }
+    } else {
+      await sendOwnOp({
+        type: 'column:upsert',
+        columnId: newId('col'),
+        name: names[i],
+        position: positionAt(boardState.columns)
+      })
+    }
+  }
+  for (const column of existing.slice(names.length)) {
+    if (!cardsIn(column.id).length) await sendOwnOp({ type: 'column:delete', columnId: column.id })
+  }
+}
+
+// Owner only (the reducer ignores anyone else's kind). With `sections`, the
+// columns also become the type's starting sections, as on a new board.
+async function setBoardKind(kind, sections) {
+  await sendOwnOp({ type: 'board:info', kind })
+  const names = boardKind(kind).sections
+  if (sections && names) await applyColumns(names)
 }
 
 // A private board for new users to try things on. Each card teaches one
@@ -1754,6 +1767,10 @@ pipe.on('data', async (data) => {
         const sample = msg.sample === true && !msg.invite
         await inRoomQueue(async () => {
           await startRoom(msg.invite, sample ? SAMPLE_BOARD.name : msg.name)
+          // A new board can start as any type; the creator is its owner.
+          if (!msg.invite && !sample && isBoardKind(msg.kind) && msg.kind !== 'kanban') {
+            await setBoardKind(msg.kind, true)
+          }
           if (!sample) return
           await seedSampleBoard()
           pipe.write(JSON.stringify({ type: messageTypes.sampleReady }))
@@ -1825,6 +1842,7 @@ pipe.on('data', async (data) => {
         dueDate: msg.dueDate,
         mentions: msg.mentions,
         assignees: msg.assignees,
+        source: msg.source,
         checklist: Array.isArray(msg.checklist)
           ? msg.checklist.filter((text) => typeof text === 'string' && text.trim())
           : undefined
@@ -1875,7 +1893,16 @@ pipe.on('data', async (data) => {
     } else if (msg.type === messageTypes.cardUpdate) {
       if (!cardById(msg.objectId)) return
       const payload = { type: 'card:update', objectId: msg.objectId }
-      const fields = ['title', 'body', 'dueDate', 'labelIds', 'mentions', 'assignees', 'points']
+      const fields = [
+        'title',
+        'body',
+        'dueDate',
+        'labelIds',
+        'mentions',
+        'assignees',
+        'points',
+        'source'
+      ]
       for (const field of [...fields, 'revealEstimates', 'template']) {
         if (msg[field] !== undefined) payload[field] = msg[field]
       }
@@ -1936,6 +1963,12 @@ pipe.on('data', async (data) => {
       await sendOwnOp({ type: 'label:delete', labelId: msg.labelId })
     } else if (msg.type === messageTypes.boardsWatch) {
       watchBoards(msg.boards)
+    } else if (msg.type === messageTypes.boardKindSet) {
+      if (!boardOwner || ownIdentityHex() !== boardOwner) {
+        return replyError(msg, 'Only the board owner can change the board type')
+      }
+      if (!isBoardKind(msg.kind)) return replyError(msg, 'Unknown board type')
+      await setBoardKind(msg.kind, msg.sections === true)
     } else if (msg.type === messageTypes.boardDescribe) {
       if (typeof msg.description !== 'string') return
       await sendOwnOp({

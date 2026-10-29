@@ -4,6 +4,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActionSheetIOS,
+  Alert,
   Dimensions,
   Image,
   KeyboardAvoidingView,
@@ -18,7 +19,8 @@ import {
   View
 } from 'react-native'
 import { Feather } from '@expo/vector-icons'
-import { messageTypes } from '@opencollab/board-protocol'
+import { boardKind, hasFeature, messageTypes } from '@opencollab/board-protocol'
+import type { BoardFeature, BoardKindId } from '@opencollab/board-protocol'
 import {
   Avatar,
   Button,
@@ -38,6 +40,10 @@ import { Agenda } from './Agenda'
 import { AvatarStack } from './CardExtras'
 import { CardFace } from './CardFace'
 import { CardSheet, Chip } from './CardSheet'
+import { KindOptions } from './Kinds'
+import { RecipesView } from './Recipes'
+import { TodoView } from './Todo'
+import { FeedView } from './Feed'
 import { Markdown } from './Markdown'
 import { MyWorkSheet } from './MyWork'
 import { BoardTemplatesSheet, RulesSheet } from './Rules'
@@ -134,15 +140,23 @@ type SheetName =
   | 'mywork'
   | 'more'
   | 'sharing'
+  | 'kind'
   | null
 
 export function BoardScreen(props: Props) {
   const { data, send, me } = props
+  // What the board's type shows (see board-protocol/kinds.js).
+  const kind = boardKind(data.info.kind)
+  const can = (feature: BoardFeature) => hasFeature(kind.id, feature)
   const [openCardId, setOpenCardId] = useState<string | null>(null)
   const [sheet, setSheet] = useState<SheetName>(null)
   const [columnMenu, setColumnMenu] = useState<string | null>(null)
   const [filters, setFilters] = useState<Filters>(NO_FILTERS)
   const [view, setView] = useState<'board' | 'agenda'>('board')
+  // Agenda belongs to due dates; a type without them goes back to the board.
+  useEffect(() => {
+    if (!hasFeature(data.info.kind, 'due')) setView('board')
+  }, [data.info.kind])
   const [peers, setPeers] = useState<PresencePeer[]>([])
   // The column a "From template…" picker adds to.
   const [templateColumn, setTemplateColumn] = useState<string | null>(null)
@@ -260,7 +274,14 @@ export function BoardScreen(props: Props) {
   }
   // Everything past the view switch, "Assigned to me" and Filter.
   const moreActions: Array<[string, () => void]> = [
-    [mineCount ? `My work (${mineCount})` : 'My work', () => setSheet('mywork')],
+    ...(can('assignees')
+      ? [
+          [mineCount ? `My work (${mineCount})` : 'My work', () => setSheet('mywork')] as [
+            string,
+            () => void
+          ]
+        ]
+      : []),
     [activeMembers ? `Members (${activeMembers})` : 'Members', () => setSheet('members')],
     ...(archivedCount || showArchived
       ? [
@@ -271,9 +292,37 @@ export function BoardScreen(props: Props) {
         ]
       : []),
     ['Activity', () => setSheet('activity')],
-    ['Stats', () => setSheet('stats')],
-    [data.rules?.length ? `Rules (${data.rules.length})` : 'Rules', () => setSheet('rules')]
+    ...(can('stats') ? [['Stats', () => setSheet('stats')] as [string, () => void]] : []),
+    ...(can('rules')
+      ? [
+          [
+            data.rules?.length ? `Rules (${data.rules.length})` : 'Rules',
+            () => setSheet('rules')
+          ] as [string, () => void]
+        ]
+      : [])
   ]
+  // A type with its own sections can also rename the columns to them; columns
+  // that hold cards are kept either way.
+  const chooseKind = (next: BoardKindId) => {
+    if (next === kind.id) return
+    const sections = boardKind(next).sections
+    const apply = (withSections: boolean) => {
+      send({ type: messageTypes.boardKindSet, kind: next, sections: withSections })
+      setSheet(null)
+    }
+    if (!sections) return apply(false)
+    Alert.alert(
+      `Switch to ${boardKind(next).name}?`,
+      `Use its sections (${sections.join(', ')})? Columns are renamed in order; empty extra columns are removed.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Keep my columns', onPress: () => apply(false) },
+        { text: 'Use its sections', onPress: () => apply(true) }
+      ]
+    )
+  }
+
   const openMore = () => {
     if (Platform.OS !== 'ios') return setSheet('more')
     ActionSheetIOS.showActionSheetWithOptions(
@@ -419,7 +468,7 @@ export function BoardScreen(props: Props) {
         contentContainerStyle={styles.toolbar}
       >
         <View style={styles.segment} accessibilityRole='tablist'>
-          {(['board', 'agenda'] as const).map((name) => (
+          {(can('due') ? (['board', 'agenda'] as const) : (['board'] as const)).map((name) => (
             <Pressable
               key={name}
               onPress={() => setView(name)}
@@ -439,13 +488,15 @@ export function BoardScreen(props: Props) {
             </Pressable>
           ))}
         </View>
-        <ToolButton
-          icon='user-check'
-          label='Assigned to me'
-          active={assignedToMe}
-          accent={accent}
-          onPress={() => setFilters({ ...filters, assignee: assignedToMe ? '' : me })}
-        />
+        {can('assignees') ? (
+          <ToolButton
+            icon='user-check'
+            label='Assigned to me'
+            active={assignedToMe}
+            accent={accent}
+            onPress={() => setFilters({ ...filters, assignee: assignedToMe ? '' : me })}
+          />
+        ) : null}
         <ToolButton
           icon='filter'
           label={activeFilters ? `Filter (${activeFilters})` : 'Filter'}
@@ -496,6 +547,42 @@ export function BoardScreen(props: Props) {
           {top}
           {!props.synced ? (
             props.loading
+          ) : kind.layout === 'feed' ? (
+            <FeedView
+              data={data}
+              cards={data.columns.flatMap((column) => visible(column.id))}
+              me={me}
+              cache={props.cache}
+              requestImage={props.requestImage}
+              nameFor={props.nameFor}
+              relativeTime={props.relativeTime}
+              onOpen={setOpenCardId}
+              onCompose={() => props.onNewCard(data.columns[0]?.id)}
+            />
+          ) : kind.layout === 'list' ? (
+            <TodoView
+              data={data}
+              columns={data.columns}
+              visible={visible}
+              showDue={can('due')}
+              showAssignees={can('assignees')}
+              send={send}
+              cache={props.cache}
+              requestImage={props.requestImage}
+              onOpen={setOpenCardId}
+              onLocalMove={props.onLocalMove}
+            />
+          ) : kind.layout === 'sections' ? (
+            <RecipesView
+              columns={data.columns}
+              visible={visible}
+              cache={props.cache}
+              requestImage={props.requestImage}
+              accent={accent}
+              ink={inkOn(accent)}
+              onOpen={setOpenCardId}
+              onAdd={props.onNewCard}
+            />
           ) : (
             <ScrollView
               horizontal
@@ -511,8 +598,8 @@ export function BoardScreen(props: Props) {
                 const open = data.objects.filter(
                   (card) => card.columnId === column.id && !card.archived && !card.template
                 )
-                const wip = wipState(open.length, column.wipLimit)
-                const points = pointsOf(open)
+                const wip = can('wip') ? wipState(open.length, column.wipLimit) : null
+                const points = can('points') ? pointsOf(open) : 0
                 return (
                   <View
                     key={column.id}
@@ -521,7 +608,7 @@ export function BoardScreen(props: Props) {
                       column.color ? { borderTopColor: column.color } : null,
                       wip === 'over' && styles.columnOver
                     ]}
-                    accessibilityLabel={`${column.name}, ${cards.length} cards${column.wipLimit ? `, limit ${column.wipLimit}${wip === 'over' ? ', over the limit' : wip === 'full' ? ', at the limit' : ''}` : ''}`}
+                    accessibilityLabel={`${column.name}, ${cards.length} cards${wip !== null && column.wipLimit ? `, limit ${column.wipLimit}${wip === 'over' ? ', over the limit' : wip === 'full' ? ', at the limit' : ''}` : ''}`}
                   >
                     <View style={styles.columnHead}>
                       <Text style={styles.columnName} numberOfLines={1}>
@@ -536,7 +623,9 @@ export function BoardScreen(props: Props) {
                           wip === 'over' && styles.wipOver
                         ]}
                       >
-                        {column.wipLimit ? `${open.length}/${column.wipLimit}` : cards.length}
+                        {wip !== null && column.wipLimit
+                          ? `${open.length}/${column.wipLimit}`
+                          : cards.length}
                       </Text>
                       <Pressable
                         onPress={() => setColumnMenu(column.id)}
@@ -576,7 +665,7 @@ export function BoardScreen(props: Props) {
                       >
                         <Feather name='image' size={16} color={colors.muted} />
                       </Pressable>
-                      {templates.length ? (
+                      {can('templates') && templates.length ? (
                         <Pressable
                           onPress={() => setTemplateColumn(column.id)}
                           hitSlop={8}
@@ -644,15 +733,37 @@ export function BoardScreen(props: Props) {
               setSheet('description')
             }}
           />
-          <MenuRow icon='tag' label='Labels' onPress={() => setSheet('labels')} />
+          {data.owner === me ? (
+            <MenuRow
+              icon='grid'
+              label={`Board type: ${kind.name}`}
+              onPress={() => setSheet('kind')}
+            />
+          ) : null}
+          {can('labels') ? (
+            <MenuRow icon='tag' label='Labels' onPress={() => setSheet('labels')} />
+          ) : null}
           <MenuRow icon='droplet' label='Customize' onPress={() => setSheet('theme')} />
-          <MenuRow icon='zap' label='Automation rules' onPress={() => setSheet('rules')} />
-          <MenuRow
-            icon='layout'
-            label='Start from a template'
-            onPress={() => setSheet('templates')}
-          />
+          {can('rules') ? (
+            <MenuRow icon='zap' label='Automation rules' onPress={() => setSheet('rules')} />
+          ) : null}
+          {can('templates') ? (
+            <MenuRow
+              icon='layout'
+              label='Start from a template'
+              onPress={() => setSheet('templates')}
+            />
+          ) : null}
           <MenuRow icon='share' label='Share menu' onPress={() => setSheet('sharing')} />
+        </Sheet>
+      ) : null}
+      {sheet === 'kind' ? (
+        <Sheet title='Board type' onClose={() => setSheet('settings')}>
+          <Text style={styles.hint}>
+            Changes how this board looks for everyone. Nothing is deleted: details a type hides come
+            back when you switch again.
+          </Text>
+          <KindOptions selected={kind.id} onPick={chooseKind} />
         </Sheet>
       ) : null}
       {sheet === 'sharing' ? (
@@ -903,6 +1014,7 @@ export function BoardScreen(props: Props) {
               (card) => card.columnId === columnMenu && !card.archived && !card.template
             ).length
           }
+          wip={can('wip')}
           send={send}
           onLocalMove={props.onLocalMove}
           onClose={() => setColumnMenu(null)}

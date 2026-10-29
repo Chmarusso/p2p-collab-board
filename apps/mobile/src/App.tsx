@@ -29,8 +29,8 @@ import { Worklet } from 'react-native-bare-kit'
 import FramedStream from 'framed-stream'
 import workerBundle from './worker.bundle.js'
 import { BootSplash } from './BootSplash'
-import { THEME_MODES, messageTypes, themeTemplate } from '@opencollab/board-protocol'
-import type { ThemeMode } from '@opencollab/board-protocol'
+import { THEME_MODES, boardKind, messageTypes, themeTemplate } from '@opencollab/board-protocol'
+import type { BoardKindId, ThemeMode } from '@opencollab/board-protocol'
 import {
   Avatar,
   BoardImages,
@@ -54,9 +54,11 @@ import {
   themed
 } from './ui'
 import { BoardScreen } from './board/BoardScreen'
+import { KindOptions } from './board/Kinds'
+import { Chip } from './board/CardSheet'
 import { QrCode, QrScanner } from './QrInvite'
 import { avatarOf, hideBlocked, hideBlockedAlerts, isVideo } from './board/model'
-import type { AlertBoard, BoardAlert, BoardData } from './board/model'
+import type { AlertBoard, BoardAlert, BoardData, CardSource } from './board/model'
 import { KeychainChoice, SettingsSheet, keychainCopy } from './Settings'
 import { DEFAULT_SOUND, SoundName, isSoundName, playSound, soundPrefKey } from './sounds'
 import {
@@ -208,6 +210,9 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
   const [entryError, setEntryError] = useState('')
   const [invite, setInvite] = useState('')
   const [boardName, setBoardName] = useState('')
+  const [newBoardKind, setNewBoardKind] = useState<BoardKindId>('kanban')
+  // New board: the name first, then the type.
+  const [createStep, setCreateStep] = useState<'name' | 'kind'>('name')
   const [recentBoards, setRecentBoards] = useState<RecentBoard[]>([])
   const [displayName, setDisplayName] = useState('')
   const [displayNameDraft, setDisplayNameDraft] = useState('')
@@ -244,6 +249,8 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
   )
   const pendingOpen = useRef<{ boardKey: string; cardId: string } | null>(null)
   const [composerColumn, setComposerColumn] = useState<string | null>(null)
+  // The page a shared card came from, saved as its "View original" link.
+  const [composerSource, setComposerSource] = useState<CardSource | null>(null)
   // Board moves made here land instantly; only other members' changes animate.
   const localMoveAt = useRef(0)
   const lastPlacement = useRef('')
@@ -277,6 +284,7 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
   const pendingShare = useRef<{ invite: string; record: SharedRecord } | null>(null)
   // The worker sends a board's state just before its room-status 'ready'.
   const boardColumns = useRef<{ id: string }[]>([])
+  const boardKindRef = useRef('kanban')
   const savedPhraseRef = useRef('')
   // The phrase of the identity being loaded, and of the one now unlocked.
   const loadingPhraseRef = useRef('')
@@ -450,6 +458,7 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
         })
         openPendingCard(message.objects || [])
         boardColumns.current = message.columns || []
+        boardKindRef.current = message.info?.kind || 'kanban'
       }
       if (message.type === 'board-name' && message.name) {
         setBoardName(message.name)
@@ -529,6 +538,11 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
         send({ type: messageTypes.roomLeave })
         return true
       }
+      if (identityReady && entryMode === 'create' && createStep === 'kind') {
+        setEntryError('')
+        setCreateStep('name')
+        return true
+      }
       if (identityReady && entryMode !== 'choose') {
         setEntryError('')
         setEntryMode('choose')
@@ -537,7 +551,7 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
       return false
     })
     return () => subscription.remove()
-  }, [pipe, roomReady, identityReady, entryMode])
+  }, [pipe, roomReady, identityReady, entryMode, createStep])
 
   // The worker checks every joined board in the background for notifications.
   useEffect(() => {
@@ -651,6 +665,7 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
           ...withPreview(record, preview),
           description: preview.description,
           image: preview.image,
+          site: preview.site,
           previewed: true
         }
         saveSharedRecord(next)
@@ -724,16 +739,28 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
     pendingShare.current = null
     const columnId = sharePrefsRef.current.boards[pending.invite]?.columnId
     const { record } = pending
+    // Recipes and feeds show the link as "View original", not in the text.
+    const layout = boardKind(boardKindRef.current).layout
+    const bodyOf = (item: SharedRecord) =>
+      item.link && (layout === 'sections' || layout === 'feed')
+        ? item.body.split(item.link).join('').trim()
+        : item.body
+    const sourceOf = (item: SharedRecord): CardSource | null =>
+      item.link
+        ? { url: item.link, site: item.site || null, title: item.titleFromLink ? null : item.title }
+        : null
     setComposerColumn(columns.some((column) => column.id === columnId) ? columnId! : null)
     setNewTitle(record.title)
-    setNewBody(record.body)
+    setNewBody(bodyOf(record))
+    setComposerSource(sourceOf(record))
     setPendingImages([])
     composerShare.current = record.id
     setComposerOpen(true)
     void startPreview(record).then(({ record: filled, image }) => {
       if (composerShare.current !== record.id) return
       setNewTitle((current) => (current === record.title ? filled.title : current))
-      setNewBody((current) => (current === record.body ? filled.body : current))
+      setNewBody((current) => (current === bodyOf(record) ? bodyOf(filled) : current))
+      setComposerSource((current) => (current?.url === filled.link ? sourceOf(filled) : current))
       if (image) setPendingImages((current) => (current.length ? current : [image]))
     })
   }
@@ -1096,8 +1123,10 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
       title: newTitle,
       body: newBody,
       columnId: composerColumn,
-      images: pendingImages.map(({ data, type, width, height }) => ({ data, type, width, height }))
+      images: pendingImages.map(({ data, type, width, height }) => ({ data, type, width, height })),
+      ...(composerSource && { source: composerSource })
     })
+    setComposerSource(null)
     setNewTitle('')
     setNewBody('')
     setPendingImages([])
@@ -1209,7 +1238,12 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
       </Screen>
     )
   }
-  if (!roomReady && entryMode === 'create') {
+  if (!roomReady && entryMode === 'create' && createStep === 'name') {
+    const next = () => {
+      if (!boardName.trim()) return setEntryError('Give your board a name.')
+      setEntryError('')
+      setCreateStep('kind')
+    }
     return (
       <Screen title='New board'>
         <Text style={styles.muted}>
@@ -1222,8 +1256,10 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
             setBoardName(value)
             setEntryError('')
           }}
+          onSubmitEditing={next}
           placeholder='Board name'
           placeholderTextColor={colors.muted}
+          returnKeyType='next'
           autoFocus
         />
         {entryError ? <Text style={styles.error}>{entryError}</Text> : null}
@@ -1237,14 +1273,41 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
               setEntryMode('choose')
             }}
           />
+          <Button title='Next' icon='arrow-right' grow onPress={next} />
+        </View>
+      </Screen>
+    )
+  }
+  if (!roomReady && entryMode === 'create') {
+    return (
+      <Screen title='Board type'>
+        <Text style={styles.muted}>
+          What is “{boardName.trim()}” for? You can change it later in Board settings.
+        </Text>
+        <KindOptions selected={newBoardKind} onPick={setNewBoardKind} />
+        {entryError ? <Text style={styles.error}>{entryError}</Text> : null}
+        <View style={styles.row}>
+          <Button
+            title='Back'
+            icon='arrow-left'
+            variant='secondary'
+            onPress={() => {
+              setEntryError('')
+              setCreateStep('name')
+            }}
+          />
           <Button
             title='Create board'
             icon='plus'
             grow
-            onPress={() => {
-              if (!boardName.trim()) return setEntryError('Give your board a name.')
-              send({ type: messageTypes.roomStart, invite: null, name: boardName.trim() })
-            }}
+            onPress={() =>
+              send({
+                type: messageTypes.roomStart,
+                invite: null,
+                name: boardName.trim(),
+                kind: newBoardKind
+              })
+            }
           />
         </View>
       </Screen>
@@ -1317,7 +1380,15 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
         headerRight={<IdentityBadge identity={identityKey} onPress={logout} icon='log-out' />}
       >
         <View style={styles.row}>
-          <Button title='New board' icon='plus' grow onPress={() => setEntryMode('create')} />
+          <Button
+            title='New board'
+            icon='plus'
+            grow
+            onPress={() => {
+              setCreateStep('name')
+              setEntryMode('create')
+            }}
+          />
           <Button
             title='Join'
             icon='log-in'
@@ -1447,6 +1518,7 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
         openProfile={() => setProfileOpen(true)}
         onNewCard={(columnId) => {
           composerShare.current = null
+          setComposerSource(null)
           setComposerColumn(columnId)
           setComposerOpen(true)
         }}
@@ -1506,6 +1578,34 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
               placeholderTextColor={colors.muted}
               multiline
             />
+            {boardData.columns.length > 1 ? (
+              <View style={styles.composerSections}>
+                {boardData.columns.map((column) => (
+                  <Chip
+                    key={column.id}
+                    label={column.name}
+                    selected={(composerColumn ?? boardData.columns[0].id) === column.id}
+                    onPress={() => setComposerColumn(column.id)}
+                  />
+                ))}
+              </View>
+            ) : null}
+            {composerSource ? (
+              <View style={styles.composerSource}>
+                <Feather name='external-link' size={14} color={colors.muted} />
+                <Text style={styles.composerSourceText} numberOfLines={1}>
+                  Original: {composerSource.site || composerSource.url}
+                </Text>
+                <Pressable
+                  onPress={() => setComposerSource(null)}
+                  hitSlop={8}
+                  accessibilityRole='button'
+                  accessibilityLabel='Remove the link to the original'
+                >
+                  <Feather name='x' size={14} color={colors.muted} />
+                </Pressable>
+              </View>
+            ) : null}
             {pendingImages.length ? (
               <ScrollView horizontal contentContainerStyle={styles.previewRow}>
                 {pendingImages.map((image, index) => (
@@ -2212,6 +2312,9 @@ const styles = themed(() => ({
     gap: 12
   },
   previewRow: { gap: 8 },
+  composerSections: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  composerSource: { alignItems: 'center', flexDirection: 'row', gap: 8 },
+  composerSourceText: { color: colors.muted, flex: 1, fontSize: 13 },
   waiting: {
     gap: 8,
     backgroundColor: colors.surface,

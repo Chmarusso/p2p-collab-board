@@ -13,6 +13,9 @@ const {
   normalizeInvite,
   inviteLink,
   LIMITS,
+  BOARD_KIND_IDS,
+  boardKind,
+  isBoardKind,
   REACTIONS
 } = require('@opencollab/board-protocol')
 const { Session } = require('./lib/session')
@@ -388,14 +391,26 @@ const create = command(
   summary('Create a private board and print its invitation'),
   arg('[name]', 'board name'),
   flag('--sample', 'Fill the board with sample cards that show the features'),
+  flag('--kind|-k <type>', `Board type: ${BOARD_KIND_IDS.join(', ')} (default kanban)`),
   ...commonFlags(),
   action(async ({ args, flags }) => {
     if (!args.name && !flags.sample) throw new Error('Name the board, or pass --sample.')
+    const kind = flags.kind ? String(flags.kind).toLowerCase() : 'kanban'
+    if (!isBoardKind(kind)) {
+      throw new Error(`Unknown board type. Use one of: ${BOARD_KIND_IDS.join(', ')}.`)
+    }
     await withSession(flags, async (session) => {
       const storage = storageOf(flags)
       const secret = await password()
       await session.unlock(secret)
-      const room = await session.openBoard(null, args.name, { sample: !!flags.sample })
+      const room = await session.openBoard(null, args.name, { sample: !!flags.sample, kind })
+      // The type is set right after the board opens; let it land before leaving.
+      if (kind !== 'kanban') {
+        await session.wait(
+          (reply, state) => reply.type === messageTypes.boardState && state.info.kind === kind,
+          { label: 'board type' }
+        )
+      }
       await store.rememberBoard(storage, secret, {
         invite: room.invite,
         name: room.boardName || args.name
@@ -1002,17 +1017,27 @@ const move = command(
   })
 )
 
+// --source: an http(s) link, or "clear" (edit) for none.
+function sourceFlag(value) {
+  const url = String(value).trim()
+  if (url.toLowerCase() === 'clear') return null
+  if (!/^https?:\/\/\S+$/i.test(url)) throw new Error('--source takes an http(s) link')
+  return { url, site: null, title: null }
+}
+
 const edit = command(
   'edit',
-  summary("Change a card's title or description"),
+  summary("Change a card's title, description or source link"),
   arg('<card>', 'card number, id prefix or title'),
   ...boardFlags(),
   flag('--title [text]', 'new title'),
   flag('--body [text]', 'new description (Markdown)'),
+  flag('--source [url]', 'link to the original page or post ("clear" removes it)'),
   action(async ({ args, flags }) => {
-    if (flags.title === undefined && flags.body === undefined) {
-      throw new Error('Pass --title and/or --body')
+    if (flags.title === undefined && flags.body === undefined && flags.source === undefined) {
+      throw new Error('Pass --title, --body and/or --source')
     }
+    const source = flags.source === undefined ? undefined : sourceFlag(flags.source)
     await withSession(flags, async (session) => {
       const { card } = await openCard(session, flags, args.card)
       const change = { type: messageTypes.cardUpdate, objectId: card.id }
@@ -1021,6 +1046,7 @@ const edit = command(
         change.body = String(flags.body)
         change.mentions = findMentions(change.body, session.state.profiles)
       }
+      if (source !== undefined) change.source = source
       await apply(
         session,
         change,
@@ -1029,7 +1055,8 @@ const edit = command(
           return (
             (change.title === undefined ||
               next?.title === change.title.trim().slice(0, LIMITS.title)) &&
-            (change.body === undefined || next?.body === change.body)
+            (change.body === undefined || next?.body === change.body) &&
+            (source === undefined || (next?.source?.url ?? null) === (source?.url ?? null))
           )
         },
         'card to be updated'
@@ -1167,6 +1194,45 @@ const archiveCommand = (archived) =>
     })
   )
 
+const kindCommand = command(
+  'kind',
+  summary('Show or change the board type (owner only)'),
+  description(
+    `Types change how a board looks, not what it stores: ${BOARD_KIND_IDS.map((id) => `${id} (${boardKind(id).description.replace(/\.$/, '')})`).join('; ')}. Hidden details come back when you switch again.`
+  ),
+  arg('[type]', BOARD_KIND_IDS.join(' | ')),
+  flag('--sections', "Also rename the columns to the type's sections"),
+  flag('--json', 'Print the type as JSON'),
+  ...boardFlags(),
+  action(async ({ args, flags }) => {
+    await withSession(flags, async (session) => {
+      const { room } = await openBoard(session, flags)
+      const current = boardKind(session.state.info.kind)
+      if (!args.type) {
+        if (flags.json) return console.log(JSON.stringify(current, null, 2))
+        return say(
+          `${current.name} (${current.id}): ${current.description}`,
+          `Shows: ${current.features.join(', ') || 'cards, images, comments and reactions only'}`
+        )
+      }
+      const next = String(args.type).toLowerCase()
+      if (!isBoardKind(next)) {
+        throw new Error(`Unknown board type. Use one of: ${BOARD_KIND_IDS.join(', ')}.`)
+      }
+      assertWritable(session, room)
+      if (next === current.id) return say(`Already a ${current.name} board.`)
+      await apply(
+        session,
+        { type: messageTypes.boardKindSet, kind: next, sections: !!flags.sections },
+        (state) => state.info.kind === next,
+        'board type to change'
+      )
+      say(`Board type: ${boardKind(next).name}.`)
+      await finishWrite(session)
+    })
+  })
+)
+
 const describe = command(
   'describe',
   summary('Set the board description (Markdown; empty text clears it)'),
@@ -1290,6 +1356,7 @@ const show = command(
           .join(' · ')}`
       )
       const details = [
+        ['Original', card.source ? card.source.url : ''],
         ['Labels', labelNames(session, card).join(', ')],
         ['Assigned', people(card.assignees || [])],
         ['Due', dueText(card.dueDate)],
@@ -2300,6 +2367,7 @@ const add = command(
   flag('--assign [member]', 'assign a member, "me" works (repeatable)').multiple(),
   flag('--item [text]', 'checklist item (repeatable)').multiple(),
   flag('--due [YYYY-MM-DD]', 'due date'),
+  flag('--source [url]', 'link to the original page or post ("View original")'),
   flag('--from-template|-t [card]', 'copy a template card (checklist, labels, assignees, points)'),
   action(async ({ args, flags }) => {
     const titles = (args.title === '-' ? await readStdin() : args.title)
@@ -2313,7 +2381,11 @@ const add = command(
     ) {
       throw new Error('Use a due date like 2026-12-31')
     }
-    if (flags.fromTemplate && (flags.body || flags.assign || flags.item || flags.due)) {
+    const source = flags.source ? sourceFlag(flags.source) : null
+    if (
+      flags.fromTemplate &&
+      (flags.body || flags.assign || flags.item || flags.due || flags.source)
+    ) {
       throw new Error('--from-template takes the rest from the template; only --column applies')
     }
     await withSession(flags, async (session) => {
@@ -2357,7 +2429,8 @@ const add = command(
             ...(column && { columnId: column.id }),
             ...(assignees.length && { assignees }),
             ...(flags.item && { checklist: [].concat(flags.item) }),
-            ...(flags.due && { dueDate: flags.due })
+            ...(flags.due && { dueDate: flags.due }),
+            ...(source && { source })
           })
         }
         await session.wait(
@@ -2453,6 +2526,7 @@ const cli = command(
   template,
   rules,
   describe,
+  kindCommand,
   activity,
   stats,
   mine,
