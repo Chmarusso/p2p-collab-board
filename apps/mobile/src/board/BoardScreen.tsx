@@ -42,6 +42,7 @@ import { CardFace } from './CardFace'
 import { CardSheet, Chip } from './CardSheet'
 import { KindOptions } from './Kinds'
 import { RecipesView } from './Recipes'
+import { TodoView } from './Todo'
 import { Markdown } from './Markdown'
 import { MyWorkSheet } from './MyWork'
 import { BoardTemplatesSheet, RulesSheet } from './Rules'
@@ -545,6 +546,19 @@ export function BoardScreen(props: Props) {
           {top}
           {!props.synced ? (
             props.loading
+          ) : kind.layout === 'list' ? (
+            <TodoView
+              data={data}
+              columns={data.columns}
+              visible={visible}
+              showDue={can('due')}
+              showAssignees={can('assignees')}
+              send={send}
+              cache={props.cache}
+              requestImage={props.requestImage}
+              onOpen={setOpenCardId}
+              onLocalMove={props.onLocalMove}
+            />
           ) : kind.layout === 'sections' ? (
             <RecipesView
               columns={data.columns}

@@ -1678,8 +1678,11 @@ function renderBoard({ animate = false } = {}) {
   )
 
   boardObjects.innerHTML = ''
-  boardObjects.classList.toggle('as-recipes', boardKind(boardKindId).layout === 'sections')
-  if (boardKind(boardKindId).layout === 'sections') boardObjects.append(renderRecipes())
+  const layout = boardKind(boardKindId).layout
+  boardObjects.classList.toggle('as-recipes', layout === 'sections')
+  boardObjects.classList.toggle('as-list', layout === 'list')
+  if (layout === 'sections') boardObjects.append(renderRecipes())
+  else if (layout === 'list') boardObjects.append(renderTodo())
   else {
     columns.forEach((column, index) => boardObjects.append(renderColumn(column, index)))
     boardObjects.append(renderAddColumn())
@@ -1709,6 +1712,89 @@ function renderBoard({ animate = false } = {}) {
     burstFrom(finished)
   }
   renderBoardChrome()
+}
+
+// To-do list layout: one list with checkboxes. Ticking moves the item to the
+// last section (Done); done items fold away, unticking puts them back first.
+let todoShowDone = false
+// The add field is rebuilt with the board; keep what was typed.
+let todoDraft = ''
+
+function renderTodo() {
+  const wrap = document.createElement('div')
+  wrap.className = 'todo'
+  const first = columns[0]
+  const done = columns.length > 1 ? columns[columns.length - 1] : null
+  const open = columns.filter((column) => column !== done).flatMap((c) => visibleCards(c.id))
+  const finished = done ? visibleCards(done.id) : []
+
+  const form = document.createElement('form')
+  form.className = 'todo-add'
+  form.innerHTML = `${icon('plus')}<input placeholder="Add a to-do" maxlength="200" aria-label="Add a to-do" data-focus-key="todo-add" />`
+  const input = form.querySelector('input')
+  input.value = todoDraft
+  input.oninput = () => (todoDraft = input.value)
+  form.onsubmit = (event) => {
+    event.preventDefault()
+    const title = input.value.trim()
+    if (!title || !first) return
+    send({ type: 'board:create', title, body: '', columnId: first.id })
+    input.value = todoDraft = ''
+  }
+
+  const row = (object) => {
+    const checked = object.columnId === done?.id
+    const item = document.createElement('div')
+    item.className = `todo-row${checked ? ' done' : ''}`
+    item.dataset.cardId = object.id
+    const box = document.createElement('input')
+    box.type = 'checkbox'
+    box.checked = checked
+    box.setAttribute('aria-label', object.title)
+    box.onchange = () => {
+      const target = checked ? first : done
+      if (target) moveCard(object.id, target.id, Infinity)
+    }
+    const body = document.createElement('button')
+    body.type = 'button'
+    body.className = 'ghost todo-body'
+    const comments = object.comments?.length || 0
+    body.innerHTML = `<span class="todo-title" dir="auto">${escape(object.title)}</span><span class="todo-meta">${[
+      can('due') && !checked ? dueBadge(object) : '',
+      comments ? `<span>${icon('message')}${comments}</span>` : '',
+      can('assignees') && object.assignees?.length ? avatarStack(object.assignees, 3) : ''
+    ].join('')}</span>`
+    body.onclick = () => openCard(object.id)
+    item.append(box, body)
+    return item
+  }
+
+  const list = document.createElement('div')
+  list.className = 'todo-list'
+  if (open.length) list.append(...open.map(row))
+  else {
+    list.innerHTML = `<p class="muted todo-empty">${finished.length ? 'All done.' : 'Nothing to do yet.'}</p>`
+  }
+  wrap.append(form, list)
+  if (finished.length) {
+    const toggle = document.createElement('button')
+    toggle.type = 'button'
+    toggle.className = 'ghost todo-done-toggle'
+    toggle.setAttribute('aria-expanded', String(todoShowDone))
+    toggle.textContent = `${todoShowDone ? '▾' : '▸'} ${done.name} (${finished.length})`
+    toggle.onclick = () => {
+      todoShowDone = !todoShowDone
+      renderBoard()
+    }
+    wrap.append(toggle)
+    if (todoShowDone) {
+      const doneList = document.createElement('div')
+      doneList.className = 'todo-list'
+      doneList.append(...finished.map(row))
+      wrap.append(doneList)
+    }
+  }
+  return wrap
 }
 
 // Recipes layout: the sections as tabs over a grid of photo cards. null shows

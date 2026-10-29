@@ -441,6 +441,92 @@
         padding-bottom: 12px;
         min-height: 200px;
       }
+      #board-objects.as-list {
+        display: block;
+        overflow: visible;
+      }
+      .todo {
+        display: grid;
+        gap: 12px;
+        max-width: 760px;
+        width: 100%;
+      }
+      .recipes {
+        width: 100%;
+      }
+      .todo-add {
+        align-items: center;
+        background: var(--surface-raised);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        color: var(--muted);
+        display: flex;
+        gap: 10px;
+        padding: 0 12px;
+      }
+      .todo-add input {
+        background: none;
+        border: 0;
+        flex: 1;
+        padding: 12px 0;
+      }
+      .todo-add input:focus {
+        outline: none;
+      }
+      .todo-list {
+        background: var(--surface-raised);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        overflow: hidden;
+      }
+      .todo-row {
+        align-items: center;
+        border-bottom: 1px solid var(--border);
+        display: flex;
+        gap: 12px;
+        padding: 4px 12px;
+      }
+      .todo-row:last-child {
+        border-bottom: 0;
+      }
+      .todo-row input[type='checkbox'] {
+        accent-color: var(--accent);
+        flex: none;
+        height: 18px;
+        width: 18px;
+      }
+      .todo-body {
+        align-items: center;
+        display: flex;
+        flex: 1;
+        gap: 12px;
+        justify-content: space-between;
+        padding: 8px 0;
+        text-align: left;
+      }
+      .todo-title {
+        color: var(--text);
+        font-weight: 500;
+      }
+      .todo-row.done .todo-title {
+        color: var(--muted);
+        text-decoration: line-through;
+      }
+      .todo-meta {
+        align-items: center;
+        color: var(--muted);
+        display: flex;
+        font-size: 12px;
+        gap: 10px;
+      }
+      .todo-empty {
+        margin: 0;
+        padding: 16px;
+        text-align: center;
+      }
+      .todo-done-toggle {
+        justify-self: start;
+      }
       #board-objects.as-recipes {
         display: block;
         overflow: visible;
