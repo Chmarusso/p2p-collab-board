@@ -1208,6 +1208,7 @@ async function createCard(id, fields) {
           assignees: fields.assignees
         }),
       ...(typeof fields.points === 'number' && { points: fields.points }),
+      ...(fields.source && { source: fields.source }),
       ...(Array.isArray(fields.checklist) &&
         fields.checklist.length && {
           checklist: fields.checklist.map((text) => ({ id: newId('item'), text, done: false }))
@@ -1841,6 +1842,7 @@ pipe.on('data', async (data) => {
         dueDate: msg.dueDate,
         mentions: msg.mentions,
         assignees: msg.assignees,
+        source: msg.source,
         checklist: Array.isArray(msg.checklist)
           ? msg.checklist.filter((text) => typeof text === 'string' && text.trim())
           : undefined
@@ -1891,7 +1893,16 @@ pipe.on('data', async (data) => {
     } else if (msg.type === messageTypes.cardUpdate) {
       if (!cardById(msg.objectId)) return
       const payload = { type: 'card:update', objectId: msg.objectId }
-      const fields = ['title', 'body', 'dueDate', 'labelIds', 'mentions', 'assignees', 'points']
+      const fields = [
+        'title',
+        'body',
+        'dueDate',
+        'labelIds',
+        'mentions',
+        'assignees',
+        'points',
+        'source'
+      ]
       for (const field of [...fields, 'revealEstimates', 'template']) {
         if (msg[field] !== undefined) payload[field] = msg[field]
       }

@@ -1678,8 +1678,12 @@ function renderBoard({ animate = false } = {}) {
   )
 
   boardObjects.innerHTML = ''
-  columns.forEach((column, index) => boardObjects.append(renderColumn(column, index)))
-  boardObjects.append(renderAddColumn())
+  boardObjects.classList.toggle('as-recipes', boardKind(boardKindId).layout === 'sections')
+  if (boardKind(boardKindId).layout === 'sections') boardObjects.append(renderRecipes())
+  else {
+    columns.forEach((column, index) => boardObjects.append(renderColumn(column, index)))
+    boardObjects.append(renderAddColumn())
+  }
 
   boardObjects.scrollLeft = scrollLeft
   for (const element of boardObjects.querySelectorAll('.column')) {
@@ -1705,6 +1709,91 @@ function renderBoard({ animate = false } = {}) {
     burstFrom(finished)
   }
   renderBoardChrome()
+}
+
+// Recipes layout: the sections as tabs over a grid of photo cards. null shows
+// every section, newest first.
+let recipeSection = null
+
+function sourceSite(source) {
+  return source.site || source.url.match(/^https?:\/\/(?:www\.)?([^/?#]+)/i)?.[1] || source.url
+}
+
+function renderRecipes() {
+  const wrap = document.createElement('div')
+  wrap.className = 'recipes'
+  if (!columns.some((column) => column.id === recipeSection)) recipeSection = null
+  const tabs = document.createElement('div')
+  tabs.className = 'recipe-tabs'
+  tabs.setAttribute('role', 'tablist')
+  const tab = (id, name, count) => {
+    const button = document.createElement('button')
+    button.type = 'button'
+    button.className = 'ghost recipe-tab'
+    button.setAttribute('role', 'tab')
+    button.setAttribute('aria-selected', String(recipeSection === id))
+    button.innerHTML = `${escape(name)} <span>${count}</span>`
+    button.onclick = () => {
+      recipeSection = id
+      renderBoard()
+    }
+    tabs.append(button)
+  }
+  tab(
+    null,
+    'All',
+    columns.reduce((sum, column) => sum + visibleCards(column.id).length, 0)
+  )
+  for (const column of columns) tab(column.id, column.name, visibleCards(column.id).length)
+
+  const grid = document.createElement('div')
+  grid.className = 'recipe-grid'
+  const cards = recipeSection
+    ? visibleCards(recipeSection)
+    : columns
+        .flatMap((column) => visibleCards(column.id))
+        .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
+  for (const object of cards) {
+    const cover = object.images?.find((ref) => !isVideoRef(ref))
+    const tile = document.createElement('article')
+    tile.className = 'recipe-tile'
+    tile.tabIndex = 0
+    tile.dataset.cardId = object.id
+    tile.setAttribute('role', 'button')
+    const section = recipeSection ? null : columns.find((c) => c.id === object.columnId)?.name
+    const meta = [section, object.source ? sourceSite(object.source) : null].filter(Boolean)
+    tile.innerHTML = `${
+      cover
+        ? `<div class="recipe-cover card-cover" data-cover-key="${escape(imageKey(cover))}"></div>`
+        : `<div class="recipe-cover empty">${icon('book')}</div>`
+    }<div class="recipe-text"><strong dir="auto">${escape(object.title)}</strong>${
+      meta.length ? `<span>${escape(meta.join(' · '))}</span>` : ''
+    }</div>`
+    if (cover) {
+      fillInlineImage(tile.querySelector('.recipe-cover'))
+      requestImage(cover)
+    }
+    tile.onclick = () => openCard(object.id)
+    tile.onkeydown = (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault()
+        openCard(object.id)
+      }
+    }
+    grid.append(tile)
+  }
+  const add = document.createElement('button')
+  add.type = 'button'
+  add.className = 'recipe-tile recipe-add ghost'
+  const current = columns.find((column) => column.id === recipeSection)
+  add.innerHTML = `${icon('plus')}<span>${current ? `Add to ${escape(current.name)}` : 'Add a recipe'}</span>`
+  add.onclick = () => {
+    document.getElementById('object-column').value = current?.id || columns[0]?.id || ''
+    openNewObject()
+  }
+  grid.append(add)
+  wrap.append(tabs, grid)
+  return wrap
 }
 
 // Everything around the cards that follows the board state, in every view.
@@ -2018,6 +2107,13 @@ function refreshCard() {
     `${identityHtml(object.author)}<span class="time">${escape(relativeTime(object.createdAt))}</span>`
   renderColumnOptions(cardColumn, object.columnId)
   document.getElementById('card-archived-badge').hidden = !object.archived
+  document.getElementById('card-source').hidden = !object.source
+  if (object.source) {
+    document.getElementById('card-source-link').href = object.source.url
+    document.getElementById('card-source-title').textContent =
+      object.source.title || 'View original'
+    document.getElementById('card-source-site').textContent = sourceSite(object.source)
+  }
   refreshCardExtras(object)
   renderCardLabels(object)
   renderCardGallery(object)

@@ -14,6 +14,7 @@ export type SharedRecord = {
   // address: the list loads it from the site, it isn't copied to the device.
   description?: string
   image?: string
+  site?: string
   previewed?: boolean
   // Set when a card was added from it.
   board?: string

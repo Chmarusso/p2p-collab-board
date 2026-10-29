@@ -8,6 +8,7 @@ import {
   Animated,
   GestureResponderEvent,
   KeyboardAvoidingView,
+  Linking,
   Modal,
   Platform,
   Pressable,
@@ -69,6 +70,7 @@ import {
   newLabelId,
   pad,
   scoreOf,
+  sourceSite,
   videosOf,
   wipState,
   workerIndex
@@ -588,6 +590,27 @@ export function CardSheet(props: Props) {
                   </Pressable>
                 )}
               </Section>
+
+              {card.source ? (
+                <Section title='Original'>
+                  <PressableScale
+                    style={styles.source}
+                    onPress={() => void Linking.openURL(card.source!.url)}
+                    accessibilityRole='link'
+                    accessibilityLabel={`View original on ${sourceSite(card.source)}`}
+                  >
+                    <Feather name='external-link' size={16} color={colors.accent} />
+                    <View style={styles.sourceText}>
+                      <Text style={styles.sourceTitle} numberOfLines={2}>
+                        {card.source.title || 'View original'}
+                      </Text>
+                      <Text style={styles.sourceSite} numberOfLines={1}>
+                        {sourceSite(card.source)}
+                      </Text>
+                    </View>
+                  </PressableScale>
+                </Section>
+              ) : null}
 
               <Section title='Column'>
                 <ScrollView
@@ -1116,6 +1139,19 @@ function VoteButton({
 }
 
 const styles = themed(() => ({
+  source: {
+    alignItems: 'center',
+    backgroundColor: colors.surfaceRaised,
+    borderColor: colors.border,
+    borderRadius: 12,
+    borderWidth: 1,
+    flexDirection: 'row',
+    gap: 10,
+    padding: 12
+  },
+  sourceText: { flex: 1, gap: 2 },
+  sourceTitle: { color: colors.text, fontSize: 14, fontWeight: '600' },
+  sourceSite: { color: colors.muted, fontSize: 12 },
   root: {
     flex: 1,
     backgroundColor: colors.surface,

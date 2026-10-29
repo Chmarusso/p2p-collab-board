@@ -51,6 +51,8 @@ export type BoardCard = {
   archived: boolean
   assignees: string[]
   points: number | null
+  // Where the card came from, e.g. a shared post: "View original".
+  source: { url: string; site: string | null; title: string | null } | null
   revealEstimates: boolean
   template: boolean
   checklist: ChecklistItem[]

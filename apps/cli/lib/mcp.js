@@ -79,6 +79,16 @@ const dueDateSchema = z
   .regex(/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$/, 'Use YYYY-MM-DD or YYYY-MM-DDTHH:MM (local time)')
   .refine((value) => !Number.isNaN(Date.parse(value)), 'Not a real date')
 
+// "View original": the page a card came from (a recipe, a shared post).
+const sourceSchema = z
+  .object({
+    url: z.string().url().max(2000).describe('http(s) link to the original page or post'),
+    site: z.string().max(200).optional().describe('Site name, e.g. TikTok'),
+    title: z.string().max(200).optional().describe('Title of the original page')
+  })
+  .describe('Where the card came from; shown as "View original"')
+const sourceValue = ({ url, site, title }) => ({ url, site: site || null, title: title || null })
+
 // Date-only stays as is (due at the end of that day); a time becomes an ISO stamp.
 const dueValue = (value) =>
   value === null || value === undefined
@@ -269,6 +279,8 @@ function cardSummary(session, card) {
     archived: !!card.archived,
     template: !!card.template,
     author: memberName(session, card.author),
+    // The page it came from, e.g. a shared recipe or post.
+    source: card.source || null,
     updatedAt: card.updatedAt ? new Date(card.updatedAt).toISOString() : null
   }
 }
@@ -623,7 +635,8 @@ function registerTools(server, board, { readOnly, allowArchive }) {
         assignees: memberList.optional(),
         checklist: z.array(z.string().min(1)).optional(),
         due: dueDateSchema.optional(),
-        labels: z.array(z.string().min(1)).optional().describe('Label names; new ones are created')
+        labels: z.array(z.string().min(1)).optional().describe('Label names; new ones are created'),
+        source: sourceSchema.optional()
       },
       annotations: change
     },
@@ -644,7 +657,8 @@ function registerTools(server, board, { readOnly, allowArchive }) {
           ...(assignees.length && { assignees }),
           ...(labelIds.length && { labelIds }),
           ...(args.checklist?.length && { checklist: args.checklist }),
-          ...(args.due && { dueDate: dueValue(args.due) })
+          ...(args.due && { dueDate: dueValue(args.due) }),
+          ...(args.source && { source: sourceValue(args.source) })
         })
         const reply = await session.wait(
           (message, state) =>
@@ -670,7 +684,7 @@ function registerTools(server, board, { readOnly, allowArchive }) {
     {
       title: 'Update a card',
       description:
-        "Change a card's title, description, due date or points. Pass null to clear due or points.",
+        "Change a card's title, description, due date, points or source link. Pass null to clear due, points or source.",
       inputSchema: {
         card,
         title: z.string().min(1).max(LIMITS.title).optional(),
@@ -680,7 +694,8 @@ function registerTools(server, board, { readOnly, allowArchive }) {
           .optional()
           .describe('Replaces the whole description (Markdown)'),
         due: dueDateSchema.nullable().optional(),
-        points: z.number().min(0).max(1000).nullable().optional()
+        points: z.number().min(0).max(1000).nullable().optional(),
+        source: sourceSchema.nullable().optional()
       },
       annotations: { ...change, idempotentHint: true }
     },
@@ -695,6 +710,7 @@ function registerTools(server, board, { readOnly, allowArchive }) {
         }
         if (args.due !== undefined) message.dueDate = dueValue(args.due)
         if (args.points !== undefined) message.points = args.points
+        if (args.source !== undefined) message.source = args.source && sourceValue(args.source)
         if (Object.keys(message).length === 2) throw new Error('Pass at least one field to change')
         await apply(
           session,
@@ -707,7 +723,9 @@ function registerTools(server, board, { readOnly, allowArchive }) {
                 next.title === message.title.trim().slice(0, LIMITS.title)) &&
               (message.body === undefined || next.body === message.body) &&
               (message.dueDate === undefined || (next.dueDate || null) === message.dueDate) &&
-              (message.points === undefined || (next.points ?? null) === message.points)
+              (message.points === undefined || (next.points ?? null) === message.points) &&
+              (message.source === undefined ||
+                (next.source?.url ?? null) === (message.source?.url ?? null))
             )
           },
           'card to be updated'

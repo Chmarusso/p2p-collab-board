@@ -1017,17 +1017,27 @@ const move = command(
   })
 )
 
+// --source: an http(s) link, or "clear" (edit) for none.
+function sourceFlag(value) {
+  const url = String(value).trim()
+  if (url.toLowerCase() === 'clear') return null
+  if (!/^https?:\/\/\S+$/i.test(url)) throw new Error('--source takes an http(s) link')
+  return { url, site: null, title: null }
+}
+
 const edit = command(
   'edit',
-  summary("Change a card's title or description"),
+  summary("Change a card's title, description or source link"),
   arg('<card>', 'card number, id prefix or title'),
   ...boardFlags(),
   flag('--title [text]', 'new title'),
   flag('--body [text]', 'new description (Markdown)'),
+  flag('--source [url]', 'link to the original page or post ("clear" removes it)'),
   action(async ({ args, flags }) => {
-    if (flags.title === undefined && flags.body === undefined) {
-      throw new Error('Pass --title and/or --body')
+    if (flags.title === undefined && flags.body === undefined && flags.source === undefined) {
+      throw new Error('Pass --title, --body and/or --source')
     }
+    const source = flags.source === undefined ? undefined : sourceFlag(flags.source)
     await withSession(flags, async (session) => {
       const { card } = await openCard(session, flags, args.card)
       const change = { type: messageTypes.cardUpdate, objectId: card.id }
@@ -1036,6 +1046,7 @@ const edit = command(
         change.body = String(flags.body)
         change.mentions = findMentions(change.body, session.state.profiles)
       }
+      if (source !== undefined) change.source = source
       await apply(
         session,
         change,
@@ -1044,7 +1055,8 @@ const edit = command(
           return (
             (change.title === undefined ||
               next?.title === change.title.trim().slice(0, LIMITS.title)) &&
-            (change.body === undefined || next?.body === change.body)
+            (change.body === undefined || next?.body === change.body) &&
+            (source === undefined || (next?.source?.url ?? null) === (source?.url ?? null))
           )
         },
         'card to be updated'
@@ -1344,6 +1356,7 @@ const show = command(
           .join(' · ')}`
       )
       const details = [
+        ['Original', card.source ? card.source.url : ''],
         ['Labels', labelNames(session, card).join(', ')],
         ['Assigned', people(card.assignees || [])],
         ['Due', dueText(card.dueDate)],
@@ -2354,6 +2367,7 @@ const add = command(
   flag('--assign [member]', 'assign a member, "me" works (repeatable)').multiple(),
   flag('--item [text]', 'checklist item (repeatable)').multiple(),
   flag('--due [YYYY-MM-DD]', 'due date'),
+  flag('--source [url]', 'link to the original page or post ("View original")'),
   flag('--from-template|-t [card]', 'copy a template card (checklist, labels, assignees, points)'),
   action(async ({ args, flags }) => {
     const titles = (args.title === '-' ? await readStdin() : args.title)
@@ -2367,7 +2381,11 @@ const add = command(
     ) {
       throw new Error('Use a due date like 2026-12-31')
     }
-    if (flags.fromTemplate && (flags.body || flags.assign || flags.item || flags.due)) {
+    const source = flags.source ? sourceFlag(flags.source) : null
+    if (
+      flags.fromTemplate &&
+      (flags.body || flags.assign || flags.item || flags.due || flags.source)
+    ) {
       throw new Error('--from-template takes the rest from the template; only --column applies')
     }
     await withSession(flags, async (session) => {
@@ -2411,7 +2429,8 @@ const add = command(
             ...(column && { columnId: column.id }),
             ...(assignees.length && { assignees }),
             ...(flags.item && { checklist: [].concat(flags.item) }),
-            ...(flags.due && { dueDate: flags.due })
+            ...(flags.due && { dueDate: flags.due }),
+            ...(source && { source })
           })
         }
         await session.wait(

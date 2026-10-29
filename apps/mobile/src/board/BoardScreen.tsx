@@ -41,6 +41,7 @@ import { AvatarStack } from './CardExtras'
 import { CardFace } from './CardFace'
 import { CardSheet, Chip } from './CardSheet'
 import { KindOptions } from './Kinds'
+import { RecipesView } from './Recipes'
 import { Markdown } from './Markdown'
 import { MyWorkSheet } from './MyWork'
 import { BoardTemplatesSheet, RulesSheet } from './Rules'
@@ -544,6 +545,17 @@ export function BoardScreen(props: Props) {
           {top}
           {!props.synced ? (
             props.loading
+          ) : kind.layout === 'sections' ? (
+            <RecipesView
+              columns={data.columns}
+              visible={visible}
+              cache={props.cache}
+              requestImage={props.requestImage}
+              accent={accent}
+              ink={inkOn(accent)}
+              onOpen={setOpenCardId}
+              onAdd={props.onNewCard}
+            />
           ) : (
             <ScrollView
               horizontal

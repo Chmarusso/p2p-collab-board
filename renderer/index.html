@@ -441,6 +441,110 @@
         padding-bottom: 12px;
         min-height: 200px;
       }
+      #board-objects.as-recipes {
+        display: block;
+        overflow: visible;
+      }
+      .card-source {
+        background: var(--surface-raised);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        color: var(--text);
+        display: grid;
+        gap: 2px;
+        padding: 10px 12px;
+        text-decoration: none;
+      }
+      .card-source:hover {
+        border-color: var(--accent);
+      }
+      .card-source span {
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .recipe-tabs {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 16px;
+      }
+      .recipe-tab {
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 6px 14px;
+      }
+      .recipe-tab span {
+        color: var(--muted);
+        font-family: var(--mono, monospace);
+        font-size: 12px;
+      }
+      .recipe-tab[aria-selected='true'] {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: var(--accent-ink, #000);
+      }
+      .recipe-tab[aria-selected='true'] span {
+        color: inherit;
+      }
+      .recipe-grid {
+        display: grid;
+        gap: 16px;
+        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      }
+      .recipe-tile {
+        background: var(--surface-raised);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        cursor: pointer;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        padding: 0;
+        text-align: left;
+      }
+      .recipe-tile:hover {
+        border-color: var(--accent);
+      }
+      .recipe-cover {
+        aspect-ratio: 1;
+        background: var(--surface);
+        border-radius: 0;
+        height: auto;
+        margin: 0;
+        overflow: hidden;
+      }
+      .recipe-cover img {
+        height: 100%;
+        object-fit: cover;
+        width: 100%;
+      }
+      .recipe-cover.empty {
+        align-items: center;
+        color: var(--muted);
+        display: flex;
+        justify-content: center;
+      }
+      .recipe-cover.empty .icon {
+        height: 32px;
+        width: 32px;
+      }
+      .recipe-text {
+        display: grid;
+        gap: 4px;
+        padding: 10px 12px 12px;
+      }
+      .recipe-text span {
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .recipe-add {
+        align-items: center;
+        aspect-ratio: 1;
+        border-style: dashed;
+        color: var(--muted);
+        gap: 6px;
+        justify-content: center;
+      }
       .column {
         flex: none;
         width: 280px;
@@ -3865,6 +3969,13 @@
             <div id="card-estimate" class="estimate"></div>
           </section>
         </div>
+        <section id="card-source" class="stack" hidden>
+          <h3 class="section-label">Original</h3>
+          <a id="card-source-link" class="card-source" target="_blank" rel="noreferrer">
+            <strong id="card-source-title"></strong>
+            <span id="card-source-site"></span>
+          </a>
+        </section>
         <section class="stack">
           <div class="row card-detail-bar">
             <h3 class="section-label">Description</h3>
