@@ -43,6 +43,7 @@ import { CardSheet, Chip } from './CardSheet'
 import { KindOptions } from './Kinds'
 import { RecipesView } from './Recipes'
 import { TodoView } from './Todo'
+import { FeedView } from './Feed'
 import { Markdown } from './Markdown'
 import { MyWorkSheet } from './MyWork'
 import { BoardTemplatesSheet, RulesSheet } from './Rules'
@@ -546,6 +547,18 @@ export function BoardScreen(props: Props) {
           {top}
           {!props.synced ? (
             props.loading
+          ) : kind.layout === 'feed' ? (
+            <FeedView
+              data={data}
+              cards={data.columns.flatMap((column) => visible(column.id))}
+              me={me}
+              cache={props.cache}
+              requestImage={props.requestImage}
+              nameFor={props.nameFor}
+              relativeTime={props.relativeTime}
+              onOpen={setOpenCardId}
+              onCompose={() => props.onNewCard(data.columns[0]?.id)}
+            />
           ) : kind.layout === 'list' ? (
             <TodoView
               data={data}

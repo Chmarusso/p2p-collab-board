@@ -139,6 +139,9 @@ export declare const DEFAULT_BOARD_KIND: BoardKindId
 export declare function isBoardKind(value: unknown): value is BoardKindId
 export declare function boardKind(kind: string | null | undefined): BoardKind
 export declare function hasFeature(kind: string | null | undefined, feature: BoardFeature): boolean
+export type FeedCover = { from: string; to: string; ink: string }
+export declare const FEED_COVERS: readonly FeedCover[]
+export declare function feedCover(id: string): FeedCover
 export type BoardInfo = { description: string; icon: MediaRef | null; kind: BoardKindId }
 export type MemberRole = 'owner' | 'admin' | 'member'
 export type BoardMember = {

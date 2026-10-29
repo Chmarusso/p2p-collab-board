@@ -52,3 +52,23 @@ assert.equal(
   'feed'
 )
 console.log('✓ only the owner sets the board type; unknown types read as Kanban')
+
+// Cover text is large and bold: keep it readable on both ends of the gradient.
+const luminance = (hex) => {
+  const [r, g, b] = [1, 3, 5].map((i) => {
+    const c = parseInt(hex.slice(i, i + 2), 16) / 255
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4
+  })
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b
+}
+const contrast = (a, b) => {
+  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x)
+  return (hi + 0.05) / (lo + 0.05)
+}
+for (const cover of protocol.FEED_COVERS) {
+  for (const end of [cover.from, cover.to]) {
+    assert.ok(contrast(end, cover.ink) >= 4, `${cover.ink} on ${end}`)
+  }
+}
+assert.deepEqual(protocol.feedCover('card-1'), protocol.feedCover('card-1'))
+console.log('✓ feed covers are readable and stable per card')

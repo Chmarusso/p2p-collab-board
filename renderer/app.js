@@ -4,7 +4,7 @@ import { celebrate } from './confetti.js'
 import { renderStats } from './stats.js'
 import { renderTable, renderCalendar } from './views.js'
 import { THEME_TEMPLATES, THEME_MODES, themeTemplate } from './themes.js'
-import { BOARD_FEATURES, BOARD_KIND_IDS, boardKind, hasFeature } from './kinds.js'
+import { BOARD_FEATURES, BOARD_KIND_IDS, boardKind, hasFeature, feedCover } from './kinds.js'
 import { encode } from '../node_modules/uqr/dist/index.mjs'
 
 const bridge = window.bridge
@@ -1680,8 +1680,9 @@ function renderBoard({ animate = false } = {}) {
   boardObjects.innerHTML = ''
   const layout = boardKind(boardKindId).layout
   boardObjects.classList.toggle('as-recipes', layout === 'sections')
-  boardObjects.classList.toggle('as-list', layout === 'list')
+  boardObjects.classList.toggle('as-list', layout === 'list' || layout === 'feed')
   if (layout === 'sections') boardObjects.append(renderRecipes())
+  else if (layout === 'feed') boardObjects.append(renderFeed())
   else if (layout === 'list') boardObjects.append(renderTodo())
   else {
     columns.forEach((column, index) => boardObjects.append(renderColumn(column, index)))
@@ -1712,6 +1713,80 @@ function renderBoard({ animate = false } = {}) {
     burstFrom(finished)
   }
   renderBoardChrome()
+}
+
+// Feed layout: every post newest first, full width. Posts without a photo get
+// a cover drawn from their text (feedCover: the same colours on every client).
+function renderFeed() {
+  const wrap = document.createElement('div')
+  wrap.className = 'feed'
+  const compose = document.createElement('button')
+  compose.type = 'button'
+  compose.className = 'feed-compose ghost'
+  compose.innerHTML = `${avatar(currentIdentity)}<span>Share something…</span>${icon('image')}`
+  compose.onclick = () => {
+    document.getElementById('object-column').value = columns[0]?.id || ''
+    openNewObject()
+  }
+  wrap.append(compose)
+  const posts = columns
+    .flatMap((column) => visibleCards(column.id))
+    .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
+  for (const object of posts) {
+    const photo = object.images?.find((ref) => !isVideoRef(ref))
+    const post = document.createElement('article')
+    post.className = 'feed-post'
+    post.tabIndex = 0
+    post.dataset.cardId = object.id
+    const cover = feedCover(object.id)
+    const comments = object.comments?.length || 0
+    const reactions = Object.entries(object.reactions || {}).filter(([, who]) => who.length)
+    post.innerHTML = `<header class="feed-author">${avatar(object.author)}<strong>${escape(memberName(object.author))}</strong><span>${escape(relativeTime(object.createdAt))}</span></header>${
+      photo
+        ? `<div class="feed-photo card-cover" data-cover-key="${escape(imageKey(photo))}"></div>`
+        : `<div class="feed-cover" style="--from: ${cover.from}; --to: ${cover.to}; --ink: ${cover.ink}">${icon('message')}<p dir="auto">${escape(object.title)}</p></div>`
+    }<div class="feed-text">${photo ? `<h3 dir="auto">${escape(object.title)}</h3>` : ''}<div class="feed-body"></div>${
+      object.source
+        ? `<a class="feed-source" href="${escape(object.source.url)}" target="_blank" rel="noreferrer">${icon('link')}${escape(sourceSite(object.source))}</a>`
+        : ''
+    }${
+      comments || reactions.length
+        ? `<footer>${reactions
+            .slice(0, 4)
+            .map(([emoji, who]) => `<span>${emoji}${who.length > 1 ? who.length : ''}</span>`)
+            .join('')}${comments ? `<span>${icon('message')}${comments}</span>` : ''}</footer>`
+        : ''
+    }</div>`
+    if (object.body?.trim()) {
+      post
+        .querySelector('.feed-body')
+        .append(markdownFor(object.body, object.mentions, object.images))
+    } else if (!photo && !object.source && !comments && !reactions.length) {
+      // The cover already says it all.
+      post.querySelector('.feed-text').remove()
+    }
+    if (photo) {
+      fillInlineImage(post.querySelector('.feed-photo'))
+      requestImage(photo)
+    }
+    post.onclick = (event) => {
+      if (!event.target.closest('a')) openCard(object.id)
+    }
+    post.onkeydown = (event) => {
+      if (event.target === post && (event.key === 'Enter' || event.key === ' ')) {
+        event.preventDefault()
+        openCard(object.id)
+      }
+    }
+    wrap.append(post)
+  }
+  if (!posts.length) {
+    const empty = document.createElement('p')
+    empty.className = 'muted feed-empty'
+    empty.textContent = 'No posts yet. Write one, or share a link from your phone.'
+    wrap.append(empty)
+  }
+  return wrap
 }
 
 // To-do list layout: one list with checkboxes. Ticking moves the item to the

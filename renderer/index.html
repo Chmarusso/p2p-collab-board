@@ -441,6 +441,118 @@
         padding-bottom: 12px;
         min-height: 200px;
       }
+      .feed {
+        display: grid;
+        gap: 16px;
+        max-width: 600px;
+        width: 100%;
+      }
+      .feed-compose {
+        align-items: center;
+        background: var(--surface-raised);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        color: var(--muted);
+        display: flex;
+        gap: 10px;
+        justify-content: flex-start;
+        padding: 10px 12px;
+      }
+      .feed-compose span {
+        flex: 1;
+        text-align: left;
+      }
+      .feed-post {
+        background: var(--surface-raised);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        cursor: pointer;
+        overflow: hidden;
+      }
+      .feed-post:hover {
+        border-color: var(--accent);
+      }
+      .feed-author {
+        align-items: center;
+        display: flex;
+        gap: 8px;
+        padding: 12px;
+      }
+      .feed-author span {
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .feed-photo {
+        aspect-ratio: 4 / 3;
+        border-radius: 0;
+        height: auto;
+        margin: 0;
+      }
+      .feed-photo img {
+        height: 100%;
+        object-fit: cover;
+        width: 100%;
+      }
+      .feed-cover {
+        aspect-ratio: 2 / 1;
+        max-height: 280px;
+        background: linear-gradient(135deg, var(--from), var(--to));
+        color: var(--ink);
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        padding: 18px;
+      }
+      .feed-cover .icon {
+        height: 22px;
+        opacity: 0.7;
+        width: 22px;
+      }
+      .feed-cover p {
+        display: -webkit-box;
+        font-size: 26px;
+        font-weight: 800;
+        line-height: 1.2;
+        margin: 0;
+        overflow: hidden;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 5;
+      }
+      .feed-text {
+        display: grid;
+        gap: 8px;
+        padding: 12px;
+      }
+      .feed-text h3 {
+        margin: 0;
+      }
+      .feed-body {
+        display: -webkit-box;
+        overflow: hidden;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: 6;
+      }
+      .feed-body:empty {
+        display: none;
+      }
+      .feed-source {
+        align-items: center;
+        color: var(--accent);
+        display: inline-flex;
+        font-size: 13px;
+        font-weight: 600;
+        gap: 6px;
+        text-decoration: none;
+      }
+      .feed-text footer {
+        color: var(--muted);
+        display: flex;
+        font-size: 13px;
+        gap: 12px;
+      }
+      .feed-empty {
+        text-align: center;
+      }
       #board-objects.as-list {
         display: block;
         overflow: visible;

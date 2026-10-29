@@ -68,6 +68,26 @@ function boardKind(kind) {
 
 const hasFeature = (kind, feature) => boardKind(kind).features.includes(feature)
 
+// Feed posts without a photo get a cover: a two-colour gradient with the post's
+// text on it. The colours come from the card id, so every client draws the
+// same cover for the same post. `ink` is the text colour on it.
+const FEED_COVERS = Object.freeze([
+  Object.freeze({ from: '#ff7a59', to: '#ff3d77', ink: '#1b0a05' }),
+  Object.freeze({ from: '#5b3fd9', to: '#2f6fdb', ink: '#ffffff' }),
+  Object.freeze({ from: '#00b894', to: '#00cec9', ink: '#04110a' }),
+  Object.freeze({ from: '#fdcb6e', to: '#e17055', ink: '#1b1305' }),
+  Object.freeze({ from: '#0a6abf', to: '#5a49d6', ink: '#ffffff' }),
+  Object.freeze({ from: '#2d3436', to: '#636e72', ink: '#ffffff' }),
+  Object.freeze({ from: '#b8296f', to: '#d6447f', ink: '#ffffff' }),
+  Object.freeze({ from: '#55efc4', to: '#81ecec', ink: '#04110a' })
+])
+
+function feedCover(id) {
+  let hash = 0
+  for (const char of String(id || '')) hash = (hash * 31 + char.charCodeAt(0)) >>> 0
+  return FEED_COVERS[hash % FEED_COVERS.length]
+}
+
 module.exports = {
   BOARD_FEATURES,
   BOARD_KINDS,
@@ -75,5 +95,7 @@ module.exports = {
   DEFAULT_BOARD_KIND,
   isBoardKind,
   boardKind,
-  hasFeature
+  hasFeature,
+  FEED_COVERS,
+  feedCover
 }
