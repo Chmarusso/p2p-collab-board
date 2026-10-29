@@ -4,6 +4,7 @@
 // stamp taken from the signed payload: (ts, author identity, payload JSON).
 // Same ops in, same board out, on every peer.
 const { isTemplateId } = require('./themes')
+const { isBoardKind, DEFAULT_BOARD_KIND } = require('./kinds')
 
 const DEFAULT_COLUMNS = Object.freeze([
   { id: 'col:new', name: 'New', position: 'H' },
@@ -465,6 +466,10 @@ function deriveBoard(
       }
       const icon = payload.icon === undefined ? undefined : imageRef(payload.icon)
       if (icon !== undefined) assign(info, 'icon', icon, stamp)
+      // Only the owner picks the board's type.
+      if (isBoardKind(payload.kind) && owner && message.identity === owner) {
+        assign(info, 'kind', payload.kind, stamp)
+      }
     } else if (payload.type === 'board:theme') {
       if (payload.background === null || isBackground(payload.background)) {
         assign(theme, 'background', payload.background, stamp)
@@ -731,7 +736,11 @@ function deriveBoard(
       template: read(theme, 'template', null),
       backgroundImage: read(theme, 'backgroundImage', null)
     },
-    info: { description: read(info, 'description', ''), icon: read(info, 'icon', null) },
+    info: {
+      description: read(info, 'description', ''),
+      icon: read(info, 'icon', null),
+      kind: read(info, 'kind', DEFAULT_BOARD_KIND)
+    },
     rules: [...rules]
       .filter(([, registers]) => !read(registers, 'deleted', false) && registers.rule)
       .sort(([a, x], [b, y]) =>

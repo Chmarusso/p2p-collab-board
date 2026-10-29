@@ -2,6 +2,7 @@ const board = require('./board')
 const alerts = require('./alerts')
 const activity = require('./activity')
 const themes = require('./themes')
+const kinds = require('./kinds')
 
 const messageTypes = Object.freeze({
   identityLoad: 'identity:load',
@@ -24,6 +25,7 @@ const messageTypes = Object.freeze({
   labelDelete: 'board:label-delete',
   themeSet: 'board:theme-set',
   boardDescribe: 'board:describe',
+  boardKindSet: 'board:kind-set',
   boardsWatch: 'boards:watch',
   boardAlerts: 'board-alerts',
   cardImagesAdd: 'board:card-images-add',
@@ -89,5 +91,6 @@ module.exports = {
   ...board,
   ...alerts,
   ...activity,
-  ...themes
+  ...themes,
+  ...kinds
 }

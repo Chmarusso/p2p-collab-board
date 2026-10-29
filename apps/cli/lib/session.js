@@ -155,7 +155,7 @@ class Session {
     return this.state.publicKey
   }
 
-  async openBoard(invite, name, { sample = false } = {}) {
+  async openBoard(invite, name, { sample = false, kind } = {}) {
     this.state.synced = false
     // Comma-separated blind peer keys; replaces the built-in list (empty clears it).
     const blindPeers = process.env.OPENCOLLAB_BLIND_PEERS
@@ -163,7 +163,7 @@ class Session {
       const keys = blindPeers.split(',').map((key) => key.trim())
       this.send({ type: messageTypes.blindPeersSet, keys: keys.filter(Boolean) })
     }
-    this.send({ type: messageTypes.roomStart, invite: invite || null, name, sample })
+    this.send({ type: messageTypes.roomStart, invite: invite || null, name, sample, kind })
     const message = await this.wait(
       (message) =>
         message.type === messageTypes.roomStatus &&

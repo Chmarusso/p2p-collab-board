@@ -30,7 +30,7 @@ import FramedStream from 'framed-stream'
 import workerBundle from './worker.bundle.js'
 import { BootSplash } from './BootSplash'
 import { THEME_MODES, messageTypes, themeTemplate } from '@opencollab/board-protocol'
-import type { ThemeMode } from '@opencollab/board-protocol'
+import type { BoardKindId, ThemeMode } from '@opencollab/board-protocol'
 import {
   Avatar,
   BoardImages,
@@ -54,6 +54,7 @@ import {
   themed
 } from './ui'
 import { BoardScreen } from './board/BoardScreen'
+import { KindOptions } from './board/Kinds'
 import { QrCode, QrScanner } from './QrInvite'
 import { avatarOf, hideBlocked, hideBlockedAlerts, isVideo } from './board/model'
 import type { AlertBoard, BoardAlert, BoardData } from './board/model'
@@ -208,6 +209,7 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
   const [entryError, setEntryError] = useState('')
   const [invite, setInvite] = useState('')
   const [boardName, setBoardName] = useState('')
+  const [newBoardKind, setNewBoardKind] = useState<BoardKindId>('kanban')
   const [recentBoards, setRecentBoards] = useState<RecentBoard[]>([])
   const [displayName, setDisplayName] = useState('')
   const [displayNameDraft, setDisplayNameDraft] = useState('')
@@ -1226,6 +1228,9 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
           placeholderTextColor={colors.muted}
           autoFocus
         />
+        <Text style={styles.sectionLabel}>Board type</Text>
+        <KindOptions selected={newBoardKind} onPick={setNewBoardKind} />
+        <Text style={styles.hint}>The board's owner can change it later.</Text>
         {entryError ? <Text style={styles.error}>{entryError}</Text> : null}
         <View style={styles.row}>
           <Button
@@ -1243,7 +1248,12 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
             grow
             onPress={() => {
               if (!boardName.trim()) return setEntryError('Give your board a name.')
-              send({ type: messageTypes.roomStart, invite: null, name: boardName.trim() })
+              send({
+                type: messageTypes.roomStart,
+                invite: null,
+                name: boardName.trim(),
+                kind: newBoardKind
+              })
             }}
           />
         </View>

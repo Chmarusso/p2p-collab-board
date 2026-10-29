@@ -19,7 +19,8 @@ import {
   View
 } from 'react-native'
 import { Feather } from '@expo/vector-icons'
-import { messageTypes } from '@opencollab/board-protocol'
+import { hasFeature, messageTypes } from '@opencollab/board-protocol'
+import type { BoardFeature } from '@opencollab/board-protocol'
 import {
   Avatar,
   BoardImages,
@@ -215,6 +216,8 @@ export function CardSheet(props: Props) {
     name
   }))
   const ownVote = card.votes?.[me] || 0
+  // Sections the board's type has (see board-protocol/kinds.js).
+  const can = (feature: BoardFeature) => hasFeature(data.info.kind, feature)
   const labelIds = labelDraft || card.labelIds || []
   const comments = [...(card.comments || [])].sort(
     (a, b) =>
@@ -627,165 +630,179 @@ export function CardSheet(props: Props) {
                 </View>
               </Section>
 
-              <Section
-                title={
-                  card.assignees?.length ? `Assignees (${card.assignees.length})` : 'Assignees'
-                }
-              >
-                <AssigneePicker
-                  card={card}
-                  data={data}
-                  me={me}
-                  send={send}
-                  nameFor={props.nameFor}
-                  cache={props.cache}
-                  requestImage={props.requestImage}
-                />
-              </Section>
+              {can('assignees') ? (
+                <Section
+                  title={
+                    card.assignees?.length ? `Assignees (${card.assignees.length})` : 'Assignees'
+                  }
+                >
+                  <AssigneePicker
+                    card={card}
+                    data={data}
+                    me={me}
+                    send={send}
+                    nameFor={props.nameFor}
+                    cache={props.cache}
+                    requestImage={props.requestImage}
+                  />
+                </Section>
+              ) : null}
 
-              <Section title='Labels' action={{ label: 'Manage', onPress: props.onManageLabels }}>
-                <View style={styles.chipsWrap}>
-                  {data.labels.map((label) => {
-                    const on = labelIds.includes(label.id)
-                    return (
-                      <Chip
-                        key={label.id}
-                        label={`${on ? '✓ ' : ''}${label.name || 'Unnamed'}`}
-                        color={label.color || '#8590a2'}
-                        filled={on}
-                        selected={on}
-                        onPress={() =>
-                          setLabels(
-                            on ? labelIds.filter((id) => id !== label.id) : [...labelIds, label.id]
-                          )
+              {can('labels') ? (
+                <Section title='Labels' action={{ label: 'Manage', onPress: props.onManageLabels }}>
+                  <View style={styles.chipsWrap}>
+                    {data.labels.map((label) => {
+                      const on = labelIds.includes(label.id)
+                      return (
+                        <Chip
+                          key={label.id}
+                          label={`${on ? '✓ ' : ''}${label.name || 'Unnamed'}`}
+                          color={label.color || '#8590a2'}
+                          filled={on}
+                          selected={on}
+                          onPress={() =>
+                            setLabels(
+                              on
+                                ? labelIds.filter((id) => id !== label.id)
+                                : [...labelIds, label.id]
+                            )
+                          }
+                        />
+                      )
+                    })}
+                    <TextInput
+                      style={styles.newLabel}
+                      value={newLabel}
+                      onChangeText={setNewLabel}
+                      onSubmitEditing={addLabel}
+                      placeholder='+ New label'
+                      placeholderTextColor={colors.muted}
+                      maxLength={40}
+                      returnKeyType='done'
+                      accessibilityLabel='New label: type a name and press done'
+                    />
+                  </View>
+                </Section>
+              ) : null}
+
+              {can('due') ? (
+                <Section title='Due date'>
+                  {!dueOpen ? (
+                    <PressableScale
+                      style={[
+                        styles.dueButton,
+                        due && styles.dueSet,
+                        due?.status && styles[due.status]
+                      ]}
+                      onPress={openDue}
+                      accessibilityRole='button'
+                    >
+                      <Feather
+                        name={due ? 'clock' : 'plus'}
+                        size={14}
+                        color={
+                          due?.status === 'overdue'
+                            ? colors.danger
+                            : due?.status === 'soon'
+                              ? colors.warn
+                              : colors.muted
                         }
                       />
-                    )
-                  })}
-                  <TextInput
-                    style={styles.newLabel}
-                    value={newLabel}
-                    onChangeText={setNewLabel}
-                    onSubmitEditing={addLabel}
-                    placeholder='+ New label'
-                    placeholderTextColor={colors.muted}
-                    maxLength={40}
-                    returnKeyType='done'
-                    accessibilityLabel='New label: type a name and press done'
-                  />
-                </View>
-              </Section>
-
-              <Section title='Due date'>
-                {!dueOpen ? (
-                  <PressableScale
-                    style={[
-                      styles.dueButton,
-                      due && styles.dueSet,
-                      due?.status && styles[due.status]
-                    ]}
-                    onPress={openDue}
-                    accessibilityRole='button'
-                  >
-                    <Feather
-                      name={due ? 'clock' : 'plus'}
-                      size={14}
-                      color={
-                        due?.status === 'overdue'
-                          ? colors.danger
-                          : due?.status === 'soon'
-                            ? colors.warn
-                            : colors.muted
-                      }
-                    />
-                    <Text
-                      style={[
-                        styles.dueText,
-                        due?.status === 'overdue' && styles.overdueText,
-                        due?.status === 'soon' && styles.soonText
-                      ]}
-                    >
-                      {due
-                        ? `${due.text}${due.status === 'overdue' ? ' · overdue' : due.status === 'soon' ? ' · due soon' : ''}`
-                        : 'Add due date'}
-                    </Text>
-                  </PressableScale>
-                ) : (
-                  <View style={styles.duePanel}>
-                    <View style={styles.chipsWrap}>
-                      <Chip label='Today' onPress={() => quickDue(0)} />
-                      <Chip label='Tomorrow' onPress={() => quickDue(1)} />
-                      <Chip label='In 3 days' onPress={() => quickDue(3)} />
-                      <Chip label='Next week' onPress={() => quickDue(7)} />
-                    </View>
-                    <View style={styles.row}>
-                      <TextInput
-                        style={[styles.input, styles.flex]}
-                        value={dueDate}
-                        onChangeText={setDueDate}
-                        placeholder='YYYY-MM-DD'
-                        placeholderTextColor={colors.muted}
-                        autoCapitalize='none'
-                        accessibilityLabel='Due date'
-                      />
-                      <TextInput
-                        style={[styles.input, styles.timeInput]}
-                        value={dueTime}
-                        onChangeText={setDueTime}
-                        placeholder='HH:MM'
-                        placeholderTextColor={colors.muted}
-                        keyboardType='numbers-and-punctuation'
-                        accessibilityLabel='Due time (optional)'
-                      />
-                    </View>
-                    <Text style={styles.hint}>
-                      The time is optional; without one the card is due at the end of the day.
-                    </Text>
-                    <View style={styles.row}>
-                      <Button title='Save' onPress={saveDue} grow />
-                      {due ? (
-                        <Button
-                          title='Remove'
-                          variant='secondary'
-                          onPress={() => {
-                            send({
-                              type: messageTypes.cardUpdate,
-                              objectId: card.id,
-                              dueDate: null
-                            })
-                            setDueOpen(false)
-                          }}
+                      <Text
+                        style={[
+                          styles.dueText,
+                          due?.status === 'overdue' && styles.overdueText,
+                          due?.status === 'soon' && styles.soonText
+                        ]}
+                      >
+                        {due
+                          ? `${due.text}${due.status === 'overdue' ? ' · overdue' : due.status === 'soon' ? ' · due soon' : ''}`
+                          : 'Add due date'}
+                      </Text>
+                    </PressableScale>
+                  ) : (
+                    <View style={styles.duePanel}>
+                      <View style={styles.chipsWrap}>
+                        <Chip label='Today' onPress={() => quickDue(0)} />
+                        <Chip label='Tomorrow' onPress={() => quickDue(1)} />
+                        <Chip label='In 3 days' onPress={() => quickDue(3)} />
+                        <Chip label='Next week' onPress={() => quickDue(7)} />
+                      </View>
+                      <View style={styles.row}>
+                        <TextInput
+                          style={[styles.input, styles.flex]}
+                          value={dueDate}
+                          onChangeText={setDueDate}
+                          placeholder='YYYY-MM-DD'
+                          placeholderTextColor={colors.muted}
+                          autoCapitalize='none'
+                          accessibilityLabel='Due date'
                         />
-                      ) : null}
-                      <Button title='Cancel' variant='ghost' onPress={() => setDueOpen(false)} />
+                        <TextInput
+                          style={[styles.input, styles.timeInput]}
+                          value={dueTime}
+                          onChangeText={setDueTime}
+                          placeholder='HH:MM'
+                          placeholderTextColor={colors.muted}
+                          keyboardType='numbers-and-punctuation'
+                          accessibilityLabel='Due time (optional)'
+                        />
+                      </View>
+                      <Text style={styles.hint}>
+                        The time is optional; without one the card is due at the end of the day.
+                      </Text>
+                      <View style={styles.row}>
+                        <Button title='Save' onPress={saveDue} grow />
+                        {due ? (
+                          <Button
+                            title='Remove'
+                            variant='secondary'
+                            onPress={() => {
+                              send({
+                                type: messageTypes.cardUpdate,
+                                objectId: card.id,
+                                dueDate: null
+                              })
+                              setDueOpen(false)
+                            }}
+                          />
+                        ) : null}
+                        <Button title='Cancel' variant='ghost' onPress={() => setDueOpen(false)} />
+                      </View>
                     </View>
-                  </View>
-                )}
-              </Section>
+                  )}
+                </Section>
+              ) : null}
 
-              <Section
-                title={
-                  checklist.total ? `Checklist ${checklist.done}/${checklist.total}` : 'Checklist'
-                }
-              >
-                <ChecklistEditor card={card} send={send} />
-              </Section>
+              {can('checklist') ? (
+                <Section
+                  title={
+                    checklist.total ? `Checklist ${checklist.done}/${checklist.total}` : 'Checklist'
+                  }
+                >
+                  <ChecklistEditor card={card} send={send} />
+                </Section>
+              ) : null}
 
-              <Section title='Estimate'>
-                <EstimatePanel
-                  card={card}
-                  data={data}
-                  me={me}
-                  send={send}
-                  nameFor={props.nameFor}
-                  cache={props.cache}
-                  requestImage={props.requestImage}
-                />
-              </Section>
+              {can('points') ? (
+                <Section title='Estimate'>
+                  <EstimatePanel
+                    card={card}
+                    data={data}
+                    me={me}
+                    send={send}
+                    nameFor={props.nameFor}
+                    cache={props.cache}
+                    requestImage={props.requestImage}
+                  />
+                </Section>
+              ) : null}
 
-              <Section title='Links'>
-                <LinksEditor card={card} data={data} send={send} onOpen={props.onOpenCard} />
-              </Section>
+              {can('links') ? (
+                <Section title='Links'>
+                  <LinksEditor card={card} data={data} send={send} onOpen={props.onOpenCard} />
+                </Section>
+              ) : null}
 
               {images.length ? (
                 <Section title={`Images (${images.length})`}>
@@ -834,35 +851,37 @@ export function CardSheet(props: Props) {
               </Section>
 
               <Section title='Comments'>
-                <View style={styles.voteRow}>
-                  <VoteButton
-                    icon='chevron-up'
-                    active={ownVote === 1}
-                    color={colors.accent}
-                    label='Upvote'
-                    onPress={() =>
-                      send({
-                        type: messageTypes.boardVote,
-                        objectId: card.id,
-                        value: ownVote ? 0 : 1
-                      })
-                    }
-                  />
-                  <Text style={styles.score}>{scoreOf(card)}</Text>
-                  <VoteButton
-                    icon='chevron-down'
-                    active={ownVote === -1}
-                    color={colors.magenta}
-                    label='Downvote'
-                    onPress={() =>
-                      send({
-                        type: messageTypes.boardVote,
-                        objectId: card.id,
-                        value: ownVote ? 0 : -1
-                      })
-                    }
-                  />
-                </View>
+                {can('votes') ? (
+                  <View style={styles.voteRow}>
+                    <VoteButton
+                      icon='chevron-up'
+                      active={ownVote === 1}
+                      color={colors.accent}
+                      label='Upvote'
+                      onPress={() =>
+                        send({
+                          type: messageTypes.boardVote,
+                          objectId: card.id,
+                          value: ownVote ? 0 : 1
+                        })
+                      }
+                    />
+                    <Text style={styles.score}>{scoreOf(card)}</Text>
+                    <VoteButton
+                      icon='chevron-down'
+                      active={ownVote === -1}
+                      color={colors.magenta}
+                      label='Downvote'
+                      onPress={() =>
+                        send({
+                          type: messageTypes.boardVote,
+                          objectId: card.id,
+                          value: ownVote ? 0 : -1
+                        })
+                      }
+                    />
+                  </View>
+                ) : null}
                 {hidden ? (
                   <Pressable onPress={() => setShowAll(true)} accessibilityRole='button'>
                     <Text style={styles.link}>

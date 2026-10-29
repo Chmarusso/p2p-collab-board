@@ -760,6 +760,7 @@ export function ColumnSheet({
   index,
   count,
   cards,
+  wip,
   send,
   onLocalMove,
   onClose
@@ -769,6 +770,8 @@ export function ColumnSheet({
   count: number
   // Cards the column shows now, for the WIP limit hint.
   cards: number
+  // Whether the board's type uses WIP limits.
+  wip: boolean
   send: (message: object) => void
   onLocalMove: () => void
   onClose: () => void
@@ -814,39 +817,43 @@ export function ColumnSheet({
         none
         onPick={(color) => send({ type: messageTypes.columnUpdate, columnId: column.id, color })}
       />
-      <Text style={styles.sectionLabel}>Work in progress limit</Text>
-      <View style={styles.rowCenter}>
-        <TextInput
-          style={[styles.input, styles.limitInput]}
-          value={limit}
-          onChangeText={(value) => {
-            setLimit(value.replace(/[^0-9]/g, ''))
-            setLimitError('')
-          }}
-          onEndEditing={() => saveLimit(limit)}
-          placeholder='None'
-          placeholderTextColor={colors.muted}
-          keyboardType='number-pad'
-          returnKeyType='done'
-          maxLength={3}
-          accessibilityLabel='Work in progress limit'
-        />
-        {column.wipLimit ? (
-          <Button
-            title='No limit'
-            variant='ghost'
-            onPress={() => {
-              setLimit('')
-              saveLimit('')
-            }}
-          />
-        ) : null}
-      </View>
-      <Text style={styles.hint}>
-        {cards} {cards === 1 ? 'card' : 'cards'} now. The header turns amber at the limit and red
-        above it; moving a card into a full column asks first.
-      </Text>
-      {limitError ? <Text style={styles.error}>{limitError}</Text> : null}
+      {wip ? (
+        <>
+          <Text style={styles.sectionLabel}>Work in progress limit</Text>
+          <View style={styles.rowCenter}>
+            <TextInput
+              style={[styles.input, styles.limitInput]}
+              value={limit}
+              onChangeText={(value) => {
+                setLimit(value.replace(/[^0-9]/g, ''))
+                setLimitError('')
+              }}
+              onEndEditing={() => saveLimit(limit)}
+              placeholder='None'
+              placeholderTextColor={colors.muted}
+              keyboardType='number-pad'
+              returnKeyType='done'
+              maxLength={3}
+              accessibilityLabel='Work in progress limit'
+            />
+            {column.wipLimit ? (
+              <Button
+                title='No limit'
+                variant='ghost'
+                onPress={() => {
+                  setLimit('')
+                  saveLimit('')
+                }}
+              />
+            ) : null}
+          </View>
+          <Text style={styles.hint}>
+            {cards} {cards === 1 ? 'card' : 'cards'} now. The header turns amber at the limit and
+            red above it; moving a card into a full column asks first.
+          </Text>
+          {limitError ? <Text style={styles.error}>{limitError}</Text> : null}
+        </>
+      ) : null}
       <Text style={styles.sectionLabel}>Position</Text>
       <View style={styles.rowCenter}>
         <Button

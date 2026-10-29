@@ -108,7 +108,36 @@ export declare const THEME_TEMPLATES: readonly ThemeTemplate[]
 export declare const THEME_MODES: readonly ThemeMode[]
 export declare function isTemplateId(value: unknown): value is string
 export declare function themeTemplate(id: string | null | undefined): ThemeTemplate
-export type BoardInfo = { description: string; icon: MediaRef | null }
+export type BoardKindId = 'kanban' | 'todo' | 'feed' | 'recipes'
+export type BoardFeature =
+  | 'checklist'
+  | 'due'
+  | 'assignees'
+  | 'labels'
+  | 'points'
+  | 'links'
+  | 'votes'
+  | 'rules'
+  | 'wip'
+  | 'stats'
+  | 'templates'
+export type BoardLayout = 'columns' | 'list' | 'feed' | 'sections'
+export type BoardKind = {
+  id: BoardKindId
+  name: string
+  description: string
+  layout: BoardLayout
+  sections: readonly string[] | null
+  features: readonly BoardFeature[]
+}
+export declare const BOARD_FEATURES: readonly BoardFeature[]
+export declare const BOARD_KINDS: Readonly<Record<BoardKindId, Omit<BoardKind, 'id'>>>
+export declare const BOARD_KIND_IDS: readonly BoardKindId[]
+export declare const DEFAULT_BOARD_KIND: BoardKindId
+export declare function isBoardKind(value: unknown): value is BoardKindId
+export declare function boardKind(kind: string | null | undefined): BoardKind
+export declare function hasFeature(kind: string | null | undefined, feature: BoardFeature): boolean
+export type BoardInfo = { description: string; icon: MediaRef | null; kind: BoardKindId }
 export type MemberRole = 'owner' | 'admin' | 'member'
 export type BoardMember = {
   identity: string

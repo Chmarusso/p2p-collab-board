@@ -55,7 +55,7 @@ export type Theme = {
   template?: string | null
   backgroundImage?: ImageRef | null
 }
-export type BoardInfo = { description: string; icon?: ImageRef | null }
+export type BoardInfo = { description: string; icon?: ImageRef | null; kind?: string }
 export type MemberRole = 'owner' | 'admin' | 'member'
 export const avatarOf = (data: BoardData, identity: string) =>
   data.members.find((member) => member.identity === identity)?.avatar || null

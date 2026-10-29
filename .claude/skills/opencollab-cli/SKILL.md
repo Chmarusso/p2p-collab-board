@@ -73,6 +73,7 @@ opencollab due <id> 2026-12-31 --time 17:00            # or: due <id> clear
 opencollab archive <id>                                # restore <id> undoes it
 opencollab vote <id> up                                # up | down | clear
 opencollab describe "What this board is for"
+opencollab kind --json                                 # board type and the card fields it shows
 opencollab checklist add <id> "Item"                   # check|uncheck|rename|rm <id> <item#|text>
 opencollab assign <id> Alice                           # name, identity prefix or me; unassign
 opencollab link <id> blocks <other-id>                 # or relates; unlink <id> <other-id>
@@ -89,6 +90,14 @@ opencollab template mark <id>                          # template apply sprint|b
 - Limits: title 200 chars, body 20 000, comment 5 000.
 - A write prints a "!" note when no peer is online: the change is saved locally and
   syncs the next time a peer connects. That is not an error.
+
+## Board types
+
+A board is `kanban` (default), `todo` (one list to tick off), `feed` (posts, newest
+first) or `recipes` (sections such as Breakfast, Lunch, Dinner). Columns are the type's
+sections. `opencollab kind --json` lists the card fields members see (`features`): don't
+set checklists, due dates, assignees, points or links on a board whose type hides them.
+Only the owner changes the type.
 
 ## Behave like a good board member
 
