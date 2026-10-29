@@ -8,6 +8,7 @@ import {
   Image,
   KeyboardAvoidingView,
   LayoutAnimation,
+  Linking,
   Modal,
   PanResponder,
   Platform,
@@ -46,6 +47,7 @@ import {
   reduceMotion,
   PendingImage,
   pickPreparedImages,
+  prepareImage,
   applyPalette,
   scheme,
   setReduceMotion,
@@ -57,6 +59,18 @@ import { avatarOf, hideBlocked, hideBlockedAlerts, isVideo } from './board/model
 import type { AlertBoard, BoardAlert, BoardData } from './board/model'
 import { KeychainChoice, SettingsSheet, keychainCopy } from './Settings'
 import { DEFAULT_SOUND, SoundName, isSoundName, playSound, soundPrefKey } from './sounds'
+import {
+  SharePref,
+  SharePrefs,
+  fetchPreview,
+  parseShare,
+  readSharePrefs,
+  sharePrefsKey,
+  withPreview
+} from './share'
+import { ShareBoard, ShareSheet } from './ShareSheet'
+import { SharedItemsSheet } from './SharedItems'
+import { SharedRecord, loadShared, newSharedId, removeShared, upsertShared } from './sharedHistory'
 
 const normalizeInvite = (value: string) => {
   const invite = value.trim()
@@ -243,6 +257,26 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
   const [waitedForMembers, setWaitedForMembers] = useState(false)
   const identityKeyRef = useRef('')
   const currentBoardKey = useRef('')
+  // The open board's invite, to tell whether a shared link needs a board switch.
+  const currentInvite = useRef('')
+  // The shared item in the board picker, and every item shared on this device.
+  const [shared, setShared] = useState<SharedRecord | null>(null)
+  const [sharedRecords, setSharedRecords] = useState<SharedRecord[]>([])
+  const sharedRecordsRef = useRef<SharedRecord[]>([])
+  const [sharedListOpen, setSharedListOpen] = useState(false)
+  // Preview and prepared image per shared item, started as soon as it arrives.
+  const previews = useRef(
+    new Map<string, Promise<{ record: SharedRecord; image: PendingImage | null }>>()
+  )
+  const [previewsLoading, setPreviewsLoading] = useState<string[]>([])
+  // The shared item the open composer was filled from.
+  const composerShare = useRef<string | null>(null)
+  const [sharePrefs, setSharePrefs] = useState<SharePrefs>({ boards: {} })
+  const sharePrefsRef = useRef<SharePrefs>({ boards: {} })
+  // A shared link waiting for its board to open before the composer shows.
+  const pendingShare = useRef<{ invite: string; record: SharedRecord } | null>(null)
+  // The worker sends a board's state just before its room-status 'ready'.
+  const boardColumns = useRef<{ id: string }[]>([])
   const savedPhraseRef = useRef('')
   // The phrase of the identity being loaded, and of the one now unlocked.
   const loadingPhraseRef = useRef('')
@@ -344,13 +378,16 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
         setInvitationLink(message.invite || '')
         setBoardKey(message.boardKey || '')
         currentBoardKey.current = message.boardKey || ''
+        currentInvite.current = message.invite ? normalizeInvite(message.invite) : ''
         if (message.invite) rememberBoard(message.invite, message.boardName || 'Unnamed board')
+        openPendingShare(boardColumns.current)
         if (message.displayName) {
           setDisplayName(message.displayName)
           setDisplayNameDraft(message.displayName)
         }
       }
       if (message.type === messageTypes.roomStatus && message.status === 'none') {
+        currentInvite.current = ''
         setRoomReady(false)
         setSynced(false)
         setBoardData(emptyBoard)
@@ -412,6 +449,7 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
           rules: message.rules || []
         })
         openPendingCard(message.objects || [])
+        boardColumns.current = message.columns || []
       }
       if (message.type === 'board-name' && message.name) {
         setBoardName(message.name)
@@ -422,6 +460,7 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
       }
       if (message.type === messageTypes.boardSynced) setSynced(true)
       if (message.type === 'room-status' && message.status === 'error') {
+        pendingShare.current = null
         setEntryError(message.error || 'Something went wrong')
       }
       if (message.type === 'room-debug') setNetworkStatus(describeNetwork(message.status))
@@ -464,6 +503,23 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
   }, [roomReady, synced])
 
   const send = (message: object) => pipe?.write(JSON.stringify(message))
+
+  // Links and posts shared from other apps (the Share menu) arrive as
+  // opencollab://share links; the board picker shows once an identity is open.
+  useEffect(() => {
+    const receive = (url: string | null) => {
+      const item = parseShare(url)
+      if (!item) return
+      const record: SharedRecord = { id: newSharedId(), at: Date.now(), ...item }
+      setEntryMode('choose')
+      setShared(record)
+      saveSharedRecord(record)
+      startPreview(record)
+    }
+    void Linking.getInitialURL().then(receive)
+    const subscription = Linking.addEventListener('url', ({ url }) => receive(url))
+    return () => subscription.remove()
+  }, [])
 
   // Android Back steps out of a board or a create/join form before leaving the
   // app. Open sheets and modals handle Back themselves (onRequestClose).
@@ -579,6 +635,121 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
     }
     pendingOpen.current = { boardKey: board.key, cardId }
     send({ type: messageTypes.roomStart, invite: normalizeInvite(board.invite) })
+  }
+
+  // Fetches the page preview and prepares its image once per shared item; the
+  // picker, the composer and the Shared items list all read the result.
+  function startPreview(record: SharedRecord) {
+    const started = previews.current.get(record.id)
+    if (started) return started
+    const run = async () => {
+      let next = record
+      if (record.link && !record.previewed) {
+        const preview = await fetchPreview(record.link)
+        next = {
+          ...record,
+          ...withPreview(record, preview),
+          description: preview.description,
+          image: preview.image,
+          previewed: true
+        }
+        saveSharedRecord(next)
+        setShared((current) => (current?.id === record.id ? next : current))
+      }
+      let image: PendingImage | null = null
+      if (next.image) {
+        try {
+          const [width, height] = await new Promise<[number, number]>((resolve, reject) =>
+            Image.getSize(next.image!, (w, h) => resolve([w, h]), reject)
+          )
+          image = await prepareImage(next.image, width, height)
+        } catch {}
+      }
+      return { record: next, image }
+    }
+    setPreviewsLoading((current) => [...current, record.id])
+    const promise = run().finally(() =>
+      setPreviewsLoading((current) => current.filter((id) => id !== record.id))
+    )
+    previews.current.set(record.id, promise)
+    return promise
+  }
+
+  // Kept per identity; items shared before the identity is unlocked are saved
+  // once it is (loadRecentBoards).
+  function saveSharedRecord(record: SharedRecord) {
+    const identity = identityKeyRef.current
+    const list = sharedRecordsRef.current
+    let next: SharedRecord[]
+    if (identity) next = upsertShared(identity, list, record)
+    else if (list.some((item) => item.id === record.id)) {
+      next = list.map((item) => (item.id === record.id ? record : item))
+    } else next = [record, ...list]
+    sharedRecordsRef.current = next
+    setSharedRecords(next)
+  }
+
+  function forgetSharedRecord(record: SharedRecord) {
+    const identity = identityKeyRef.current
+    if (!identity) return
+    const next = removeShared(identity, sharedRecordsRef.current, record.id)
+    sharedRecordsRef.current = next
+    setSharedRecords(next)
+  }
+
+  // "Add to board" from the Shared items list goes back through the picker.
+  function shareAgain(record: SharedRecord) {
+    setSharedListOpen(false)
+    setShared(record)
+    void startPreview(record)
+  }
+
+  function pickShareBoard(board: ShareBoard) {
+    const record = shared
+    setShared(null)
+    if (!record) return
+    const invite = normalizeInvite(board.invite)
+    saveSharePrefs({ ...sharePrefsRef.current, last: invite })
+    pendingShare.current = { invite, record }
+    if (invite === currentInvite.current) openPendingShare(boardData.columns)
+    else send({ type: messageTypes.roomStart, invite })
+  }
+
+  // Once the chosen board is open, the composer shows the shared link, in the
+  // column picked for shared items if it still exists. A preview still loading
+  // fills in later, leaving alone whatever the user changed meanwhile.
+  function openPendingShare(columns: { id: string }[]) {
+    const pending = pendingShare.current
+    if (!pending || pending.invite !== currentInvite.current) return
+    pendingShare.current = null
+    const columnId = sharePrefsRef.current.boards[pending.invite]?.columnId
+    const { record } = pending
+    setComposerColumn(columns.some((column) => column.id === columnId) ? columnId! : null)
+    setNewTitle(record.title)
+    setNewBody(record.body)
+    setPendingImages([])
+    composerShare.current = record.id
+    setComposerOpen(true)
+    void startPreview(record).then(({ record: filled, image }) => {
+      if (composerShare.current !== record.id) return
+      setNewTitle((current) => (current === record.title ? filled.title : current))
+      setNewBody((current) => (current === record.body ? filled.body : current))
+      if (image) setPendingImages((current) => (current.length ? current : [image]))
+    })
+  }
+
+  function saveSharePrefs(next: SharePrefs) {
+    sharePrefsRef.current = next
+    setSharePrefs(next)
+    const identity = identityKeyRef.current
+    if (identity) void SecureStore.setItemAsync(sharePrefsKey(identity), JSON.stringify(next))
+  }
+
+  function setSharePref(pref: SharePref) {
+    const invite = currentInvite.current
+    if (!invite) return
+    const boards = { ...sharePrefsRef.current.boards, [invite]: pref }
+    saveSharePrefs({ ...sharePrefsRef.current, boards })
   }
 
   // After switching boards for a notification, open its card once it's there.
@@ -762,6 +933,36 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
     send({ type: messageTypes.boardExport, requestId, toFile: true })
   }
 
+  // Boards a shared link can go to: the last one used first, then the open one.
+  const shareRank = (invite: string) =>
+    invite === sharePrefs.last ? 2 : roomReady && invite === currentInvite.current ? 1 : 0
+  const shareBoards: ShareBoard[] = recentBoards
+    .filter((board) => !sharePrefs.boards[normalizeInvite(board.invite)]?.hidden)
+    .map((board) => ({
+      invite: board.invite,
+      name: board.name,
+      open: roomReady && normalizeInvite(board.invite) === currentInvite.current
+    }))
+    .sort((a, b) => shareRank(normalizeInvite(b.invite)) - shareRank(normalizeInvite(a.invite)))
+  const shareSheet = shared ? (
+    <ShareSheet
+      item={shared}
+      loading={previewsLoading.includes(shared.id)}
+      boards={shareBoards}
+      hiddenCount={recentBoards.length - shareBoards.length}
+      onPick={pickShareBoard}
+      onClose={() => setShared(null)}
+    />
+  ) : sharedListOpen ? (
+    <SharedItemsSheet
+      records={sharedRecords}
+      relativeTime={relativeTime}
+      onAdd={shareAgain}
+      onRemove={forgetSharedRecord}
+      onClose={() => setSharedListOpen(false)}
+    />
+  ) : null
+
   const settings = settingsOpen ? (
     <SettingsSheet
       keychain={keychain}
@@ -784,6 +985,14 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
   }
 
   async function loadRecentBoards(identity: string) {
+    const prefs = readSharePrefs(await SecureStore.getItemAsync(sharePrefsKey(identity)))
+    sharePrefsRef.current = prefs
+    setSharePrefs(prefs)
+    const unsaved = sharedRecordsRef.current
+    let records = await loadShared(identity)
+    for (const record of [...unsaved].reverse()) records = upsertShared(identity, records, record)
+    sharedRecordsRef.current = records
+    setSharedRecords(records)
     let saved = await SecureStore.getItemAsync(recentBoardsKey(identity))
     if (!saved) {
       saved = await SecureStore.getItemAsync(legacyRecentBoardsKey)
@@ -879,6 +1088,9 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
 
   function addObject() {
     if (!newTitle.trim()) return
+    const fromShare = sharedRecordsRef.current.find((item) => item.id === composerShare.current)
+    if (fromShare) saveSharedRecord({ ...fromShare, board: boardName, addedAt: Date.now() })
+    composerShare.current = null
     send({
       type: messageTypes.boardCreate,
       title: newTitle,
@@ -921,39 +1133,38 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
     return (
       <Screen title='opencollab' cursor>
         <Text style={styles.muted}>
-          Peer-to-peer boards. No servers, no accounts — just a key that lives on your device.
+          Your private boards and feeds. No servers: everything lives on your and your friends'
+          devices.
         </Text>
         {identityChoice === 'choose' ? (
           <>
             {hasSavedPhrase ? (
-              <Button
-                title='Unlock saved identity'
-                icon='unlock'
-                onPress={() => void unlockSaved()}
-              />
+              <Button title='Log in' icon='log-in' onPress={() => void unlockSaved()} />
             ) : null}
             <Button
-              title='Create new identity'
-              icon='key'
+              title='Create new account'
+              icon='user-plus'
               variant={hasSavedPhrase ? 'secondary' : 'primary'}
               onPress={createIdentity}
             />
             <Button
-              title='Use existing identity'
-              icon='download'
+              title='Log in with recovery words'
+              icon='key'
               variant='secondary'
               onPress={() => setIdentityChoice('existing')}
             />
           </>
         ) : (
           <>
-            <Text style={styles.muted}>Enter the recovery phrase for your existing identity.</Text>
+            <Text style={styles.muted}>
+              Enter the 24 recovery words you wrote down when you created your account.
+            </Text>
             <TextInput
               style={[styles.input, styles.monoInput]}
               multiline
               value={identityPhrase}
               onChangeText={setIdentityPhrase}
-              placeholder='Recovery phrase'
+              placeholder='Recovery words'
               placeholderTextColor={colors.muted}
               autoCapitalize='none'
               autoCorrect={false}
@@ -965,7 +1176,7 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
                 variant='secondary'
                 onPress={() => setIdentityChoice('choose')}
               />
-              <Button title='Unlock' icon='unlock' onPress={() => void unlock()} grow />
+              <Button title='Log in' icon='log-in' onPress={() => void unlock()} grow />
             </View>
           </>
         )}
@@ -974,10 +1185,10 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
   }
   if (backupPhrase) {
     return (
-      <Screen title='Back up your key'>
+      <Screen title='Save your recovery words'>
         <Text style={styles.muted}>
-          These words are the only way to recover this identity on another device. Write them down
-          and keep them offline.
+          These 24 words are the only way to log in to your account on another device or after
+          reinstalling. Write them down and keep them somewhere safe, offline.
         </Text>
         <View style={styles.phraseGrid}>
           {backupPhrase.split(/\s+/).map((word, index) => (
@@ -1152,6 +1363,14 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
         ) : (
           <Text style={styles.muted}>No boards yet. Create one or join with an invitation.</Text>
         )}
+        {sharedRecords.length ? (
+          <Button
+            title={`Shared items (${sharedRecords.length})`}
+            icon='share-2'
+            variant='ghost'
+            onPress={() => setSharedListOpen(true)}
+          />
+        ) : null}
         <Button
           title='Settings'
           icon='settings'
@@ -1160,6 +1379,7 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
         />
         <Button title='Log out' icon='log-out' variant='ghost' onPress={logout} />
         {settings}
+        {shareSheet}
       </Screen>
     )
   }
@@ -1226,6 +1446,7 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
         openViewer={setViewerUri}
         openProfile={() => setProfileOpen(true)}
         onNewCard={(columnId) => {
+          composerShare.current = null
           setComposerColumn(columnId)
           setComposerOpen(true)
         }}
@@ -1245,6 +1466,8 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
         relativeTime={relativeTime}
         blocked={blocked}
         toggleBlocked={toggleBlocked}
+        sharePref={sharePrefs.boards[currentInvite.current] || {}}
+        onSharePref={setSharePref}
       />
       <UpdateBanner />
 
@@ -1302,6 +1525,9 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
                   </View>
                 ))}
               </ScrollView>
+            ) : null}
+            {composerShare.current && previewsLoading.includes(composerShare.current) ? (
+              <Text style={styles.hint}>Loading the link preview…</Text>
             ) : null}
             <Button
               title={
@@ -1514,6 +1740,7 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
         </KeyboardAvoidingView>
       </Modal>
       {settings}
+      {shareSheet}
     </View>
   )
 }
