@@ -77,6 +77,7 @@ let lastTs = 0
 let boardName = ''
 let roomSyncTimer = null
 let replicationDiscovery = null
+let liveDiscovery = null
 let boardUpdateInFlight = null
 // Image attachments: each member appends images to their own Hyperblobs core,
 // block-encrypted with a key derived from the board secret, and posts carry
@@ -435,10 +436,30 @@ async function applyBoardNodes(nodes, view, host) {
   await batch.flush()
 }
 
+// Ops from other members just arrived: the apps show who is syncing what.
+function reportActivity(ops) {
+  const own = ownIdentityHex()
+  const remote = ops.filter((op) => op.identity && op.identity !== own)
+  if (!remote.length) return
+  pipe.write(
+    JSON.stringify({
+      type: messageTypes.peerActivity,
+      authors: [...new Set(remote.map((op) => op.identity))],
+      cardIds: [
+        ...new Set(remote.map((op) => op.payload?.objectId || op.payload?.object?.id))
+      ].filter((id) => typeof id === 'string'),
+      count: remote.length
+    })
+  )
+}
+
 async function onBoardUpdate() {
   try {
     const previousName = boardName
+    const before = new Set(boardOps.keys())
     await loadBoard()
+    // A board opening for the first time isn't news; later additions are.
+    if (before.size) reportActivity([...boardOps.values()].filter((op) => !before.has(op.id)))
     // A joiner learns the name from replicated board metadata; tell the UI.
     if (boardName && boardName !== previousName) {
       pipe.write(JSON.stringify({ type: 'board-name', name: boardName }))
@@ -1024,13 +1045,16 @@ function watchBoards(boards) {
 }
 
 // Presence: who has the board open, which card they're looking at, whether
-// they're typing. Ephemeral, so it travels between connected peers only and
+// they're typing, and what a bot is busy with ("Making key points"). Ephemeral,
+// so it travels between connected peers only and
 // is never written to the log. Encrypted with the board secret like ops; not
 // signed, since a wrong "typing…" costs nothing.
 const PRESENCE_HEARTBEAT = 10000
 const PRESENCE_TTL = 30000
-const presence = new Map() // identity → { cardId, typing, at, peer }
-let ownPresence = { cardId: null, typing: false }
+const presence = new Map() // identity → { cardId, typing, status, at, peer }
+let ownPresence = { cardId: null, typing: false, status: null }
+const presenceStatus = (value) =>
+  typeof value === 'string' && value.trim() ? value.trim().slice(0, 80) : null
 let presenceTimer = null
 
 function presenceMessage() {
@@ -1065,6 +1089,7 @@ function sendPresence() {
           name: boardState.profiles[identity] || null,
           cardId: entry.cardId,
           typing: entry.typing,
+          status: entry.status,
           at: entry.at
         }))
         .sort((a, b) => (a.identity < b.identity ? -1 : 1))
@@ -1078,7 +1103,13 @@ function receivePresence(peer, payload) {
   if (identity === ownIdentityHex()) return
   const cardId =
     typeof payload.cardId === 'string' && payload.cardId.length <= 80 ? payload.cardId : null
-  presence.set(identity, { cardId, typing: payload.typing === true, at: Date.now(), peer })
+  presence.set(identity, {
+    cardId,
+    typing: payload.typing === true,
+    status: presenceStatus(payload.status),
+    at: Date.now(),
+    peer
+  })
   sendPresence()
 }
 
@@ -1454,11 +1485,11 @@ function handleRoomMessage(peer, message) {
   if (peer.authenticated && message.type === 'board:ops') {
     const payload = decryptBoardPayload(message.encrypted)
     learnBoardName(payload?.boardName)
-    let changed = false
-    for (const op of Array.isArray(payload?.ops) ? payload.ops : []) changed = ingest(op) || changed
-    if (changed) {
+    const added = (Array.isArray(payload?.ops) ? payload.ops : []).filter((op) => ingest(op))
+    if (added.length) {
       deriveState()
       sendBoardState()
+      reportActivity(added)
     }
     sendBoardSynced()
   }
@@ -1619,6 +1650,13 @@ async function startRoom(invite, name) {
     client: true,
     server: true
   })
+  // The live channel (presence, chat and ops as they happen, see chatSwarm) has
+  // its own topic: on the log's key it would pair with peers' replication swarm.
+  // Peers prove they hold the board secret before anything is exchanged.
+  liveDiscovery = chatSwarm.join(
+    crypto.hash(Buffer.concat([Buffer.from('opencollab-live:'), boardDb.discoveryKey])),
+    { client: true, server: true }
+  )
   mirrorBoard()
   pipe.write(JSON.stringify({ type: 'room-debug', status: 'topic-joining' }))
   replicationDiscovery
@@ -1700,7 +1738,7 @@ async function closeRoom() {
   for (const peer of chatConnections.values()) peer.connection.destroy()
   chatConnections.clear()
   presence.clear()
-  ownPresence = { cardId: null, typing: false }
+  ownPresence = { cardId: null, typing: false, status: null }
   clearInterval(presenceTimer)
   presenceTimer = null
   clearInterval(recurringTimer)
@@ -1708,6 +1746,10 @@ async function closeRoom() {
   if (replicationDiscovery) {
     await replicationDiscovery.destroy()
     replicationDiscovery = null
+  }
+  if (liveDiscovery) {
+    await liveDiscovery.destroy()
+    liveDiscovery = null
   }
   roomState = null
   for (const blobs of remoteBlobs.values()) await blobs.core.close()
@@ -2239,7 +2281,8 @@ pipe.on('data', async (data) => {
     } else if (msg.type === messageTypes.presenceSet) {
       ownPresence = {
         cardId: typeof msg.cardId === 'string' && msg.cardId.length <= 80 ? msg.cardId : null,
-        typing: msg.typing === true
+        typing: msg.typing === true,
+        status: presenceStatus(msg.status)
       }
       broadcastPresence()
     } else if (msg.type === messageTypes.boardExport) {

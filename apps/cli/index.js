@@ -948,6 +948,45 @@ const watch = command(
   })
 )
 
+// For bots: stays online showing what it's busy with, so members see it in the
+// apps ("Enricher: Making key points") instead of a silent board.
+const status = command(
+  'status',
+  summary('Stay online showing members what you are working on'),
+  description(
+    'Shown live in the apps, never saved. Stops on Ctrl+C, SIGTERM or after --for seconds.\n' +
+      'The storage stays locked meanwhile: stop it before running other commands.'
+  ),
+  arg('<text>', 'what you are doing, e.g. "Making key points" (up to 80 characters)'),
+  flag('--card [card]', 'the card it is about (number, id prefix or title)'),
+  flag('--for [seconds]', 'leave after this long (default: until stopped)'),
+  ...boardFlags(),
+  action(async ({ args, flags }) => {
+    await withSession(flags, async (session) => {
+      await openBoard(session, { ...flags, wait: 0 })
+      const card = flags.card ? findPost(session.state.objects, flags.card) : null
+      session.send({
+        type: messageTypes.presenceSet,
+        cardId: card?.id || null,
+        typing: false,
+        status: args.text
+      })
+      say(`Showing "${args.text}"${card ? ` on "${card.title}"` : ''} · Ctrl+C to stop`)
+      let peers = session.state.peers
+      session.waiters.add((message) => {
+        if (message.type !== 'peer-count' || session.state.peers === peers) return
+        peers = session.state.peers
+        say(`· ${peers} peer${peers === 1 ? '' : 's'} connected`)
+      })
+      await new Promise((resolve) => {
+        process.once('SIGINT', resolve)
+        process.once('SIGTERM', resolve)
+        if (Number(flags.for) > 0) setTimeout(resolve, Number(flags.for) * 1000)
+      })
+    })
+  })
+)
+
 const version = command(
   'version',
   summary('Print the CLI version and how it is updated'),
@@ -2711,6 +2750,7 @@ const cli = command(
   images,
   attach,
   watch,
+  status,
   mcp,
   update,
   version

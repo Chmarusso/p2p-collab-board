@@ -28,7 +28,13 @@
 import { spawn } from 'node:child_process'
 import path from 'node:path'
 import { parseArgs } from 'node:util'
-import { ask as askModel, fetchPost as fetchSource, makeCli, makeTreg } from './lib/sources.mjs'
+import {
+  ask as askModel,
+  fetchPost as fetchSource,
+  makeCli,
+  makeStatus,
+  makeTreg
+} from './lib/sources.mjs'
 
 const { values: options } = parseArgs({
   options: {
@@ -53,6 +59,7 @@ const COMMENT_MAX = 4900 // the board allows 5 000 characters per comment
 
 const treg = makeTreg()
 const cli = makeCli({ bin, storage: process.env.ENRICH_STORAGE, board })
+const showStatus = makeStatus({ bin, storage: process.env.ENRICH_STORAGE, board })
 const fetchPost = (url) => fetchSource(treg, url)
 const ask = (prompt) => askModel(modelCommand, prompt)
 
@@ -130,15 +137,24 @@ const clip = (text) => (text.length > COMMENT_MAX ? `${text.slice(0, COMMENT_MAX
 async function enrich(card, profiles) {
   const url = card.source?.url || card.body?.match(/https?:\/\/\S+/)?.[0]?.replace(/[)>\]]+$/, '')
   console.log(`\n▸ ${card.title}\n  ${url}`)
-  const post = await fetchPost(url)
-  if (!post.caption && !post.transcript) {
-    console.warn('  ! nothing to read from the post; skipped (try again later)')
-    return false
+  const busy = options['dry-run'] ? null : showStatus('Writing the recipe', card.id)
+  let post
+  let recipe
+  try {
+    post = await fetchPost(url)
+    if (!post.caption && !post.transcript) {
+      console.warn('  ! nothing to read from the post; skipped (try again later)')
+      return false
+    }
+    console.log(
+      `  caption ${post.caption.length} chars · transcript ${post.transcript.length} chars`
+    )
+    const comments = commentsOf(card, profiles)
+    if (comments) console.log(`  ${comments.split('\n').length} comment(s) from members`)
+    recipe = parseAnswer(await ask(promptFor(card, post, comments)))
+  } finally {
+    await busy?.stop()
   }
-  console.log(`  caption ${post.caption.length} chars · transcript ${post.transcript.length} chars`)
-  const comments = commentsOf(card, profiles)
-  if (comments) console.log(`  ${comments.split('\n').length} comment(s) from members`)
-  const recipe = parseAnswer(await ask(promptFor(card, post, comments)))
   if (!recipe.body) throw new Error('the model returned nothing')
   // A non-recipe gets a summary, and keeps its title.
   // The model's clean title replaces what the share flow made.

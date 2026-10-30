@@ -9,8 +9,9 @@ import { Avatar, CachedImage, ImageRef, colors, themed } from '../ui'
 import { t } from '../i18n'
 import { Markdown } from './Markdown'
 import { ShortsButton, ShortsPlayer, shortsOf, useWatched } from './Shorts'
-import { SlidesButton, SlidesPlayer, decksOf } from './Slides'
+import { SlidesButton, SlidesPlayer, deckOf, decksOf } from './Slides'
 import { useImageUri } from './Panels'
+import { BusyChip } from './Sync'
 import { BoardData, Card, avatarOf, imagesOf, sourceSite } from './model'
 
 export function FeedView({
@@ -22,6 +23,7 @@ export function FeedView({
   nameFor,
   relativeTime,
   onOpen,
+  busyOf,
   onCompose,
   boardKey,
   send,
@@ -38,6 +40,8 @@ export function FeedView({
   nameFor: (identity: string) => string
   relativeTime: (iso?: string) => string
   onOpen: (cardId: string) => void
+  // A bot working on the post, or changes to it arriving (see Sync.tsx).
+  busyOf?: (cardId: string) => string | undefined
   onCompose: () => void
 }) {
   // Shorts play in their own player, not in the list of posts.
@@ -113,6 +117,7 @@ export function FeedView({
           requestImage={requestImage}
           nameFor={nameFor}
           relativeTime={relativeTime}
+          busy={busyOf?.(card.id)}
           onPress={() => (deckIds.has(card.id) ? setFlipping([card]) : onOpen(card.id))}
         />
       ))}
@@ -132,6 +137,7 @@ function Post({
   requestImage,
   nameFor,
   relativeTime,
+  busy,
   onPress
 }: {
   card: Card
@@ -140,10 +146,13 @@ function Post({
   requestImage: (ref: ImageRef) => void
   nameFor: (identity: string) => string
   relativeTime: (iso?: string) => string
+  busy?: string
   onPress: () => void
 }) {
   const photo = imagesOf(card)[0]
   const uri = useImageUri(photo, cache, requestImage)
+  // A post with key points shows its hook; the slides themselves open on tap.
+  const text = (deckOf(data, card)?.summary || card.body || '').trim()
   const comments = card.comments?.length || 0
   const reactions = REACTIONS.filter((emoji) => card.reactions?.[emoji]?.length)
   return (
@@ -166,6 +175,11 @@ function Post({
         </Text>
         <Text style={styles.time}>{relativeTime(card.createdAt)}</Text>
       </View>
+      {busy ? (
+        <View style={styles.busy}>
+          <BusyChip text={busy} />
+        </View>
+      ) : null}
       {photo ? (
         uri ? (
           <Image source={{ uri }} style={styles.photo} accessibilityIgnoresInvertColors />
@@ -175,12 +189,12 @@ function Post({
       ) : (
         <Cover card={card} />
       )}
-      {photo || card.body?.trim() || card.source || comments || reactions.length ? (
+      {photo || text || card.source || comments || reactions.length ? (
         <View style={styles.text}>
           {photo ? <Text style={styles.title}>{card.title}</Text> : null}
-          {card.body?.trim() ? (
+          {text ? (
             <Markdown
-              text={card.body}
+              text={text}
               mentions={card.mentions?.map((identity) => ({ identity, name: nameFor(identity) }))}
               numberOfLines={4}
             />
@@ -268,6 +282,7 @@ const styles = themed(() => ({
     overflow: 'hidden'
   },
   author: { alignItems: 'center', flexDirection: 'row', gap: 8, padding: 12 },
+  busy: { paddingBottom: 8, paddingHorizontal: 12, marginTop: -4 },
   authorName: { color: colors.text, flexShrink: 1, fontSize: 14, fontWeight: '600' },
   time: { color: colors.muted, fontSize: 12 },
   photo: { width: '100%', aspectRatio: 4 / 3, backgroundColor: colors.surface },

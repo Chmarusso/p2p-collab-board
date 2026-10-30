@@ -1,7 +1,8 @@
 // Slide decks: a post's key points as a short story to watch (see
 // apps/cli/examples/feed-slides.mjs, which labels them `slides`). The deck is
-// the card's description: a one-line hook, then `## emoji heading` + lines per
-// slide, separated by `---`. Read decks are remembered on this device.
+// the card's description: a one-line hook, then per slide an optional
+// `### section label`, a `## heading` and its lines, separated by `---`. Read
+// decks are remembered on this device.
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Animated,
@@ -26,7 +27,7 @@ import { BoardData, Card, imagesOf, sourceSite } from './model'
 
 export const SLIDES_LABEL = 'slides'
 
-export type Slide = { heading: string; lines: string[] }
+export type Slide = { label: string; heading: string; lines: string[] }
 
 // The deck in a card labelled `slides`; null for any other card.
 export function deckOf(data: BoardData, card: Card) {
@@ -34,10 +35,17 @@ export function deckOf(data: BoardData, card: Card) {
   if (!label || !card.labelIds?.includes(label.id)) return null
   const [intro, ...sections] = (card.body || '').split(/^\s*---\s*$/m).map((part) => part.trim())
   const slides: Slide[] = sections
-    .filter((section) => section.startsWith('## '))
-    .map((section) => {
-      const [heading, ...lines] = section.split('\n')
-      return { heading: heading.replace(/^##\s*/, ''), lines: lines.filter((line) => line.trim()) }
+    .map((section) => section.split('\n').filter((line) => line.trim()))
+    .filter((lines) => lines.some((line) => /^##\s/.test(line)))
+    .map((lines) => {
+      const at = lines.findIndex((line) => /^##\s/.test(line))
+      const label = lines.slice(0, at).find((line) => /^###\s/.test(line)) || ''
+      return {
+        label: label.replace(/^###\s*/, '').trim(),
+        // Decks made before section labels started headings with an emoji.
+        heading: lines[at].replace(/^##\s*/, '').replace(LEADING_EMOJI, ''),
+        lines: lines.slice(at + 1)
+      }
     })
   return slides.length ? { summary: intro.replace(/^##.*$/m, '').trim(), slides } : null
 }
@@ -258,18 +266,19 @@ export function SlidesPlayer({
             >
               {slide ? (
                 <View key={`${position.deck}.${position.slide}`} style={styles.slide}>
-                  {emojiOf(slide.heading) ? (
-                    <Animated.Text style={[styles.emoji, rise(0)]}>
-                      {emojiOf(slide.heading)}
+                  {slide.label ? (
+                    <Animated.Text
+                      style={[styles.sectionLabel, { color: accent }, rise(0)]}
+                      numberOfLines={1}
+                    >
+                      {slide.label}
                     </Animated.Text>
                   ) : null}
-                  <Animated.Text style={[styles.heading, rise(1)]}>
-                    {withoutEmoji(slide.heading)}
-                  </Animated.Text>
+                  <Animated.Text style={[styles.heading, rise(1)]}>{slide.heading}</Animated.Text>
                   {slide.lines.map((line, index) => (
                     <Animated.View key={index} style={rise(index + 2)}>
                       <Rich
-                        text={line.replace(/^\s*(?:[-*•]|\d+\.)\s+/, '')}
+                        text={line.replace(/^\s*(?:[-*•]|\d+\.)\s+/, '').replace(LEADING_EMOJI, '')}
                         accent={accent}
                         style={styles.line}
                       />
@@ -402,8 +411,6 @@ function durationOf(texts: string[]) {
 
 const LEADING_EMOJI =
   /^\s*((?:\p{Extended_Pictographic}|\p{Regional_Indicator})[️‍\p{Extended_Pictographic}\p{Emoji_Modifier}]*)\s*/u
-const emojiOf = (heading: string) => heading.match(LEADING_EMOJI)?.[1] || ''
-const withoutEmoji = (heading: string) => heading.replace(LEADING_EMOJI, '')
 
 // Text with **bold** runs in the accent colour; other Markdown marks are dropped.
 function Rich({ text, accent, style }: { text: string; accent: string; style: object }) {
@@ -460,7 +467,14 @@ const styles = themed(() => ({
   },
   stage: { flex: 1 },
   slide: { flex: 1, gap: 18, justifyContent: 'center', paddingHorizontal: 28, paddingTop: 40 },
-  emoji: { fontSize: 64, lineHeight: 76 },
+  sectionLabel: {
+    fontSize: 15,
+    fontWeight: '800',
+    letterSpacing: 1.4,
+    marginBottom: -6,
+    textTransform: 'uppercase',
+    ...shadow
+  },
   heading: { color: '#ffffff', fontSize: 36, fontWeight: '900', lineHeight: 42, ...shadow },
   line: { color: '#ffffff', fontSize: 22, fontWeight: '500', lineHeight: 31, ...shadow },
   bold: { fontWeight: '800' },

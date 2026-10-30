@@ -53,6 +53,8 @@ const messageTypes = Object.freeze({
   boardActivity: 'board-activity',
   boardStats: 'board-stats',
   boardPresence: 'board-presence',
+  // Ops from other members just arrived (who, which cards); live only.
+  peerActivity: 'peer-activity',
   identityStatus: 'identity-status',
   roomStatus: 'room-status',
   boardState: 'board-state',
