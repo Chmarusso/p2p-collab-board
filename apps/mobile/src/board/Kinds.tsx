@@ -5,6 +5,7 @@ import { Pressable, Text, View } from 'react-native'
 import { Feather } from '@expo/vector-icons'
 import { BOARD_KIND_IDS, boardKind } from '@opencollab/board-protocol'
 import type { BoardKindId } from '@opencollab/board-protocol'
+import { t } from '../i18n'
 import { FeatherName, colors, themed, tint } from '../ui'
 
 export const KIND_ICONS: Record<BoardKindId, FeatherName> = {
@@ -41,14 +42,14 @@ export function KindOptions({
             ]}
             accessibilityRole='radio'
             accessibilityState={{ selected: on, disabled }}
-            accessibilityLabel={`${kind.name}. ${kind.description}`}
+            accessibilityLabel={`${t(kind.name)}. ${t(kind.description)}`}
           >
             <View style={[styles.icon, on && styles.iconOn]}>
               <Feather name={KIND_ICONS[id]} size={18} color={on ? colors.accent : colors.text} />
             </View>
             <View style={styles.text}>
-              <Text style={styles.name}>{kind.name}</Text>
-              <Text style={styles.description}>{kind.description}</Text>
+              <Text style={styles.name}>{t(kind.name)}</Text>
+              <Text style={styles.description}>{t(kind.description)}</Text>
             </View>
             {on ? <Feather name='check' size={18} color={colors.accent} /> : null}
           </Pressable>

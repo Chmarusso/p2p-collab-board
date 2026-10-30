@@ -1,6 +1,7 @@
 // Text and links shared to OpenCollab from other apps (the Share menu).
 // Android (plugins/share-target.js) and the iOS share extension
 // (ios/OpenCollabShare) both turn a share into an opencollab://share link.
+import { t } from './i18n'
 
 // `link` is the first link in the text; `titleFromLink` marks a title made
 // from its address, which the page's own title can replace.
@@ -9,7 +10,8 @@ export type SharedItem = { title: string; body: string; link?: string; titleFrom
 // Which boards show in the Share menu and where their cards go. Kept on this
 // device only, per identity, keyed by the board's normalized invite.
 export type SharePref = { hidden?: boolean; columnId?: string | null }
-export type SharePrefs = { last?: string; boards: Record<string, SharePref> }
+// `recent`: boards shared to, most recently used first.
+export type SharePrefs = { last?: string; recent?: string[]; boards: Record<string, SharePref> }
 
 export const sharePrefsKey = (identity: string) => `opencollab.share-boards.${identity}`
 
@@ -34,7 +36,7 @@ export function parseShare(url: string | null): SharedItem | null {
       .split('\n')
       .map((line) => line.replace(/\s+/g, ' ').trim())
       .find(Boolean) || ''
-  const title = subject || words || (links[0] ? address(links[0]) : '') || 'Shared link'
+  const title = subject || words || (links[0] ? address(links[0]) : '') || t('Shared link')
   const body = text && text !== subject ? text : ''
   return {
     title: clip(title, TITLE_MAX),

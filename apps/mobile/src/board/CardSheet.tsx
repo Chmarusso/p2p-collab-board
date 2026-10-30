@@ -49,10 +49,12 @@ import {
   LinksEditor,
   ReactionBar
 } from './CardExtras'
+import { plural, t } from '../i18n'
 import { Confetti } from './Confetti'
 import { Markdown, Mention } from './Markdown'
 import { VideoTiles } from './Media'
 import { MentionInput } from './MentionInput'
+import { SlidesPlayer, deckOf } from './Slides'
 import {
   BoardData,
   COMMENTS_SHOWN,
@@ -117,6 +119,7 @@ export function CardSheet(props: Props) {
   const [uploading, setUploading] = useState(false)
   const [labelDraft, setLabelDraft] = useState<string[] | null>(null)
   const [tab, setTab] = useState<'details' | 'activity'>('details')
+  const [flipping, setFlipping] = useState(false)
   // Where the confetti starts, in window coordinates: the tapped column chip.
   const [celebrating, setCelebrating] = useState<{ x: number; y: number } | null>(null)
   const lastTap = useRef<{ x: number; y: number } | null>(null)
@@ -168,7 +171,7 @@ export function CardSheet(props: Props) {
         pending.current.delete(message.requestId)
         setUploading(pending.current.size > 0)
         if (!message.keys?.length) {
-          Alert.alert('Image not added', message.error || 'The image could not be added.')
+          Alert.alert(t('Image not added'), message.error || t('The image could not be added.'))
           return
         }
         const markdown = message.keys
@@ -199,13 +202,14 @@ export function CardSheet(props: Props) {
         } else if (message.type === 'card-media-added') {
           videoRequest.current = null
           setVideoUpload(null)
-          if (message.error) Alert.alert('Video not added', message.error)
+          if (message.error) Alert.alert(t('Video not added'), message.error)
         }
       }),
     [props.subscribe]
   )
 
   if (!card) return null
+  const deck = deckOf(data, card)
   const images = imagesOf(card)
   const videos = videosOf(card)
   const column = data.columns.find((entry) => entry.id === card.columnId)
@@ -252,7 +256,7 @@ export function CardSheet(props: Props) {
 
   const celebrate = () => {
     playSound(props.sound)
-    if (reduceMotion) AccessibilityInfo.announceForAccessibility('Card moved to Done')
+    if (reduceMotion) AccessibilityInfo.announceForAccessibility(t('Card moved to Done'))
     else setCelebrating(lastTap.current || { x: -1, y: -1 })
   }
   const place = (columnId: string, visibleIndex: number) => {
@@ -277,21 +281,35 @@ export function CardSheet(props: Props) {
       const names = card.blockedBy
         .map((id) => data.objects.find((entry) => entry.id === id)?.title)
         .filter(Boolean)
-      warnings.push(`It is still blocked by ${names.map((name) => `“${name}”`).join(', ')}.`)
+      warnings.push(
+        t('It is still blocked by {cards}.', {
+          cards: names.map((name) => `“${name}”`).join(', ')
+        })
+      )
     }
     const count = target ? shownIn(data, target.id).length : 0
     if (target && wipState(count + 1, target.wipLimit) === 'over') {
-      warnings.push(`${target.name} already holds ${count} of its limit of ${target.wipLimit}.`)
+      warnings.push(
+        t('{column} already holds {count} of its limit of {limit}.', {
+          column: target.name,
+          count,
+          limit: target.wipLimit ?? ''
+        })
+      )
     }
     const go = () => {
       place(columnId, visibleIndex)
       if (toDone) celebrate()
     }
     if (!warnings.length) return go()
-    Alert.alert(`Move to ${target?.name || 'column'}?`, warnings.join('\n\n'), [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Move anyway', onPress: go }
-    ])
+    Alert.alert(
+      t('Move to {column}?', { column: target?.name || t('column') }),
+      warnings.join('\n\n'),
+      [
+        { text: t('Cancel'), style: 'cancel' },
+        { text: t('Move anyway'), onPress: go }
+      ]
+    )
   }
   const saveTitle = () => {
     const next = title.trim()
@@ -329,10 +347,10 @@ export function CardSheet(props: Props) {
   }
   const saveDue = () => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate) || Number.isNaN(Date.parse(dueDate))) {
-      return Alert.alert('Due date', 'Use a date like 2026-12-31.')
+      return Alert.alert(t('Due date'), t('Use a date like 2026-12-31.'))
     }
     if (dueTime && !/^\d{1,2}:\d{2}$/.test(dueTime)) {
-      return Alert.alert('Due date', 'Use a time like 17:30, or leave it empty.')
+      return Alert.alert(t('Due date'), t('Use a time like 17:30, or leave it empty.'))
     }
     const value = dueTime
       ? new Date(`${dueDate}T${dueTime.padStart(5, '0')}`).toISOString()
@@ -358,7 +376,7 @@ export function CardSheet(props: Props) {
   }
   const addImages = async () => {
     const room = 12 - (card.images?.length || 0)
-    if (room <= 0) return Alert.alert('Image limit', 'A card holds up to 12 images.')
+    if (room <= 0) return Alert.alert(t('Image limit'), t('A card holds up to 12 images.'))
     const images = await pickPreparedImages(Math.min(4, room))
     if (!images.length) return
     const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`
@@ -378,12 +396,12 @@ export function CardSheet(props: Props) {
     if (videoUpload) return
     const room = 12 - (card.images?.length || 0)
     if (room <= 0) {
-      return Alert.alert('Attachment limit', 'A card holds up to 12 images and videos.')
+      return Alert.alert(t('Attachment limit'), t('A card holds up to 12 images and videos.'))
     }
     const picked = await pickVideos(Math.min(4, room))
     const files = picked.filter((video) => !video.size || video.size <= MAX_VIDEO_BYTES)
     if (files.length < picked.length) {
-      Alert.alert('Video too large', 'Videos can be up to 200 MB.')
+      Alert.alert(t('Video too large'), t('Videos can be up to 200 MB.'))
     }
     if (!files.length) return
     const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`
@@ -437,13 +455,13 @@ export function CardSheet(props: Props) {
               blurOnSubmit
               returnKeyType='done'
               maxLength={200}
-              accessibilityLabel='Card title'
+              accessibilityLabel={t('Card title')}
             />
             <Pressable
               onPress={props.onClose}
               hitSlop={10}
               accessibilityRole='button'
-              accessibilityLabel='Close'
+              accessibilityLabel={t('Close')}
             >
               <Feather name='x' size={22} color={colors.muted} />
             </Pressable>
@@ -458,10 +476,10 @@ export function CardSheet(props: Props) {
             />
             <Text style={styles.metaText}>{props.nameFor(card.author)}</Text>
             <Text style={styles.metaMono}>{props.relativeTime(card.createdAt)}</Text>
-            {card.archived ? <Text style={styles.badge}>Archived</Text> : null}
-            {card.template ? <Text style={styles.badge}>Template</Text> : null}
+            {card.archived ? <Text style={styles.badge}>{t('Archived')}</Text> : null}
+            {card.template ? <Text style={styles.badge}>{t('Template')}</Text> : null}
             {card.blockedBy?.length && card.columnId !== doneId ? (
-              <Text style={[styles.badge, styles.blockedBadge]}>Blocked</Text>
+              <Text style={[styles.badge, styles.blockedBadge]}>{t('Blocked')}</Text>
             ) : null}
           </View>
           {viewers.length ? (
@@ -476,8 +494,8 @@ export function CardSheet(props: Props) {
               />
               <Text style={styles.metaText}>
                 {typing.length
-                  ? `${typing.map((peer) => peer.name || props.nameFor(peer.identity)).join(', ')} ${typing.length === 1 ? 'is' : 'are'} typing…`
-                  : `${viewers.map((peer) => peer.name || props.nameFor(peer.identity)).join(', ')} also viewing`}
+                  ? typingText(typing.map((peer) => peer.name || props.nameFor(peer.identity)))
+                  : viewingText(viewers.map((peer) => peer.name || props.nameFor(peer.identity)))}
               </Text>
             </View>
           ) : null}
@@ -491,8 +509,9 @@ export function CardSheet(props: Props) {
             <View style={styles.templateNote}>
               <Feather name='copy' size={14} color={colors.info} />
               <Text style={styles.templateText}>
-                This card is a template. It stays out of the columns; use “From template…” under a
-                column to add a copy.
+                {t(
+                  'This card is a template. It stays out of the columns; use “From template…” under a column to add a copy.'
+                )}
               </Text>
             </View>
           ) : null}
@@ -507,7 +526,7 @@ export function CardSheet(props: Props) {
                 accessibilityState={{ selected: tab === name }}
               >
                 <Text style={[styles.tabText, tab === name && styles.tabTextOn]}>
-                  {name === 'details' ? 'Details' : 'Activity'}
+                  {name === 'details' ? t('Details') : t('Activity')}
                 </Text>
               </Pressable>
             ))}
@@ -525,13 +544,31 @@ export function CardSheet(props: Props) {
             />
           ) : (
             <>
+              {deck ? (
+                <Button
+                  title={t('Flip through key points ({n})', { n: deck.slides.length })}
+                  icon='layers'
+                  onPress={() => setFlipping(true)}
+                />
+              ) : null}
+              {flipping ? (
+                <SlidesPlayer
+                  data={data}
+                  queue={[card]}
+                  markRead={() => {}}
+                  cache={props.cache}
+                  requestImage={props.requestImage}
+                  onOpenCard={() => setFlipping(false)}
+                  onClose={() => setFlipping(false)}
+                />
+              ) : null}
               <Section
-                title='Description'
+                title={t('Description')}
                 action={
                   editingBody
                     ? undefined
                     : {
-                        label: 'Edit',
+                        label: t('Edit'),
                         onPress: () => {
                           setBody(card.body || '')
                           setEditingBody(true)
@@ -549,18 +586,20 @@ export function CardSheet(props: Props) {
                       me={me}
                       multiline
                       autoFocus
-                      placeholder='Add a more detailed description… Markdown and @mentions work.'
+                      placeholder={t(
+                        'Add a more detailed description… Markdown and @mentions work.'
+                      )}
                     />
                     <View style={styles.row}>
-                      <Button title='Save' onPress={saveBody} grow />
+                      <Button title={t('Save')} onPress={saveBody} grow />
                       <Button
-                        title={uploading ? 'Uploading…' : 'Add image'}
+                        title={uploading ? t('Uploading…') : t('Add image')}
                         icon='image'
                         variant='secondary'
                         onPress={addImages}
                       />
                       <Button
-                        title='Cancel'
+                        title={t('Cancel')}
                         variant='ghost'
                         onPress={() => setEditingBody(false)}
                       />
@@ -585,24 +624,28 @@ export function CardSheet(props: Props) {
                         onOpenImage={props.openViewer}
                       />
                     ) : (
-                      <Text style={styles.placeholder}>Add a more detailed description…</Text>
+                      <Text style={styles.placeholder}>
+                        {t('Add a more detailed description…')}
+                      </Text>
                     )}
                   </Pressable>
                 )}
               </Section>
 
               {card.source ? (
-                <Section title='Original'>
+                <Section title={t('Original')}>
                   <PressableScale
                     style={styles.source}
                     onPress={() => void Linking.openURL(card.source!.url)}
                     accessibilityRole='link'
-                    accessibilityLabel={`View original on ${sourceSite(card.source)}`}
+                    accessibilityLabel={t('View original on {site}', {
+                      site: sourceSite(card.source)
+                    })}
                   >
                     <Feather name='external-link' size={16} color={colors.accent} />
                     <View style={styles.sourceText}>
                       <Text style={styles.sourceTitle} numberOfLines={2}>
-                        {card.source.title || 'View original'}
+                        {card.source.title || t('View original')}
                       </Text>
                       <Text style={styles.sourceSite} numberOfLines={1}>
                         {sourceSite(card.source)}
@@ -612,7 +655,7 @@ export function CardSheet(props: Props) {
                 </Section>
               ) : null}
 
-              <Section title='Column'>
+              <Section title={t('Column')}>
                 <ScrollView
                   horizontal
                   contentContainerStyle={styles.chips}
@@ -637,18 +680,22 @@ export function CardSheet(props: Props) {
                 <View style={styles.row}>
                   <SmallButton
                     icon='arrow-up'
-                    label='Move up'
+                    label={t('Move up')}
                     disabled={index <= 0}
                     onPress={() => move(card.columnId, index - 1)}
                   />
                   <SmallButton
                     icon='arrow-down'
-                    label='Move down'
+                    label={t('Move down')}
                     disabled={index < 0 || index >= columnCards.length - 1}
                     onPress={() => move(card.columnId, index + 1)}
                   />
                   <Text style={styles.metaMono}>
-                    {index + 1} of {columnCards.length} in {column?.name || 'column'}
+                    {t('{index} of {count} in {column}', {
+                      index: index + 1,
+                      count: columnCards.length,
+                      column: column?.name || t('column')
+                    })}
                   </Text>
                 </View>
               </Section>
@@ -656,7 +703,9 @@ export function CardSheet(props: Props) {
               {can('assignees') ? (
                 <Section
                   title={
-                    card.assignees?.length ? `Assignees (${card.assignees.length})` : 'Assignees'
+                    card.assignees?.length
+                      ? t('Assignees ({count})', { count: card.assignees.length })
+                      : t('Assignees')
                   }
                 >
                   <AssigneePicker
@@ -672,14 +721,17 @@ export function CardSheet(props: Props) {
               ) : null}
 
               {can('labels') ? (
-                <Section title='Labels' action={{ label: 'Manage', onPress: props.onManageLabels }}>
+                <Section
+                  title={t('Labels')}
+                  action={{ label: t('Manage'), onPress: props.onManageLabels }}
+                >
                   <View style={styles.chipsWrap}>
                     {data.labels.map((label) => {
                       const on = labelIds.includes(label.id)
                       return (
                         <Chip
                           key={label.id}
-                          label={`${on ? '✓ ' : ''}${label.name || 'Unnamed'}`}
+                          label={`${on ? '✓ ' : ''}${label.name || t('Unnamed')}`}
                           color={label.color || '#8590a2'}
                           filled={on}
                           selected={on}
@@ -698,18 +750,18 @@ export function CardSheet(props: Props) {
                       value={newLabel}
                       onChangeText={setNewLabel}
                       onSubmitEditing={addLabel}
-                      placeholder='+ New label'
+                      placeholder={t('+ New label')}
                       placeholderTextColor={colors.muted}
                       maxLength={40}
                       returnKeyType='done'
-                      accessibilityLabel='New label: type a name and press done'
+                      accessibilityLabel={t('New label: type a name and press done')}
                     />
                   </View>
                 </Section>
               ) : null}
 
               {can('due') ? (
-                <Section title='Due date'>
+                <Section title={t('Due date')}>
                   {!dueOpen ? (
                     <PressableScale
                       style={[
@@ -739,46 +791,52 @@ export function CardSheet(props: Props) {
                         ]}
                       >
                         {due
-                          ? `${due.text}${due.status === 'overdue' ? ' · overdue' : due.status === 'soon' ? ' · due soon' : ''}`
-                          : 'Add due date'}
+                          ? due.status === 'overdue'
+                            ? t('{due} · overdue', { due: due.text })
+                            : due.status === 'soon'
+                              ? t('{due} · due soon', { due: due.text })
+                              : due.text
+                          : t('Add due date')}
                       </Text>
                     </PressableScale>
                   ) : (
                     <View style={styles.duePanel}>
                       <View style={styles.chipsWrap}>
-                        <Chip label='Today' onPress={() => quickDue(0)} />
-                        <Chip label='Tomorrow' onPress={() => quickDue(1)} />
-                        <Chip label='In 3 days' onPress={() => quickDue(3)} />
-                        <Chip label='Next week' onPress={() => quickDue(7)} />
+                        <Chip label={t('Today')} onPress={() => quickDue(0)} />
+                        <Chip label={t('Tomorrow')} onPress={() => quickDue(1)} />
+                        <Chip label={t('In 3 days')} onPress={() => quickDue(3)} />
+                        <Chip label={t('Next week')} onPress={() => quickDue(7)} />
                       </View>
                       <View style={styles.row}>
                         <TextInput
                           style={[styles.input, styles.flex]}
                           value={dueDate}
                           onChangeText={setDueDate}
-                          placeholder='YYYY-MM-DD'
+                          placeholder={t('YYYY-MM-DD')}
                           placeholderTextColor={colors.muted}
                           autoCapitalize='none'
-                          accessibilityLabel='Due date'
+                          accessibilityLabel={t('Due date')}
                         />
                         <TextInput
                           style={[styles.input, styles.timeInput]}
                           value={dueTime}
                           onChangeText={setDueTime}
-                          placeholder='HH:MM'
+                          placeholder={t('HH:MM')}
                           placeholderTextColor={colors.muted}
                           keyboardType='numbers-and-punctuation'
-                          accessibilityLabel='Due time (optional)'
+                          accessibilityLabel={t('Due time (optional)')}
                         />
                       </View>
                       <Text style={styles.hint}>
-                        The time is optional; without one the card is due at the end of the day.
+                        {t(
+                          'The time is optional; without one the card is due at the end of the day.'
+                        )}
                       </Text>
                       <View style={styles.row}>
-                        <Button title='Save' onPress={saveDue} grow />
+                        <Button title={t('Save')} onPress={saveDue} grow />
                         {due ? (
                           <Button
-                            title='Remove'
+                            title={t('Remove')}
                             variant='secondary'
                             onPress={() => {
                               send({
@@ -790,7 +848,11 @@ export function CardSheet(props: Props) {
                             }}
                           />
                         ) : null}
-                        <Button title='Cancel' variant='ghost' onPress={() => setDueOpen(false)} />
+                        <Button
+                          title={t('Cancel')}
+                          variant='ghost'
+                          onPress={() => setDueOpen(false)}
+                        />
                       </View>
                     </View>
                   )}
@@ -800,7 +862,7 @@ export function CardSheet(props: Props) {
               {can('checklist') ? (
                 <Section
                   title={
-                    checklist.total ? `Checklist ${checklist.done}/${checklist.total}` : 'Checklist'
+                    checklist.total ? t('Checklist {done}/{total}', checklist) : t('Checklist')
                   }
                 >
                   <ChecklistEditor card={card} send={send} />
@@ -808,7 +870,7 @@ export function CardSheet(props: Props) {
               ) : null}
 
               {can('points') ? (
-                <Section title='Estimate'>
+                <Section title={t('Estimate')}>
                   <EstimatePanel
                     card={card}
                     data={data}
@@ -822,13 +884,13 @@ export function CardSheet(props: Props) {
               ) : null}
 
               {can('links') ? (
-                <Section title='Links'>
+                <Section title={t('Links')}>
                   <LinksEditor card={card} data={data} send={send} onOpen={props.onOpenCard} />
                 </Section>
               ) : null}
 
               {images.length ? (
-                <Section title={`Images (${images.length})`}>
+                <Section title={t('Images ({count})', { count: images.length })}>
                   <BoardImages
                     images={images}
                     cache={props.cache}
@@ -839,17 +901,25 @@ export function CardSheet(props: Props) {
                 </Section>
               ) : null}
 
-              <Section title={videos.length ? `Videos (${videos.length})` : 'Videos'}>
+              <Section
+                title={
+                  videos.length ? t('Videos ({count})', { count: videos.length }) : t('Videos')
+                }
+              >
                 {videos.length ? (
                   <VideoTiles videos={videos} send={send} subscribe={props.subscribe} />
                 ) : null}
                 {videoUpload ? (
                   <View style={styles.uploading} accessibilityRole='progressbar'>
                     <Text style={styles.metaMono}>
-                      Uploading video
                       {videoUpload.total
-                        ? ` · ${Math.min(100, Math.round((videoUpload.bytes / videoUpload.total) * 100))}%`
-                        : '…'}
+                        ? t('Uploading video · {percent}%', {
+                            percent: Math.min(
+                              100,
+                              Math.round((videoUpload.bytes / videoUpload.total) * 100)
+                            )
+                          })
+                        : t('Uploading video…')}
                     </Text>
                     <View style={styles.track}>
                       <View
@@ -864,23 +934,23 @@ export function CardSheet(props: Props) {
                   </View>
                 ) : (
                   <Button
-                    title='Add video'
+                    title={t('Add video')}
                     icon='film'
                     variant='secondary'
                     onPress={() => void addVideos()}
                   />
                 )}
-                <Text style={styles.hint}>MP4, MOV or WebM, up to 200 MB.</Text>
+                <Text style={styles.hint}>{t('MP4, MOV or WebM, up to 200 MB.')}</Text>
               </Section>
 
-              <Section title='Comments'>
+              <Section title={t('Comments')}>
                 {can('votes') ? (
                   <View style={styles.voteRow}>
                     <VoteButton
                       icon='chevron-up'
                       active={ownVote === 1}
                       color={colors.accent}
-                      label='Upvote'
+                      label={t('Upvote')}
                       onPress={() =>
                         send({
                           type: messageTypes.boardVote,
@@ -894,7 +964,7 @@ export function CardSheet(props: Props) {
                       icon='chevron-down'
                       active={ownVote === -1}
                       color={colors.magenta}
-                      label='Downvote'
+                      label={t('Downvote')}
                       onPress={() =>
                         send({
                           type: messageTypes.boardVote,
@@ -908,7 +978,15 @@ export function CardSheet(props: Props) {
                 {hidden ? (
                   <Pressable onPress={() => setShowAll(true)} accessibilityRole='button'>
                     <Text style={styles.link}>
-                      Show {hidden} earlier {hidden === 1 ? 'comment' : 'comments'}
+                      {plural(
+                        hidden,
+                        ['Show {n} earlier comment', 'Show {n} earlier comments'],
+                        [
+                          'Pokaż {n} wcześniejszy komentarz',
+                          'Pokaż {n} wcześniejsze komentarze',
+                          'Pokaż {n} wcześniejszych komentarzy'
+                        ]
+                      )}
                     </Text>
                   </Pressable>
                 ) : null}
@@ -948,18 +1026,18 @@ export function CardSheet(props: Props) {
                   onChangeText={onCommentChange}
                   profiles={data.profiles}
                   me={me}
-                  placeholder='Add a comment'
+                  placeholder={t('Add a comment')}
                   onSubmitEditing={sendComment}
                   returnKeyType='send'
                 />
-                <Button title='Comment' icon='send' onPress={sendComment} />
+                <Button title={t('Comment')} icon='send' onPress={sendComment} />
               </Section>
 
               <View style={styles.toggleRow}>
                 <View style={styles.flex}>
-                  <Text style={styles.toggleText}>Save as template</Text>
+                  <Text style={styles.toggleText}>{t('Save as template')}</Text>
                   <Text style={styles.hint}>
-                    Templates are hidden from the columns and offered under “From template…”.
+                    {t('Templates are hidden from the columns and offered under “From template…”.')}
                   </Text>
                 </View>
                 <Switch
@@ -968,12 +1046,12 @@ export function CardSheet(props: Props) {
                     send({ type: messageTypes.cardUpdate, objectId: card.id, template })
                   }
                   trackColor={{ true: colors.accent, false: colors.border }}
-                  accessibilityLabel='Save as template'
+                  accessibilityLabel={t('Save as template')}
                 />
               </View>
 
               <Button
-                title={card.archived ? 'Restore card' : 'Archive card'}
+                title={card.archived ? t('Restore card') : t('Archive card')}
                 icon={card.archived ? 'rotate-ccw' : 'archive'}
                 variant='secondary'
                 onPress={() => {
@@ -992,6 +1070,23 @@ export function CardSheet(props: Props) {
       </KeyboardAvoidingView>
     </Modal>
   )
+}
+
+// "Ana is typing…", "Ana, Ben are typing…": the verb agrees with how many.
+function typingText(names: string[]) {
+  return plural(
+    names.length,
+    ['{names} is typing…', '{names} are typing…'],
+    ['{names} pisze…', '{names} piszą…', '{names} piszą…']
+  ).replace('{names}', () => names.join(', '))
+}
+
+function viewingText(names: string[]) {
+  return plural(
+    names.length,
+    ['{names} also viewing', '{names} also viewing'],
+    ['{names} też tu jest', '{names} też tu są', '{names} też tu są']
+  ).replace('{names}', () => names.join(', '))
 }
 
 // Who is typing a comment. The line always holds its height, so the input
@@ -1018,7 +1113,7 @@ function TypingLine({ names }: { names: string[] }) {
       accessibilityLiveRegion='polite'
       accessibilityElementsHidden={!names.length}
     >
-      {list.length ? `${list.join(', ')} ${list.length === 1 ? 'is' : 'are'} typing…` : ''}
+      {list.length ? typingText(list) : ''}
     </Animated.Text>
   )
 }

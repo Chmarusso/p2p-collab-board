@@ -5,6 +5,7 @@ import React, { useState } from 'react'
 import { Pressable, Text, TextInput, View } from 'react-native'
 import { Feather } from '@expo/vector-icons'
 import { messageTypes } from '@opencollab/board-protocol'
+import { t, tx } from '../i18n'
 import { CachedImage, ImageRef, colors, themed } from '../ui'
 import { AvatarStack } from './CardExtras'
 import { BoardData, Card, Column, dueInfo } from './model'
@@ -72,7 +73,7 @@ export function TodoView({
           onPress={() => onOpen(card.id)}
           style={styles.rowBody}
           accessibilityRole='button'
-          accessibilityLabel={`Open ${card.title}`}
+          accessibilityLabel={t('Open {title}', { title: card.title })}
         >
           <Text style={[styles.title, checked && styles.titleDone]} numberOfLines={3}>
             {card.title}
@@ -122,7 +123,7 @@ export function TodoView({
           value={draft}
           onChangeText={setDraft}
           onSubmitEditing={add}
-          placeholder='Add a to-do'
+          placeholder={t('Add a to-do')}
           placeholderTextColor={colors.muted}
           returnKeyType='done'
           blurOnSubmit={false}
@@ -133,7 +134,9 @@ export function TodoView({
         {open.length ? (
           open.map(row)
         ) : (
-          <Text style={styles.empty}>{finished.length ? 'All done.' : 'Nothing to do yet.'}</Text>
+          <Text style={styles.empty}>
+            {finished.length ? t('All done.') : t('Nothing to do yet.')}
+          </Text>
         )}
       </View>
       {finished.length ? (
@@ -150,7 +153,7 @@ export function TodoView({
               color={colors.muted}
             />
             <Text style={styles.doneText}>
-              {done?.name || 'Done'} ({finished.length})
+              {done?.name || tx('todo', 'Done')} ({finished.length})
             </Text>
           </Pressable>
           {showDone ? <View style={styles.list}>{finished.map(row)}</View> : null}

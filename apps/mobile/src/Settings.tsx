@@ -8,39 +8,56 @@ import { Chip } from './board/CardSheet'
 import { SOUND_OPTIONS, SoundName } from './sounds'
 import { THEME_TEMPLATES } from '@opencollab/board-protocol'
 import type { ThemeMode } from '@opencollab/board-protocol'
+import { LanguageChoice, t } from './i18n'
 
-const MODE_OPTIONS: Array<{ id: ThemeMode; label: string }> = [
-  { id: 'system', label: 'System' },
-  { id: 'light', label: 'Light' },
-  { id: 'dark', label: 'Dark' }
+const MODE_OPTIONS: Array<{ id: ThemeMode; label: () => string }> = [
+  { id: 'system', label: () => t('System') },
+  { id: 'light', label: () => t('Light') },
+  { id: 'dark', label: () => t('Dark') }
 ]
 
-// 'saved': plain Keychain item; 'protected': needs Face ID / Touch ID to read;
+// Language names stay in their own language, so anyone can find theirs.
+const LANGUAGE_OPTIONS: Array<{ id: LanguageChoice; label: () => string }> = [
+  { id: 'system', label: () => t('System') },
+  { id: 'en', label: () => 'English' },
+  { id: 'pl', label: () => 'Polski' }
+]
+
+// SOUND_OPTIONS labels, listed so the translation check sees them.
+const soundLabel = (label: string) =>
+  ({ Off: t('Off'), Chime: t('Chime'), Pop: t('Pop'), Ding: t('Ding') })[label] ?? label
+
+// 'saved': plain Keychain item; 'protected': needs Face ID / Touch ID to read
+// (older versions; turned into 'saved' at the next login);
 // 'off': the user chose not to keep it; null: never asked.
 export type KeychainChoice = 'saved' | 'protected' | 'off' | null
 
 // expo-secure-store writes to the Keychain on iOS and to Keystore-encrypted
 // storage on Android; the words people see should name the right one.
-export const keychainCopy = Platform.select({
-  ios: {
-    offer: 'Save recovery words in the iOS Keychain?',
-    saved: 'Saved in the iOS Keychain on this device.',
-    protected:
-      'Saved in the iOS Keychain on this device, unlocked with Face ID or Touch ID. If the enrolled faces or fingerprints change, you enter the words once more.',
-    save: 'Save in Keychain',
-    forget: 'Forget from Keychain',
-    refused: 'The Keychain refused the phrase.'
-  },
-  default: {
-    offer: 'Save recovery words on this device?',
-    saved: 'Saved in encrypted storage on this device.',
-    protected:
-      'Saved in encrypted storage on this device, unlocked with your fingerprint or face. If the enrolled fingerprints or faces change, you enter the words once more.',
-    save: 'Save on this device',
-    forget: 'Forget from this device',
-    refused: 'Secure storage refused the phrase.'
-  }
-})
+// A function, so the words follow the current language.
+export const keychainCopy = () =>
+  Platform.select({
+    ios: {
+      offer: t('Save recovery words in the iOS Keychain?'),
+      saved: t('Saved in the iOS Keychain on this device.'),
+      protected: t(
+        'Saved in the iOS Keychain on this device, unlocked with Face ID or Touch ID. If the enrolled faces or fingerprints change, you enter the words once more.'
+      ),
+      save: t('Save in Keychain'),
+      forget: t('Forget from Keychain'),
+      refused: t('The Keychain refused the phrase.')
+    },
+    default: {
+      offer: t('Save recovery words on this device?'),
+      saved: t('Saved in encrypted storage on this device.'),
+      protected: t(
+        'Saved in encrypted storage on this device, unlocked with your fingerprint or face. If the enrolled fingerprints or faces change, you enter the words once more.'
+      ),
+      save: t('Save on this device'),
+      forget: t('Forget from this device'),
+      refused: t('Secure storage refused the phrase.')
+    }
+  })
 
 export function SettingsSheet({
   keychain,
@@ -53,6 +70,8 @@ export function SettingsSheet({
   onThemeMode,
   themeOverride,
   onThemeOverride,
+  languageChoice,
+  onLanguage,
   onClose
 }: {
   keychain: KeychainChoice
@@ -65,57 +84,78 @@ export function SettingsSheet({
   onThemeMode: (mode: ThemeMode) => void
   themeOverride: string
   onThemeOverride: (template: string) => void
+  languageChoice: LanguageChoice
+  onLanguage: (choice: LanguageChoice) => void
   onClose: () => void
 }) {
   const saved = keychain === 'saved' || keychain === 'protected'
+  const copy = keychainCopy()
   return (
-    <Sheet title='Settings' onClose={onClose}>
-      <Text style={styles.sectionLabel}>Recovery words</Text>
+    <Sheet title={t('Settings')} onClose={onClose}>
+      <Text style={styles.sectionLabel}>{t('Recovery words')}</Text>
       <Text style={styles.muted}>
         {keychain === 'protected'
-          ? keychainCopy.protected
+          ? copy.protected
           : saved
-            ? keychainCopy.saved
-            : 'Not saved on this device. You enter them each time you open OpenCollab.'}
+            ? copy.saved
+            : t('Not saved on this device. You enter them each time you open OpenCollab.')}
       </Text>
       {saved ? (
         <Button
-          title={keychainCopy.forget}
+          title={copy.forget}
           icon='trash-2'
           variant='secondary'
           onPress={() =>
             Alert.alert(
-              'Forget recovery words?',
-              'They are removed from this device. Make sure you have them written down: you will need them to open OpenCollab again.',
+              t('Forget recovery words?'),
+              t(
+                'They are removed from this device. Make sure you have them written down: you will need them to open OpenCollab again.'
+              ),
               [
-                { text: 'Cancel', style: 'cancel' },
-                { text: 'Forget', style: 'destructive', onPress: onForgetPhrase }
+                { text: t('Cancel'), style: 'cancel' },
+                { text: t('Forget'), style: 'destructive', onPress: onForgetPhrase }
               ]
             )
           }
         />
       ) : canSave ? (
-        <Button title={keychainCopy.save} icon='lock' variant='secondary' onPress={onSavePhrase} />
+        <Button title={copy.save} icon='lock' variant='secondary' onPress={onSavePhrase} />
       ) : null}
 
-      <Text style={styles.sectionLabel}>Appearance</Text>
+      <Text style={styles.sectionLabel}>{t('Appearance')}</Text>
       <View style={styles.chips}>
         {MODE_OPTIONS.map((option) => (
           <Chip
             key={option.id}
-            label={option.label}
+            label={option.label()}
             selected={themeMode === option.id}
             onPress={() => onThemeMode(option.id)}
           />
         ))}
       </View>
 
-      <Text style={styles.sectionLabel}>Your theme</Text>
+      <Text style={styles.sectionLabel}>{t('Language')}</Text>
+      <View style={styles.chips}>
+        {LANGUAGE_OPTIONS.map((option) => (
+          <Chip
+            key={option.id}
+            label={option.label()}
+            selected={languageChoice === option.id}
+            onPress={() => onLanguage(option.id)}
+          />
+        ))}
+      </View>
+
+      <Text style={styles.sectionLabel}>{t('Your theme')}</Text>
       <Text style={styles.muted}>
-        Changes how boards look on this device only. Others keep the board’s theme.
+        {t('Changes how boards look on this device only. Others keep the board’s theme.')}
       </Text>
       <View style={styles.chips}>
-        <Chip label='Board default' selected={!themeOverride} onPress={() => onThemeOverride('')} />
+        <Chip
+          label={t('Board default')}
+          selected={!themeOverride}
+          onPress={() => onThemeOverride('')}
+        />
         {THEME_TEMPLATES.map((template) => (
           <Chip
             key={template.id}
@@ -126,13 +166,15 @@ export function SettingsSheet({
         ))}
       </View>
 
-      <Text style={styles.sectionLabel}>Notification sound</Text>
-      <Text style={styles.muted}>Plays when new notifications arrive while the app is open.</Text>
+      <Text style={styles.sectionLabel}>{t('Notification sound')}</Text>
+      <Text style={styles.muted}>
+        {t('Plays when new notifications arrive while the app is open.')}
+      </Text>
       <View style={styles.chips}>
         {SOUND_OPTIONS.map((option) => (
           <Chip
             key={option.id}
-            label={option.label}
+            label={soundLabel(option.label)}
             selected={sound === option.id}
             onPress={() => onSound(option.id)}
           />

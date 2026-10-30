@@ -2,6 +2,7 @@
 // share. The rules match the desktop renderer so both clients show a board the
 // same way.
 import type { ImageRef } from '../ui'
+import { language, locale, plural, t, tx } from '../i18n'
 
 export type Reactions = Record<string, string[]>
 export type BoardComment = {
@@ -204,13 +205,44 @@ export const LABEL_COLORS = [
 ]
 // Desktop draws these presets as gradients; React Native has no CSS gradients,
 // so each shows as its middle color.
+// Names are getters so they follow a language change.
 export const BACKGROUNDS: Record<string, { name: string; color: string }> = {
-  'preset:ocean': { name: 'Ocean', color: '#203a43' },
-  'preset:dusk': { name: 'Dusk', color: '#4b3b8f' },
-  'preset:forest': { name: 'Forest', color: '#135c44' },
-  'preset:sunset': { name: 'Sunset', color: '#734b6d' },
-  'preset:ember': { name: 'Ember', color: '#5c2318' },
-  'preset:slate': { name: 'Slate', color: '#323f4b' }
+  'preset:ocean': {
+    get name() {
+      return t('Ocean')
+    },
+    color: '#203a43'
+  },
+  'preset:dusk': {
+    get name() {
+      return t('Dusk')
+    },
+    color: '#4b3b8f'
+  },
+  'preset:forest': {
+    get name() {
+      return t('Forest')
+    },
+    color: '#135c44'
+  },
+  'preset:sunset': {
+    get name() {
+      return t('Sunset')
+    },
+    color: '#734b6d'
+  },
+  'preset:ember': {
+    get name() {
+      return t('Ember')
+    },
+    color: '#5c2318'
+  },
+  'preset:slate': {
+    get name() {
+      return t('Slate')
+    },
+    color: '#323f4b'
+  }
 }
 export const ACCENTS = ['#39ff88', '#22d3ee', '#579dff', '#9f8fef', '#e774bb', '#fea362', '#f5cd47']
 export const COMMENTS_SHOWN = 10
@@ -241,12 +273,12 @@ export function dueInfo(dueDate: string | null | undefined) {
   if (Number.isNaN(deadline.getTime())) return null
   const left = deadline.getTime() - Date.now()
   // The year shows when it isn't this one, or a date two years late reads as recent.
-  const date = deadline.toLocaleDateString(undefined, {
+  const date = deadline.toLocaleDateString(locale(), {
     month: 'short',
     day: 'numeric',
     ...(deadline.getFullYear() !== new Date().getFullYear() && { year: 'numeric' })
   })
-  const time = deadline.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+  const time = deadline.toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' })
   return {
     deadline,
     dateOnly,
@@ -316,15 +348,25 @@ export function findMentions(text: string, profiles: Record<string, string>) {
   return [...found]
 }
 
-export const KIND_LABELS: Record<BoardAlert['kind'], string> = {
-  mention: 'Mention',
-  assigned: 'Assigned',
-  comment: 'Comment',
-  moved: 'Moved',
-  edited: 'Edited',
-  'new-card': 'New card',
-  'due-soon': 'Due soon',
-  overdue: 'Overdue'
+export function kindLabel(kind: BoardAlert['kind']) {
+  switch (kind) {
+    case 'mention':
+      return t('Mention')
+    case 'assigned':
+      return t('Assigned')
+    case 'comment':
+      return tx('activity', 'Comment')
+    case 'moved':
+      return t('Moved')
+    case 'edited':
+      return t('Edited')
+    case 'new-card':
+      return t('New card')
+    case 'due-soon':
+      return t('Due soon')
+    case 'overdue':
+      return t('Overdue')
+  }
 }
 
 export function alertText(alert: BoardAlert, shortKey: (hex: string) => string) {
@@ -333,21 +375,25 @@ export function alertText(alert: BoardAlert, shortKey: (hex: string) => string) 
   const due = alert.due ? dueInfo(alert.due)?.text || alert.due : ''
   switch (alert.kind) {
     case 'mention':
-      return `${who} mentioned you ${alert.where === 'comment' ? 'in a comment on' : 'on'} ${card}`
+      return alert.where === 'comment'
+        ? t('{who} mentioned you in a comment on {card}', { who, card })
+        : t('{who} mentioned you on {card}', { who, card })
     case 'assigned':
-      return `${who} assigned you to ${card}`
+      return t('{who} assigned you to {card}', { who, card })
     case 'comment':
-      return `${who} commented on ${card}`
+      return t('{who} commented on {card}', { who, card })
     case 'moved':
-      return `${who} moved ${card}${alert.column ? ` to ${alert.column}` : ''}`
+      return alert.column
+        ? t('{who} moved {card} to {column}', { who, card, column: alert.column })
+        : t('{who} moved {card}', { who, card })
     case 'edited':
-      return `${who} edited ${card}`
+      return t('{who} edited {card}', { who, card })
     case 'new-card':
-      return `${who} added ${card}`
+      return t('{who} added {card}', { who, card })
     case 'due-soon':
-      return `${card} is due ${due}`
+      return t('{card} is due {due}', { card, due })
     case 'overdue':
-      return `${card} is overdue (${due})`
+      return t('{card} is overdue ({due})', { card, due })
   }
 }
 
@@ -444,20 +490,27 @@ export const idleDays = (card: Card, now = Date.now()) =>
 
 export function timeAgo(at: number, now = Date.now()) {
   const seconds = Math.max(0, (now - at) / 1000)
-  if (seconds < 60) return 'just now'
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`
-  if (seconds < 30 * 86400) return `${Math.floor(seconds / 86400)}d ago`
-  return new Date(at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+  if (seconds < 60) return t('just now')
+  if (seconds < 3600) return t('{n}m ago', { n: Math.floor(seconds / 60) })
+  if (seconds < 86400) return t('{n}h ago', { n: Math.floor(seconds / 3600) })
+  if (seconds < 30 * 86400) {
+    return plural(
+      Math.floor(seconds / 86400),
+      ['{n}d ago', '{n}d ago'],
+      ['{n} dzień temu', '{n} dni temu', '{n} dni temu']
+    )
+  }
+  return new Date(at).toLocaleDateString(locale(), { month: 'short', day: 'numeric' })
 }
 
 export const formatDuration = (ms: number | null) => {
   if (ms === null) return '–'
   const hours = ms / 3600000
-  if (hours < 1) return `${Math.max(1, Math.round(ms / 60000))}m`
-  if (hours < 24) return `${Math.round(hours)}h`
+  if (hours < 1) return t('{n}m', { n: Math.max(1, Math.round(ms / 60000)) })
+  if (hours < 24) return t('{n}h', { n: Math.round(hours) })
   const days = hours / 24
-  return `${days < 10 ? days.toFixed(1).replace(/\.0$/, '') : Math.round(days)}d`
+  const shown = days < 10 ? days.toFixed(1).replace(/\.0$/, '') : String(Math.round(days))
+  return t('{n}d', { n: language() === 'pl' ? shown.replace('.', ',') : shown })
 }
 
 // Links point one way; the other side of each comes from the other cards.
@@ -478,7 +531,7 @@ export function linksOf(data: BoardData, card: Card): ShownLink[] {
   return [...outgoing, ...incoming]
 }
 export const linkText = (link: ShownLink) =>
-  link.kind === 'relates' ? 'Relates to' : link.outgoing ? 'Blocks' : 'Blocked by'
+  link.kind === 'relates' ? t('Relates to') : link.outgoing ? t('Blocks') : t('Blocked by')
 
 // Planning poker. "?" withdraws the vote: the protocol keeps numbers only.
 export const POKER_VALUES = [0, 1, 2, 3, 5, 8, 13, 21]

@@ -3,6 +3,7 @@
 // scroller, with the board header on top, so long boards stay virtualized.
 import React, { useState } from 'react'
 import { Pressable, SectionList, Text, View } from 'react-native'
+import { t } from '../i18n'
 import { colors, mono, themed } from '../ui'
 import { Card, agenda } from './model'
 
@@ -35,7 +36,9 @@ export function Agenda({
       stickySectionHeadersEnabled={false}
       initialNumToRender={12}
       ListEmptyComponent={
-        <Text style={styles.empty}>No open cards match. Everything is done, or filtered out.</Text>
+        <Text style={styles.empty}>
+          {t('No open cards match. Everything is done, or filtered out.')}
+        </Text>
       }
       renderSectionHeader={({ section }) => (
         <View style={styles.head}>
@@ -43,7 +46,7 @@ export function Agenda({
             style={[styles.name, { color: groupColor(section.name) }]}
             accessibilityRole='header'
           >
-            {section.name}
+            {t(section.name)}
           </Text>
           <Text style={styles.count}>{section.total}</Text>
           {section.name === 'No date' ? (
@@ -53,7 +56,7 @@ export function Agenda({
               style={styles.toggle}
               accessibilityRole='button'
             >
-              <Text style={styles.link}>{showUndated ? 'Hide' : 'Show'}</Text>
+              <Text style={styles.link}>{showUndated ? t('Hide') : t('Show')}</Text>
             </Pressable>
           ) : null}
         </View>

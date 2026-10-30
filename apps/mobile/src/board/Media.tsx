@@ -6,6 +6,7 @@ import { ActivityIndicator, Alert, Modal, Pressable, Text, View } from 'react-na
 import { Feather } from '@expo/vector-icons'
 import { VideoView, useVideoPlayer } from 'expo-video'
 import { messageTypes } from '@opencollab/board-protocol'
+import { t } from '../i18n'
 import { ImageRef, colors, imageKey, mono, themed } from '../ui'
 
 type WorkerMessage = { type: string; [key: string]: any }
@@ -15,6 +16,28 @@ const files = new Map<string, string>()
 
 const megabytes = (bytes: number) =>
   bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.ceil(bytes / 1024)} KB`
+
+// A video's decrypted file, from this run's cache or asked from the worker.
+export function videoFile(
+  ref: ImageRef,
+  send: (message: object) => void,
+  subscribe: (listener: (message: WorkerMessage) => void) => () => void
+): Promise<string> {
+  const key = imageKey(ref)
+  const cached = files.get(key)
+  if (cached) return Promise.resolve(cached)
+  return new Promise((resolve, reject) => {
+    const stop = subscribe((message) => {
+      if (message.type !== 'board-media' || message.key !== key) return
+      stop()
+      if (message.path) {
+        files.set(key, message.path)
+        resolve(message.path)
+      } else reject(new Error(message.error || 'unavailable'))
+    })
+    send({ type: messageTypes.boardMedia, ref })
+  })
+}
 
 export function VideoTiles({
   videos,
@@ -40,8 +63,10 @@ export function VideoTiles({
         if (message.path) setPlaying(message.path)
         else {
           Alert.alert(
-            'Video unavailable',
-            `It may still be syncing from the member who added it. (${message.error || 'unknown error'})`
+            t('Video unavailable'),
+            t('It may still be syncing from the member who added it. ({error})', {
+              error: message.error || t('unknown error')
+            })
           )
         }
       }),
@@ -68,7 +93,9 @@ export function VideoTiles({
             onPress={() => open(ref)}
             disabled={!!loading}
             accessibilityRole='button'
-            accessibilityLabel={`Play video ${ref.name || ''}`.trim()}
+            accessibilityLabel={
+              ref.name ? t('Play video {name}', { name: ref.name }) : t('Play video')
+            }
           >
             {loading === key ? (
               <ActivityIndicator color={colors.accent} />
@@ -76,7 +103,7 @@ export function VideoTiles({
               <Feather name='play-circle' size={30} color={colors.text} />
             )}
             <Text style={styles.name} numberOfLines={1}>
-              {ref.name || 'Video'}
+              {ref.name || t('Video')}
             </Text>
             <Text style={styles.size}>{megabytes(ref.id.byteLength)}</Text>
           </Pressable>
@@ -109,7 +136,7 @@ function VideoModal({ path, onClose }: { path: string; onClose: () => void }) {
           onPress={onClose}
           hitSlop={10}
           accessibilityRole='button'
-          accessibilityLabel='Close video'
+          accessibilityLabel={t('Close video')}
         >
           <Feather name='x' size={22} color='white' />
         </Pressable>

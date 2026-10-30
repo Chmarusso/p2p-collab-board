@@ -33,6 +33,7 @@ import {
   themed,
   tint
 } from '../ui'
+import { plural, t } from '../i18n'
 import { SoundName } from '../sounds'
 import type { SharePref } from '../share'
 import { ActivitySheet } from './Activity'
@@ -264,7 +265,14 @@ export function BoardScreen(props: Props) {
   const powers = memberPowers(data, me)
   const activeMembers = data.members.filter((member) => !member.banned).length
   const openCard = data.objects.find((card) => card.id === openCardId) || null
+  const templateColumnName = data.columns.find((column) => column.id === templateColumn)?.name
   const menuColumnIndex = data.columns.findIndex((column) => column.id === columnMenu)
+
+  const onlineNow = plural(
+    peers.length,
+    ['{n} online now', '{n} online now'],
+    ['{n} osoba online', '{n} osoby online', '{n} osób online']
+  )
 
   const addCard = (columnId: string) => {
     const title = (drafts[columnId] || '').trim()
@@ -276,27 +284,32 @@ export function BoardScreen(props: Props) {
   const moreActions: Array<[string, () => void]> = [
     ...(can('assignees')
       ? [
-          [mineCount ? `My work (${mineCount})` : 'My work', () => setSheet('mywork')] as [
-            string,
-            () => void
-          ]
+          [
+            mineCount ? t('My work ({n})', { n: mineCount }) : t('My work'),
+            () => setSheet('mywork')
+          ] as [string, () => void]
         ]
       : []),
-    [activeMembers ? `Members (${activeMembers})` : 'Members', () => setSheet('members')],
+    [
+      activeMembers ? t('Members ({n})', { n: activeMembers }) : t('Members'),
+      () => setSheet('members')
+    ],
     ...(archivedCount || showArchived
       ? [
           [
-            `${showArchived ? 'Hide' : 'Show'} archived (${archivedCount})`,
+            showArchived
+              ? t('Hide archived ({n})', { n: archivedCount })
+              : t('Show archived ({n})', { n: archivedCount }),
             () => setShowArchived(!showArchived)
           ] as [string, () => void]
         ]
       : []),
-    ['Activity', () => setSheet('activity')],
-    ...(can('stats') ? [['Stats', () => setSheet('stats')] as [string, () => void]] : []),
+    [t('Activity'), () => setSheet('activity')],
+    ...(can('stats') ? [[t('Stats'), () => setSheet('stats')] as [string, () => void]] : []),
     ...(can('rules')
       ? [
           [
-            data.rules?.length ? `Rules (${data.rules.length})` : 'Rules',
+            data.rules?.length ? t('Rules ({n})', { n: data.rules.length }) : t('Rules'),
             () => setSheet('rules')
           ] as [string, () => void]
         ]
@@ -313,12 +326,15 @@ export function BoardScreen(props: Props) {
     }
     if (!sections) return apply(false)
     Alert.alert(
-      `Switch to ${boardKind(next).name}?`,
-      `Use its sections (${sections.join(', ')})? Columns are renamed in order; empty extra columns are removed.`,
+      t('Switch to {kind}?', { kind: t(boardKind(next).name) }),
+      t(
+        'Use its sections ({sections})? Columns are renamed in order; empty extra columns are removed.',
+        { sections: sections.join(', ') }
+      ),
       [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Keep my columns', onPress: () => apply(false) },
-        { text: 'Use its sections', onPress: () => apply(true) }
+        { text: t('Cancel'), style: 'cancel' },
+        { text: t('Keep my columns'), onPress: () => apply(false) },
+        { text: t('Use its sections'), onPress: () => apply(true) }
       ]
     )
   }
@@ -327,7 +343,7 @@ export function BoardScreen(props: Props) {
     if (Platform.OS !== 'ios') return setSheet('more')
     ActionSheetIOS.showActionSheetWithOptions(
       {
-        options: [...moreActions.map(([label]) => label), 'Cancel'],
+        options: [...moreActions.map(([label]) => label), t('Cancel')],
         cancelButtonIndex: moreActions.length
       },
       (index) => moreActions[index]?.[1]()
@@ -382,7 +398,7 @@ export function BoardScreen(props: Props) {
           style={[styles.bell, props.unreadCount > 0 && { borderColor: accent }]}
           onPress={() => setSheet('notifications')}
           accessibilityRole='button'
-          accessibilityLabel={`Notifications, ${props.unreadCount} unread`}
+          accessibilityLabel={t('Notifications, {n} unread', { n: props.unreadCount })}
         >
           <Feather name='bell' size={18} color={props.unreadCount ? accent : colors.muted} />
           {props.unreadCount ? (
@@ -395,7 +411,7 @@ export function BoardScreen(props: Props) {
           style={[styles.user]}
           onPress={props.openProfile}
           accessibilityRole='button'
-          accessibilityLabel='Open profile and connection details'
+          accessibilityLabel={t('Open profile and connection details')}
         >
           <Avatar
             hex={me}
@@ -412,7 +428,7 @@ export function BoardScreen(props: Props) {
 
       {peers.length ? (
         <FadeIn>
-          <View style={styles.online} accessibilityLabel={`${peers.length} online now`}>
+          <View style={styles.online} accessibilityLabel={onlineNow}>
             <AvatarStack
               identities={peers.map((peer) => peer.identity)}
               data={data}
@@ -424,8 +440,10 @@ export function BoardScreen(props: Props) {
             <View style={styles.onlineDot} />
             <Text style={styles.onlineText} numberOfLines={1}>
               {peers.length === 1
-                ? `${peers[0].name || props.nameFor(peers[0].identity)} is online`
-                : `${peers.length} online now`}
+                ? t('{name} is online', {
+                    name: peers[0].name || props.nameFor(peers[0].identity)
+                  })
+                : onlineNow}
             </Text>
           </View>
         </FadeIn>
@@ -435,8 +453,9 @@ export function BoardScreen(props: Props) {
         <View style={styles.bannedBanner} accessibilityRole='alert'>
           <Feather name='user-x' size={16} color={colors.error} />
           <Text style={styles.bannedText}>
-            You were removed from this board. You can still see it, but your changes are ignored by
-            everyone.
+            {t(
+              'You were removed from this board. You can still see it, but your changes are ignored by everyone.'
+            )}
           </Text>
         </View>
       ) : null}
@@ -446,7 +465,7 @@ export function BoardScreen(props: Props) {
           style={styles.description}
           onPress={() => setDescriptionOpen(true)}
           accessibilityRole='button'
-          accessibilityLabel='Board description'
+          accessibilityLabel={t('Board description')}
         >
           <Markdown text={data.info.description} numberOfLines={2} />
         </Pressable>
@@ -458,7 +477,7 @@ export function BoardScreen(props: Props) {
           }}
           accessibilityRole='button'
         >
-          <Text style={styles.addDescription}>+ Add a board description</Text>
+          <Text style={styles.addDescription}>{t('+ Add a board description')}</Text>
         </Pressable>
       )}
 
@@ -483,7 +502,7 @@ export function BoardScreen(props: Props) {
                 color={view === name ? inkOn(accent) : colors.text}
               />
               <Text style={[styles.toolText, view === name && { color: inkOn(accent) }]}>
-                {name === 'board' ? 'Board' : 'Agenda'}
+                {name === 'board' ? t('Board') : t('Agenda')}
               </Text>
             </Pressable>
           ))}
@@ -491,7 +510,7 @@ export function BoardScreen(props: Props) {
         {can('assignees') ? (
           <ToolButton
             icon='user-check'
-            label='Assigned to me'
+            label={t('Assigned to me')}
             active={assignedToMe}
             accent={accent}
             onPress={() => setFilters({ ...filters, assignee: assignedToMe ? '' : me })}
@@ -499,14 +518,14 @@ export function BoardScreen(props: Props) {
         ) : null}
         <ToolButton
           icon='filter'
-          label={activeFilters ? `Filter (${activeFilters})` : 'Filter'}
+          label={activeFilters ? t('Filter ({n})', { n: activeFilters }) : t('Filter')}
           active={activeFilters > 0}
           accent={accent}
           onPress={() => setSheet('filter')}
         />
         <ToolButton
           icon='more-horizontal'
-          label={mineCount ? `More · ${mineCount} mine` : 'More'}
+          label={mineCount ? t('More · {n} mine', { n: mineCount }) : t('More')}
           active={showArchived}
           accent={accent}
           onPress={openMore}
@@ -558,6 +577,9 @@ export function BoardScreen(props: Props) {
               relativeTime={props.relativeTime}
               onOpen={setOpenCardId}
               onCompose={() => props.onNewCard(data.columns[0]?.id)}
+              boardKey={props.boardKey}
+              send={send}
+              subscribe={props.subscribe}
             />
           ) : kind.layout === 'list' ? (
             <TodoView
@@ -600,6 +622,7 @@ export function BoardScreen(props: Props) {
                 )
                 const wip = can('wip') ? wipState(open.length, column.wipLimit) : null
                 const points = can('points') ? pointsOf(open) : 0
+                const limited = wip !== null && !!column.wipLimit
                 return (
                   <View
                     key={column.id}
@@ -608,13 +631,27 @@ export function BoardScreen(props: Props) {
                       column.color ? { borderTopColor: column.color } : null,
                       wip === 'over' && styles.columnOver
                     ]}
-                    accessibilityLabel={`${column.name}, ${cards.length} cards${wip !== null && column.wipLimit ? `, limit ${column.wipLimit}${wip === 'over' ? ', over the limit' : wip === 'full' ? ', at the limit' : ''}` : ''}`}
+                    accessibilityLabel={[
+                      column.name,
+                      plural(
+                        cards.length,
+                        ['{n} card', '{n} cards'],
+                        ['{n} karta', '{n} karty', '{n} kart']
+                      ),
+                      limited ? t('limit {n}', { n: column.wipLimit! }) : '',
+                      limited && wip === 'over' ? t('over the limit') : '',
+                      limited && wip === 'full' ? t('at the limit') : ''
+                    ]
+                      .filter(Boolean)
+                      .join(', ')}
                   >
                     <View style={styles.columnHead}>
                       <Text style={styles.columnName} numberOfLines={1}>
                         {column.name}
                       </Text>
-                      {points ? <Text style={styles.columnPoints}>{points} pts</Text> : null}
+                      {points ? (
+                        <Text style={styles.columnPoints}>{t('{n} pts', { n: points })}</Text>
+                      ) : null}
                       <Text
                         style={[
                           styles.columnCount,
@@ -631,12 +668,14 @@ export function BoardScreen(props: Props) {
                         onPress={() => setColumnMenu(column.id)}
                         hitSlop={10}
                         accessibilityRole='button'
-                        accessibilityLabel={`Column options for ${column.name}`}
+                        accessibilityLabel={t('Column options for {column}', {
+                          column: column.name
+                        })}
                       >
                         <Feather name='more-horizontal' size={18} color={colors.muted} />
                       </Pressable>
                     </View>
-                    {cards.length ? null : <Text style={styles.noCards}>No cards</Text>}
+                    {cards.length ? null : <Text style={styles.noCards}>{t('No cards')}</Text>}
                     {cards.map((card) => (
                       <FadeIn key={card.id} id={card.id} skip={!settled.current}>
                         {renderCard(card)}
@@ -650,18 +689,18 @@ export function BoardScreen(props: Props) {
                           setDrafts((current) => ({ ...current, [column.id]: value }))
                         }
                         onSubmitEditing={() => addCard(column.id)}
-                        placeholder='+ Add a card'
+                        placeholder={t('+ Add a card')}
                         placeholderTextColor={colors.muted}
                         returnKeyType='done'
                         blurOnSubmit={false}
-                        accessibilityLabel={`Add a card to ${column.name}`}
+                        accessibilityLabel={t('Add a card to {column}', { column: column.name })}
                       />
                       <Pressable
                         onPress={() => props.onNewCard(column.id)}
                         hitSlop={8}
                         style={styles.addMore}
                         accessibilityRole='button'
-                        accessibilityLabel='New card with description and images'
+                        accessibilityLabel={t('New card with description and images')}
                       >
                         <Feather name='image' size={16} color={colors.muted} />
                       </Pressable>
@@ -671,7 +710,7 @@ export function BoardScreen(props: Props) {
                           hitSlop={8}
                           style={styles.addMore}
                           accessibilityRole='button'
-                          accessibilityLabel='From template…'
+                          accessibilityLabel={t('From template…')}
                         >
                           <Feather name='copy' size={16} color={colors.muted} />
                         </Pressable>
@@ -681,18 +720,23 @@ export function BoardScreen(props: Props) {
                 )
               })}
               <View style={[styles.column, styles.addColumn]}>
-                <Text style={styles.columnName}>Add a column</Text>
+                <Text style={styles.columnName}>{t('Add a column')}</Text>
                 <TextInput
                   style={styles.addInput}
                   value={columnDraft}
                   onChangeText={setColumnDraft}
                   onSubmitEditing={addColumn}
-                  placeholder='Column name'
+                  placeholder={t('Column name')}
                   placeholderTextColor={colors.muted}
                   maxLength={60}
                   returnKeyType='done'
                 />
-                <Button title='Add column' icon='plus' variant='secondary' onPress={addColumn} />
+                <Button
+                  title={t('Add column')}
+                  icon='plus'
+                  variant='secondary'
+                  onPress={addColumn}
+                />
               </View>
             </ScrollView>
           )}
@@ -724,10 +768,10 @@ export function BoardScreen(props: Props) {
         />
       ) : null}
       {sheet === 'settings' ? (
-        <Sheet title='Board settings' onClose={() => setSheet(null)}>
+        <Sheet title={t('Board settings')} onClose={() => setSheet(null)}>
           <MenuRow
             icon='edit-2'
-            label='Edit board'
+            label={t('Edit board')}
             onPress={() => {
               setDescriptionDraft(data.info.description)
               setSheet('description')
@@ -736,54 +780,56 @@ export function BoardScreen(props: Props) {
           {data.owner === me ? (
             <MenuRow
               icon='grid'
-              label={`Board type: ${kind.name}`}
+              label={t('Board type: {kind}', { kind: t(kind.name) })}
               onPress={() => setSheet('kind')}
             />
           ) : null}
           {can('labels') ? (
-            <MenuRow icon='tag' label='Labels' onPress={() => setSheet('labels')} />
+            <MenuRow icon='tag' label={t('Labels')} onPress={() => setSheet('labels')} />
           ) : null}
-          <MenuRow icon='droplet' label='Customize' onPress={() => setSheet('theme')} />
+          <MenuRow icon='droplet' label={t('Customize')} onPress={() => setSheet('theme')} />
           {can('rules') ? (
-            <MenuRow icon='zap' label='Automation rules' onPress={() => setSheet('rules')} />
+            <MenuRow icon='zap' label={t('Automation rules')} onPress={() => setSheet('rules')} />
           ) : null}
           {can('templates') ? (
             <MenuRow
               icon='layout'
-              label='Start from a template'
+              label={t('Start from a template')}
               onPress={() => setSheet('templates')}
             />
           ) : null}
-          <MenuRow icon='share' label='Share menu' onPress={() => setSheet('sharing')} />
+          <MenuRow icon='share' label={t('Share menu')} onPress={() => setSheet('sharing')} />
         </Sheet>
       ) : null}
       {sheet === 'kind' ? (
-        <Sheet title='Board type' onClose={() => setSheet('settings')}>
+        <Sheet title={t('Board type')} onClose={() => setSheet('settings')}>
           <Text style={styles.hint}>
-            Changes how this board looks for everyone. Nothing is deleted: details a type hides come
-            back when you switch again.
+            {t(
+              'Changes how this board looks for everyone. Nothing is deleted: details a type hides come back when you switch again.'
+            )}
           </Text>
           <KindOptions selected={kind.id} onPick={chooseKind} />
         </Sheet>
       ) : null}
       {sheet === 'sharing' ? (
-        <Sheet title='Share menu' onClose={() => setSheet('settings')}>
+        <Sheet title={t('Share menu')} onClose={() => setSheet('settings')}>
           <View style={styles.menuRow}>
-            <Text style={styles.menuText}>Show this board</Text>
+            <Text style={styles.menuText}>{t('Show this board')}</Text>
             <Switch
               value={!props.sharePref.hidden}
               onValueChange={(show) => props.onSharePref({ ...props.sharePref, hidden: !show })}
               trackColor={{ true: colors.accent, false: colors.border }}
-              accessibilityLabel='Show this board when sharing from other apps'
+              accessibilityLabel={t('Show this board when sharing from other apps')}
             />
           </View>
           <Text style={styles.hint}>
-            Share a link or post from any app and pick OpenCollab to add it here as a card. This
-            setting is only on this device.
+            {t(
+              'Share a link or post from any app and pick OpenCollab to add it here as a card. This setting is only on this device.'
+            )}
           </Text>
           {props.sharePref.hidden ? null : (
             <>
-              <Text style={styles.sharingLabel}>New cards go to</Text>
+              <Text style={styles.sharingLabel}>{t('New cards go to')}</Text>
               <View style={styles.chips}>
                 {data.columns.map((column) => (
                   <Chip
@@ -804,7 +850,7 @@ export function BoardScreen(props: Props) {
         </Sheet>
       ) : null}
       {sheet === 'more' ? (
-        <Sheet title='More' onClose={() => setSheet(null)}>
+        <Sheet title={t('More')} onClose={() => setSheet(null)}>
           {moreActions.map(([label, run]) => (
             <MenuRow
               key={label}
@@ -867,11 +913,16 @@ export function BoardScreen(props: Props) {
         />
       ) : null}
       {templateColumn ? (
-        <Sheet title='From template' onClose={() => setTemplateColumn(null)}>
+        <Sheet title={t('From template')} onClose={() => setTemplateColumn(null)}>
           <Text style={styles.hint}>
-            Adds a copy to{' '}
-            {data.columns.find((column) => column.id === templateColumn)?.name || 'the column'}:
-            title, description, labels, assignees, points and checklist.
+            {templateColumnName
+              ? t(
+                  'Adds a copy to {column}: title, description, labels, assignees, points and checklist.',
+                  { column: templateColumnName }
+                )
+              : t(
+                  'Adds a copy to the column: title, description, labels, assignees, points and checklist.'
+                )}
           </Text>
           {templates.map((template) => (
             <View key={template.id} style={styles.templateRow}>
@@ -879,7 +930,7 @@ export function BoardScreen(props: Props) {
                 onPress={() => fromTemplate(template.id, templateColumn)}
                 style={[styles.templateMain]}
                 accessibilityRole='button'
-                accessibilityLabel={`New card from ${template.title}`}
+                accessibilityLabel={t('New card from {template}', { template: template.title })}
               >
                 <Feather name='copy' size={16} color={colors.muted} />
                 <Text style={styles.menuText} numberOfLines={2}>
@@ -893,9 +944,9 @@ export function BoardScreen(props: Props) {
                 }}
                 style={styles.templateEdit}
                 accessibilityRole='button'
-                accessibilityLabel={`Edit template ${template.title}`}
+                accessibilityLabel={t('Edit template {template}', { template: template.title })}
               >
-                <Text style={styles.link}>Edit</Text>
+                <Text style={styles.link}>{t('Edit')}</Text>
               </Pressable>
             </View>
           ))}
@@ -954,7 +1005,7 @@ export function BoardScreen(props: Props) {
         />
       ) : null}
       {sheet === 'description' ? (
-        <Sheet title='Board description' onClose={() => setSheet(null)}>
+        <Sheet title={t('Board description')} onClose={() => setSheet(null)}>
           <TextInput
             style={styles.descriptionInput}
             value={descriptionDraft}
@@ -962,12 +1013,12 @@ export function BoardScreen(props: Props) {
             multiline
             autoFocus
             maxLength={2000}
-            placeholder='What is this board for? Markdown works.'
+            placeholder={t('What is this board for? Markdown works.')}
             placeholderTextColor={colors.muted}
           />
-          <Text style={styles.hint}>Everyone on the board sees it.</Text>
+          <Text style={styles.hint}>{t('Everyone on the board sees it.')}</Text>
           <Button
-            title='Save'
+            title={t('Save')}
             onPress={() => {
               send({ type: messageTypes.boardDescribe, description: descriptionDraft })
               setSheet(null)
@@ -989,7 +1040,7 @@ export function BoardScreen(props: Props) {
               </ScrollView>
               <View style={styles.row}>
                 <Button
-                  title='Edit'
+                  title={t('Edit')}
                   icon='edit-2'
                   variant='secondary'
                   onPress={() => {
@@ -998,7 +1049,7 @@ export function BoardScreen(props: Props) {
                     setSheet('description')
                   }}
                 />
-                <Button title='Close' grow onPress={() => setDescriptionOpen(false)} />
+                <Button title={t('Close')} grow onPress={() => setDescriptionOpen(false)} />
               </View>
             </Pressable>
           </Pressable>

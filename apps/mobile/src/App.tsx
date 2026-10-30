@@ -73,6 +73,7 @@ import {
 import { ShareBoard, ShareSheet } from './ShareSheet'
 import { SharedItemsSheet } from './SharedItems'
 import { SharedRecord, loadShared, newSharedId, removeShared, upsertShared } from './sharedHistory'
+import { LanguageChoice, languageKey, plural, setLanguage, t } from './i18n'
 
 const normalizeInvite = (value: string) => {
   const invite = value.trim()
@@ -156,16 +157,21 @@ const recentBoardsKey = (identity: string) => `opencollab.recent-boards.${identi
 // 'saved'.
 const identityPhraseKey = 'opencollab.identity'
 const keychainChoiceKey = 'opencollab.identity-keychain'
+// Logged in with saved recovery words: the next launch logs in by itself, until
+// "Log out".
+const sessionKey = 'opencollab.session'
+// The board open when the app was left, reopened on the next launch.
+const lastBoardKey = (identity: string) => `opencollab.last-board.${identity}`
 
 const shortKey = (hex: string) => (hex.length > 10 ? `${hex.slice(0, 4)}…${hex.slice(-4)}` : hex)
 
 function relativeTime(iso?: string) {
   if (!iso) return ''
   const seconds = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000)
-  if (seconds < 60) return 'now'
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`
-  return `${Math.floor(seconds / 86400)}d`
+  if (seconds < 60) return t('now')
+  if (seconds < 3600) return t('{n}m', { n: Math.floor(seconds / 60) })
+  if (seconds < 86400) return t('{n}h', { n: Math.floor(seconds / 3600) })
+  return t('{n}d', { n: Math.floor(seconds / 86400) })
 }
 
 // Which cards show where: ids, columns, order, archived and template flags.
@@ -191,11 +197,11 @@ function placementKey(
 }
 
 function describeNetwork(status: string) {
-  if (status === 'topic-joining') return 'Searching for peers'
-  if (status === 'topic-joined') return 'Announced on the network'
-  if (status === 'connection-received') return 'Peer connecting'
-  if (status === 'authenticated') return 'Peer verified'
-  if (/error|failed/.test(status)) return 'Network problem, retrying'
+  if (status === 'topic-joining') return t('Searching for peers')
+  if (status === 'topic-joined') return t('Announced on the network')
+  if (status === 'connection-received') return t('Peer connecting')
+  if (status === 'authenticated') return t('Peer verified')
+  if (/error|failed/.test(status)) return t('Network problem, retrying')
   return status
 }
 
@@ -259,11 +265,19 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
   const [synced, setSynced] = useState(false)
   const [newTitle, setNewTitle] = useState('')
   const [newBody, setNewBody] = useState('')
-  const [networkStatus, setNetworkStatus] = useState('Not connected')
+  // The worker's raw status; describeNetwork words it in the current language.
+  const [networkStatus, setNetworkStatus] = useState('')
   const [peerCount, setPeerCount] = useState(0)
   const [waitedForMembers, setWaitedForMembers] = useState(false)
   const identityKeyRef = useRef('')
   const currentBoardKey = useRef('')
+  // The worker pipe, for code that runs inside its own message handler.
+  const pipeRef = useRef<any>(null)
+  // Set at launch when the last session didn't log out; each is used once.
+  const autoLogin = useRef(false)
+  const resumeBoard = useRef(true)
+  // A share opened the app: the board picker wins over the last board.
+  const shareArrived = useRef(false)
   // The open board's invite, to tell whether a shared link needs a board switch.
   const currentInvite = useRef('')
   // The shared item in the board picker, and every item shared on this device.
@@ -308,6 +322,7 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
   // Dark until the user picks System or Light, so existing users keep the old look.
   const [themeMode, setThemeMode] = useState<ThemeMode>('dark')
   const [themeOverride, setThemeOverride] = useState('')
+  const [languageChoice, setLanguageChoice] = useState<LanguageChoice>('system')
   const template = themeTemplate(themeOverride || (boardKey ? boardData.theme.template : null))
   const activeScheme =
     themeMode === 'system' ? (systemScheme === 'light' ? 'light' : 'dark') : themeMode
@@ -364,6 +379,9 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
           setIdentityKey(message.publicKey || '')
           if (message.publicKey) void loadRecentBoards(message.publicKey)
           setIdentityReady(true)
+          if (keychainRef.current === 'saved' || keychainRef.current === 'protected') {
+            void SecureStore.setItemAsync(sessionKey, '1')
+          }
           if (message.mnemonic) {
             // Created: the Keychain question comes once the words are backed up.
             phraseRef.current = message.mnemonic
@@ -374,7 +392,7 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
             offerKeychain(loadingPhraseRef.current)
           }
           loadingPhraseRef.current = ''
-        } else if (message.error) Alert.alert('Identity error', message.error)
+        } else if (message.error) Alert.alert(t('Identity error'), message.error)
       }
       if (message.type === messageTypes.roomStatus && message.status === 'ready') {
         setRoomReady(true)
@@ -387,7 +405,13 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
         setBoardKey(message.boardKey || '')
         currentBoardKey.current = message.boardKey || ''
         currentInvite.current = message.invite ? normalizeInvite(message.invite) : ''
-        if (message.invite) rememberBoard(message.invite, message.boardName || 'Unnamed board')
+        if (message.invite) rememberBoard(message.invite, message.boardName || t('Unnamed board'))
+        if (message.invite && identityKeyRef.current) {
+          void SecureStore.setItemAsync(
+            lastBoardKey(identityKeyRef.current),
+            normalizeInvite(message.invite)
+          )
+        }
         openPendingShare(boardColumns.current)
         if (message.displayName) {
           setDisplayName(message.displayName)
@@ -413,14 +437,14 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
           exportRequest.current = ''
           setExporting(false)
         }
-        Alert.alert('Not done', message.error)
+        Alert.alert(t('Not done'), message.error)
       }
       if (message.type === 'board-export' && message.requestId === exportRequest.current) {
         exportRequest.current = ''
         setExporting(false)
         if (message.path) {
           Share.share({ url: `file://${encodeURI(message.path)}` }).catch((err) =>
-            Alert.alert('Export', err?.message || 'Could not share the file.')
+            Alert.alert(t('Export'), err?.message || t('Could not share the file.'))
           )
         }
       }
@@ -470,9 +494,9 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
       if (message.type === messageTypes.boardSynced) setSynced(true)
       if (message.type === 'room-status' && message.status === 'error') {
         pendingShare.current = null
-        setEntryError(message.error || 'Something went wrong')
+        setEntryError(message.error || t('Something went wrong'))
       }
-      if (message.type === 'room-debug') setNetworkStatus(describeNetwork(message.status))
+      if (message.type === 'room-debug') setNetworkStatus(message.status || '')
       if (message.type === messageTypes.boardAlerts) {
         setAlertBoards(message.boards || [])
         chimeForNewAlerts(message.boards || [])
@@ -480,6 +504,7 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
       for (const listener of workerListeners.current) listener(message)
       if (message.type === 'peer-count') setPeerCount(message.count || 0)
     })
+    pipeRef.current = framed
     setPipe(framed)
     void loadSavedIdentity()
     SecureStore.getItemAsync(soundPrefKey).then((value) => {
@@ -494,6 +519,11 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
     ]).then(([mode, override]) => {
       if (THEME_MODES.includes(mode as ThemeMode)) setThemeMode(mode as ThemeMode)
       if (override) setThemeOverride(override)
+    })
+    SecureStore.getItemAsync(languageKey).then((value) => {
+      if (value !== 'system' && value !== 'en' && value !== 'pl') return
+      setLanguage(value)
+      setLanguageChoice(value)
     })
     return () => {
       motion.remove()
@@ -519,6 +549,7 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
     const receive = (url: string | null) => {
       const item = parseShare(url)
       if (!item) return
+      shareArrived.current = true
       const record: SharedRecord = { id: newSharedId(), at: Date.now(), ...item }
       setEntryMode('choose')
       setShared(record)
@@ -535,7 +566,7 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
       if (roomReady) {
-        send({ type: messageTypes.roomLeave })
+        leaveBoard()
         return true
       }
       if (identityReady && entryMode === 'create' && createStep === 'kind') {
@@ -712,19 +743,22 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
     setSharedRecords(next)
   }
 
-  // "Add to board" from the Shared items list goes back through the picker.
-  function shareAgain(record: SharedRecord) {
+  // A board tapped in the Shared items list: straight to its new-card form.
+  function shareAgain(record: SharedRecord, board: ShareBoard) {
     setSharedListOpen(false)
-    setShared(record)
-    void startPreview(record)
+    pickShareBoard(board, record)
   }
 
-  function pickShareBoard(board: ShareBoard) {
-    const record = shared
+  function pickShareBoard(board: ShareBoard, record = shared) {
     setShared(null)
     if (!record) return
     const invite = normalizeInvite(board.invite)
-    saveSharePrefs({ ...sharePrefsRef.current, last: invite })
+    const used = sharePrefsRef.current.recent || []
+    saveSharePrefs({
+      ...sharePrefsRef.current,
+      last: invite,
+      recent: [invite, ...used.filter((entry) => entry !== invite)].slice(0, 30)
+    })
     pendingShare.current = { invite, record }
     if (invite === currentInvite.current) openPendingShare(boardData.columns)
     else send({ type: messageTypes.roomStart, invite })
@@ -791,8 +825,11 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
 
   async function loadSavedIdentity() {
     let choice = (await SecureStore.getItemAsync(keychainChoiceKey)) as KeychainChoice
+    const resume = (await SecureStore.getItemAsync(sessionKey)) === '1'
     if (choice === 'protected') {
-      // Reading it asks for Face ID, so that waits for "Unlock saved identity".
+      // Reading it asks for Face ID: on resume that prompt comes by itself,
+      // otherwise it waits for "Log in".
+      autoLogin.current = resume
       setKeychainChoice(choice)
       setHasSavedPhrase(true)
       return
@@ -805,39 +842,40 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
     setKeychainChoice(choice)
     if (!saved) return
     savedPhraseRef.current = saved
+    autoLogin.current = resume
     setHasSavedPhrase(true)
     setIdentityPhrase(saved)
   }
+
+  // Resume the last session once the worker is up.
+  useEffect(() => {
+    if (!pipe || !hasSavedPhrase || identityReady || !autoLogin.current) return
+    autoLogin.current = false
+    void unlockSaved()
+  }, [pipe, hasSavedPhrase, identityReady])
 
   function setKeychainChoice(choice: KeychainChoice) {
     keychainRef.current = choice
     setKeychain(choice)
   }
 
-  // Protected only when the device can ask for Face ID / Touch ID; otherwise a
-  // plain Keychain item, as before.
+  // A Keychain item readable while the phone is unlocked, never backed up or
+  // moved to another device. The phone's own lock guards it: asking for Face ID
+  // on every launch as well made logging in a chore.
   async function savePhrase(phrase: string) {
-    let choice: KeychainChoice = 'saved'
     try {
-      if (SecureStore.canUseBiometricAuthentication()) {
-        await SecureStore.setItemAsync(identityPhraseKey, phrase, {
-          requireAuthentication: true,
-          authenticationPrompt: 'Save your OpenCollab recovery words'
-        })
-        choice = 'protected'
-      } else await SecureStore.setItemAsync(identityPhraseKey, phrase)
-    } catch {
-      try {
-        await SecureStore.setItemAsync(identityPhraseKey, phrase)
-      } catch (err) {
-        Alert.alert('Not saved', (err as Error)?.message || keychainCopy.refused)
-        return
-      }
+      await SecureStore.setItemAsync(identityPhraseKey, phrase, {
+        keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY
+      })
+    } catch (err) {
+      Alert.alert(t('Not saved'), (err as Error)?.message || keychainCopy().refused)
+      return
     }
-    await SecureStore.setItemAsync(keychainChoiceKey, choice)
+    await SecureStore.setItemAsync(keychainChoiceKey, 'saved')
+    await SecureStore.setItemAsync(sessionKey, '1')
     savedPhraseRef.current = phrase
     setHasSavedPhrase(true)
-    setKeychainChoice(choice)
+    setKeychainChoice('saved')
   }
 
   async function forgetPhrase() {
@@ -855,25 +893,30 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
     if (choice === 'off') return
     if (choice === 'saved' || choice === 'protected') return void savePhrase(phrase)
     Alert.alert(
-      keychainCopy.offer,
-      'OpenCollab then opens without asking for them. If you don’t save them, they stay in memory only and you enter them each time you open the app. You can change this later in Settings.',
+      keychainCopy().offer,
+      t(
+        'OpenCollab then opens without asking for them. If you don’t save them, they stay in memory only and you enter them each time you open the app. You can change this later in Settings.'
+      ),
       [
         {
-          text: 'Don’t save',
+          text: t('Don’t save'),
           style: 'cancel',
           onPress: () => {
             void SecureStore.setItemAsync(keychainChoiceKey, 'off')
             setKeychainChoice('off')
           }
         },
-        { text: 'Save', onPress: () => void savePhrase(phrase) }
+        { text: t('Save'), onPress: () => void savePhrase(phrase) }
       ]
     )
   }
 
   async function unlock(phrase = identityPhrase.trim()) {
     if (phrase.split(/\s+/).length < 12) {
-      return Alert.alert('Identity required', 'Enter a recovery phrase with at least 12 words.')
+      return Alert.alert(
+        t('Identity required'),
+        t('Enter a recovery phrase with at least 12 words.')
+      )
     }
     // Unscoped boards belong to the previously saved identity only.
     if (phrase !== savedPhraseRef.current) await SecureStore.deleteItemAsync(legacyRecentBoardsKey)
@@ -887,20 +930,23 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
     try {
       saved = await SecureStore.getItemAsync(identityPhraseKey, {
         requireAuthentication: true,
-        authenticationPrompt: 'Unlock OpenCollab'
+        authenticationPrompt: t('Unlock OpenCollab')
       })
     } catch {
       // Cancelled, or the item was invalidated by a Face ID change.
       return Alert.alert(
-        'Not unlocked',
-        'Try again, or choose “Use existing identity” and enter your recovery words.'
+        t('Not unlocked'),
+        t('Tap Log in to try again, or log in with your recovery words.')
       )
     }
     if (!saved) {
       setHasSavedPhrase(false)
-      return Alert.alert('Nothing saved', 'Enter your recovery words to continue.')
+      return Alert.alert(t('Nothing saved'), t('Enter your recovery words to continue.'))
     }
     savedPhraseRef.current = saved
+    // Words saved behind Face ID by an earlier version: asked this last time,
+    // then kept like any saved words.
+    void savePhrase(saved)
     void unlock(saved)
   }
 
@@ -952,6 +998,12 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
     void SecureStore.setItemAsync(themeOverrideKey, next)
   }
 
+  function chooseLanguage(next: LanguageChoice) {
+    setLanguage(next)
+    setLanguageChoice(next)
+    void SecureStore.setItemAsync(languageKey, next)
+  }
+
   function exportBoard() {
     if (exportRequest.current) return
     const requestId = `${Date.now()}-${Math.random().toString(36).slice(2)}`
@@ -961,8 +1013,13 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
   }
 
   // Boards a shared link can go to: the last one used first, then the open one.
-  const shareRank = (invite: string) =>
-    invite === sharePrefs.last ? 2 : roomReady && invite === currentInvite.current ? 1 : 0
+  // Boards last shared to first, most recent at the top; the rest keep the
+  // boards list's order (recently opened first).
+  const used = sharePrefs.recent || (sharePrefs.last ? [sharePrefs.last] : [])
+  const shareRank = (invite: string) => {
+    const index = used.indexOf(invite)
+    return index < 0 ? used.length : index
+  }
   const shareBoards: ShareBoard[] = recentBoards
     .filter((board) => !sharePrefs.boards[normalizeInvite(board.invite)]?.hidden)
     .map((board) => ({
@@ -970,7 +1027,7 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
       name: board.name,
       open: roomReady && normalizeInvite(board.invite) === currentInvite.current
     }))
-    .sort((a, b) => shareRank(normalizeInvite(b.invite)) - shareRank(normalizeInvite(a.invite)))
+    .sort((a, b) => shareRank(normalizeInvite(a.invite)) - shareRank(normalizeInvite(b.invite)))
   const shareSheet = shared ? (
     <ShareSheet
       item={shared}
@@ -983,6 +1040,8 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
   ) : sharedListOpen ? (
     <SharedItemsSheet
       records={sharedRecords}
+      boards={shareBoards}
+      hiddenCount={recentBoards.length - shareBoards.length}
       relativeTime={relativeTime}
       onAdd={shareAgain}
       onRemove={forgetSharedRecord}
@@ -1002,6 +1061,8 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
       onThemeMode={chooseThemeMode}
       themeOverride={themeOverride}
       onThemeOverride={chooseThemeOverride}
+      languageChoice={languageChoice}
+      onLanguage={chooseLanguage}
       onClose={() => setSettingsOpen(false)}
     />
   ) : null
@@ -1034,6 +1095,20 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
     } catch {
       setRecentBoards([])
     }
+    // Reopen the board that was open when the app was left, once per launch.
+    if (!resumeBoard.current) return
+    resumeBoard.current = false
+    const last = await SecureStore.getItemAsync(lastBoardKey(identity))
+    if (last && !shareArrived.current && !currentInvite.current) {
+      pipeRef.current?.write(JSON.stringify({ type: messageTypes.roomStart, invite: last }))
+    }
+  }
+
+  // Leaving a board on purpose: the next launch starts on the boards list.
+  function leaveBoard() {
+    const identity = identityKeyRef.current
+    if (identity) void SecureStore.deleteItemAsync(lastBoardKey(identity))
+    send({ type: messageTypes.roomLeave })
   }
 
   function updateRecentBoards(update: (current: RecentBoard[]) => RecentBoard[]) {
@@ -1048,7 +1123,7 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
   function rememberBoard(boardInvite: string, name: string) {
     updateRecentBoards((current) =>
       [
-        { invite: boardInvite, name: name || 'Unnamed board', joinedAt: Date.now() },
+        { invite: boardInvite, name: name || t('Unnamed board'), joinedAt: Date.now() },
         ...current.filter((board) => board.invite !== boardInvite)
       ].slice(0, 12)
     )
@@ -1085,6 +1160,7 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
 
   function logout() {
     setProfileOpen(false)
+    void SecureStore.deleteItemAsync(sessionKey)
     send({ type: messageTypes.boardsWatch, boards: [] })
     setAlertBoards([])
     blockedRef.current = []
@@ -1106,7 +1182,7 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
   async function pasteInvitation() {
     const value = await Clipboard.getStringAsync()
     if (!value.trim()) {
-      setEntryError('Clipboard is empty. Copy an invitation link first.')
+      setEntryError(t('Clipboard is empty. Copy an invitation link first.'))
       return
     }
     setEntryError('')
@@ -1153,7 +1229,9 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
 
   async function pickImages() {
     const remaining = MAX_IMAGES - pendingImages.length
-    if (remaining <= 0) return Alert.alert('Image limit', `Up to ${MAX_IMAGES} images per post.`)
+    if (remaining <= 0) {
+      return Alert.alert(t('Image limit'), t('Up to {max} images per post.', { max: MAX_IMAGES }))
+    }
     const prepared = await pickPreparedImages(remaining)
     setPendingImages((current) => [...current, ...prepared].slice(0, MAX_IMAGES))
   }
@@ -1162,22 +1240,23 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
     return (
       <Screen title='opencollab' cursor>
         <Text style={styles.muted}>
-          Your private boards and feeds. No servers: everything lives on your and your friends'
-          devices.
+          {t(
+            "Your private boards and feeds. No servers: everything lives on your and your friends' devices."
+          )}
         </Text>
         {identityChoice === 'choose' ? (
           <>
             {hasSavedPhrase ? (
-              <Button title='Log in' icon='log-in' onPress={() => void unlockSaved()} />
+              <Button title={t('Log in')} icon='log-in' onPress={() => void unlockSaved()} />
             ) : null}
             <Button
-              title='Create new account'
+              title={t('Create new account')}
               icon='user-plus'
               variant={hasSavedPhrase ? 'secondary' : 'primary'}
               onPress={createIdentity}
             />
             <Button
-              title='Log in with recovery words'
+              title={t('Log in with recovery words')}
               icon='key'
               variant='secondary'
               onPress={() => setIdentityChoice('existing')}
@@ -1186,26 +1265,26 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
         ) : (
           <>
             <Text style={styles.muted}>
-              Enter the 24 recovery words you wrote down when you created your account.
+              {t('Enter the 24 recovery words you wrote down when you created your account.')}
             </Text>
             <TextInput
               style={[styles.input, styles.monoInput]}
               multiline
               value={identityPhrase}
               onChangeText={setIdentityPhrase}
-              placeholder='Recovery words'
+              placeholder={t('Recovery words')}
               placeholderTextColor={colors.muted}
               autoCapitalize='none'
               autoCorrect={false}
             />
             <View style={styles.row}>
               <Button
-                title='Back'
+                title={t('Back')}
                 icon='arrow-left'
                 variant='secondary'
                 onPress={() => setIdentityChoice('choose')}
               />
-              <Button title='Log in' icon='log-in' onPress={() => void unlock()} grow />
+              <Button title={t('Log in')} icon='log-in' onPress={() => void unlock()} grow />
             </View>
           </>
         )}
@@ -1214,10 +1293,11 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
   }
   if (backupPhrase) {
     return (
-      <Screen title='Save your recovery words'>
+      <Screen title={t('Save your recovery words')}>
         <Text style={styles.muted}>
-          These 24 words are the only way to log in to your account on another device or after
-          reinstalling. Write them down and keep them somewhere safe, offline.
+          {t(
+            'These 24 words are the only way to log in to your account on another device or after reinstalling. Write them down and keep them somewhere safe, offline.'
+          )}
         </Text>
         <View style={styles.phraseGrid}>
           {backupPhrase.split(/\s+/).map((word, index) => (
@@ -1228,7 +1308,7 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
           ))}
         </View>
         <Button
-          title="I've written it down"
+          title={t("I've written it down")}
           icon='check'
           onPress={() => {
             setBackupPhrase('')
@@ -1240,14 +1320,14 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
   }
   if (!roomReady && entryMode === 'create' && createStep === 'name') {
     const next = () => {
-      if (!boardName.trim()) return setEntryError('Give your board a name.')
+      if (!boardName.trim()) return setEntryError(t('Give your board a name.'))
       setEntryError('')
       setCreateStep('kind')
     }
     return (
-      <Screen title='New board'>
+      <Screen title={t('New board')}>
         <Text style={styles.muted}>
-          You will get an invitation link to share once the board is ready.
+          {t('You will get an invitation link to share once the board is ready.')}
         </Text>
         <TextInput
           style={styles.input}
@@ -1257,7 +1337,7 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
             setEntryError('')
           }}
           onSubmitEditing={next}
-          placeholder='Board name'
+          placeholder={t('Board name')}
           placeholderTextColor={colors.muted}
           returnKeyType='next'
           autoFocus
@@ -1265,7 +1345,7 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
         {entryError ? <Text style={styles.error}>{entryError}</Text> : null}
         <View style={styles.row}>
           <Button
-            title='Back'
+            title={t('Back')}
             icon='arrow-left'
             variant='secondary'
             onPress={() => {
@@ -1273,22 +1353,24 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
               setEntryMode('choose')
             }}
           />
-          <Button title='Next' icon='arrow-right' grow onPress={next} />
+          <Button title={t('Next')} icon='arrow-right' grow onPress={next} />
         </View>
       </Screen>
     )
   }
   if (!roomReady && entryMode === 'create') {
     return (
-      <Screen title='Board type'>
+      <Screen title={t('Board type')}>
         <Text style={styles.muted}>
-          What is “{boardName.trim()}” for? You can change it later in Board settings.
+          {t('What is “{board}” for? You can change it later in Board settings.', {
+            board: boardName.trim()
+          })}
         </Text>
         <KindOptions selected={newBoardKind} onPick={setNewBoardKind} />
         {entryError ? <Text style={styles.error}>{entryError}</Text> : null}
         <View style={styles.row}>
           <Button
-            title='Back'
+            title={t('Back')}
             icon='arrow-left'
             variant='secondary'
             onPress={() => {
@@ -1297,7 +1379,7 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
             }}
           />
           <Button
-            title='Create board'
+            title={t('Create board')}
             icon='plus'
             grow
             onPress={() =>
@@ -1315,11 +1397,11 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
   }
   if (!roomReady && entryMode === 'join') {
     return (
-      <Screen title='Join board'>
+      <Screen title={t('Join board')}>
         <Text style={styles.muted}>
-          Scan a board member's invitation QR code, or paste the link they sent you.
+          {t("Scan a board member's invitation QR code, or paste the link they sent you.")}
         </Text>
-        <Button title='Scan QR code' icon='camera' onPress={() => setScannerOpen(true)} />
+        <Button title={t('Scan QR code')} icon='camera' onPress={() => setScannerOpen(true)} />
         <TextInput
           style={[styles.input, styles.monoInput]}
           value={invite}
@@ -1334,7 +1416,7 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
           testID='board-invite-input'
         />
         <Button
-          title='Paste invitation'
+          title={t('Paste invitation')}
           icon='clipboard'
           variant='secondary'
           onPress={pasteInvitation}
@@ -1352,7 +1434,7 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
         />
         <View style={styles.row}>
           <Button
-            title='Back'
+            title={t('Back')}
             icon='arrow-left'
             variant='secondary'
             onPress={() => {
@@ -1361,11 +1443,11 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
             }}
           />
           <Button
-            title='Join board'
+            title={t('Join board')}
             icon='log-in'
             grow
             onPress={() => {
-              if (!invite.trim()) return setEntryError('Paste an invitation link first.')
+              if (!invite.trim()) return setEntryError(t('Paste an invitation link first.'))
               send({ type: messageTypes.roomStart, invite: normalizeInvite(invite) })
             }}
           />
@@ -1376,12 +1458,12 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
   if (!roomReady) {
     return (
       <Screen
-        title='Boards'
+        title={t('Boards')}
         headerRight={<IdentityBadge identity={identityKey} onPress={logout} icon='log-out' />}
       >
         <View style={styles.row}>
           <Button
-            title='New board'
+            title={t('New board')}
             icon='plus'
             grow
             onPress={() => {
@@ -1390,7 +1472,7 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
             }}
           />
           <Button
-            title='Join'
+            title={t('Join')}
             icon='log-in'
             variant='secondary'
             grow
@@ -1398,7 +1480,7 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
           />
         </View>
         <Button
-          title='Try a sample board'
+          title={t('Try a sample board')}
           icon='book-open'
           variant='ghost'
           // A private board the worker fills with cards that show the features.
@@ -1407,7 +1489,7 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
         {entryError ? <Text style={styles.error}>{entryError}</Text> : null}
         {recentBoards.length > 0 ? (
           <View style={styles.section}>
-            <Text style={styles.sectionLabel}>Recently joined</Text>
+            <Text style={styles.sectionLabel}>{t('Recently joined')}</Text>
             {recentBoards.map((board) => (
               <FadeIn key={board.invite}>
                 <SwipeToRemove label={board.name} onRemove={() => forgetBoard(board.invite)}>
@@ -1418,7 +1500,7 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
                       send({ type: messageTypes.roomStart, invite: normalizeInvite(board.invite) })
                     }}
                     accessibilityRole='button'
-                    accessibilityLabel={`Open ${board.name}`}
+                    accessibilityLabel={t('Open {board}', { board: board.name })}
                   >
                     <Feather name='hash' size={16} color={colors.accent} />
                     <Text style={styles.recentBoardName} numberOfLines={1}>
@@ -1429,26 +1511,28 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
                 </SwipeToRemove>
               </FadeIn>
             ))}
-            <Text style={styles.hint}>Swipe left on a board to remove it.</Text>
+            <Text style={styles.hint}>{t('Swipe left on a board to remove it.')}</Text>
           </View>
         ) : (
-          <Text style={styles.muted}>No boards yet. Create one or join with an invitation.</Text>
+          <Text style={styles.muted}>
+            {t('No boards yet. Create one or join with an invitation.')}
+          </Text>
         )}
         {sharedRecords.length ? (
           <Button
-            title={`Shared items (${sharedRecords.length})`}
+            title={t('Shared items ({count})', { count: sharedRecords.length })}
             icon='share-2'
             variant='ghost'
             onPress={() => setSharedListOpen(true)}
           />
         ) : null}
         <Button
-          title='Settings'
+          title={t('Settings')}
           icon='settings'
           variant='ghost'
           onPress={() => setSettingsOpen(true)}
         />
-        <Button title='Log out' icon='log-out' variant='ghost' onPress={logout} />
+        <Button title={t('Log out')} icon='log-out' variant='ghost' onPress={logout} />
         {settings}
         {shareSheet}
       </Screen>
@@ -1457,20 +1541,20 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
   if (!displayName) {
     return (
       <Screen title={boardName || 'OpenCollab'}>
-        <Text style={styles.heading}>Choose your display name</Text>
+        <Text style={styles.heading}>{t('Choose your display name')}</Text>
         <Text style={styles.muted}>
-          Other participants will see this beside your objects and comments.
+          {t('Other participants will see this beside your objects and comments.')}
         </Text>
         <TextInput
           style={styles.input}
           value={displayNameDraft}
           onChangeText={setDisplayNameDraft}
-          placeholder='Name or nickname'
+          placeholder={t('Name or nickname')}
           placeholderTextColor={colors.muted}
           maxLength={48}
         />
         <Button
-          title='Continue'
+          title={t('Continue')}
           icon='arrow-right'
           onPress={() =>
             displayNameDraft.trim() &&
@@ -1499,11 +1583,12 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
               <View style={styles.waiting} accessibilityRole='alert'>
                 <View style={styles.meta}>
                   <Feather name='users' size={16} color={colors.info} />
-                  <Text style={styles.heading}>Waiting for a board member…</Text>
+                  <Text style={styles.heading}>{t('Waiting for a board member…')}</Text>
                 </View>
                 <Text style={styles.muted}>
-                  Boards live only on members' devices. This one fills in automatically as soon as
-                  another member opens it — keep OpenCollab open until then.
+                  {t(
+                    "Boards live only on members' devices. This one fills in automatically as soon as another member opens it — keep OpenCollab open until then."
+                  )}
                 </Text>
               </View>
             ) : null}
@@ -1551,98 +1636,109 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
       >
         <KeyboardAvoidingView
           style={styles.sheetBackdrop}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
           <Pressable style={styles.flex} onPress={() => setComposerOpen(false)} />
           <View style={styles.sheet}>
             <View style={styles.sheetHandle} />
-            <Text style={styles.heading}>
-              New card
-              {composerColumn
-                ? ` in ${boardData.columns.find((column) => column.id === composerColumn)?.name || 'column'}`
-                : ''}
-            </Text>
-            <TextInput
-              style={styles.input}
-              value={newTitle}
-              onChangeText={setNewTitle}
-              placeholder='Title'
-              placeholderTextColor={colors.muted}
-              autoFocus
-            />
-            <TextInput
-              style={[styles.input, styles.multiline]}
-              value={newBody}
-              onChangeText={setNewBody}
-              placeholder='Description or proposal'
-              placeholderTextColor={colors.muted}
-              multiline
-            />
-            {boardData.columns.length > 1 ? (
-              <View style={styles.composerSections}>
-                {boardData.columns.map((column) => (
-                  <Chip
-                    key={column.id}
-                    label={column.name}
-                    selected={(composerColumn ?? boardData.columns[0].id) === column.id}
-                    onPress={() => setComposerColumn(column.id)}
-                  />
-                ))}
-              </View>
-            ) : null}
-            {composerSource ? (
-              <View style={styles.composerSource}>
-                <Feather name='external-link' size={14} color={colors.muted} />
-                <Text style={styles.composerSourceText} numberOfLines={1}>
-                  Original: {composerSource.site || composerSource.url}
-                </Text>
-                <Pressable
-                  onPress={() => setComposerSource(null)}
-                  hitSlop={8}
-                  accessibilityRole='button'
-                  accessibilityLabel='Remove the link to the original'
-                >
-                  <Feather name='x' size={14} color={colors.muted} />
-                </Pressable>
-              </View>
-            ) : null}
-            {pendingImages.length ? (
-              <ScrollView horizontal contentContainerStyle={styles.previewRow}>
-                {pendingImages.map((image, index) => (
-                  <View key={index} style={styles.preview}>
-                    <Image source={{ uri: image.uri }} style={styles.previewImage} />
-                    <Pressable
-                      style={styles.previewRemove}
-                      onPress={() =>
-                        setPendingImages((current) => current.filter((_, i) => i !== index))
-                      }
-                      accessibilityRole='button'
-                      accessibilityLabel='Remove image'
-                      hitSlop={6}
-                    >
-                      <Feather name='x' size={14} color={colors.text} />
-                    </Pressable>
-                  </View>
-                ))}
-              </ScrollView>
-            ) : null}
-            {composerShare.current && previewsLoading.includes(composerShare.current) ? (
-              <Text style={styles.hint}>Loading the link preview…</Text>
-            ) : null}
-            <Button
-              title={
-                pendingImages.length
-                  ? `Images ${pendingImages.length}/${MAX_IMAGES}`
-                  : 'Attach images'
-              }
-              icon='image'
-              variant='secondary'
-              onPress={pickImages}
-            />
-            <View style={styles.row}>
-              <Button title='Cancel' variant='secondary' onPress={() => setComposerOpen(false)} />
-              <Button title='Add card' icon='plus' grow onPress={addObject} />
+            {/* Actions on top: the keyboard can't cover them. */}
+            <View style={styles.composerBar}>
+              <Button title={t('Cancel')} variant='ghost' onPress={() => setComposerOpen(false)} />
+              <Text style={[styles.heading, styles.composerTitle]} numberOfLines={1}>
+                {composerColumn
+                  ? t('New card in {column}', {
+                      column:
+                        boardData.columns.find((column) => column.id === composerColumn)?.name ||
+                        t('column')
+                    })
+                  : t('New card')}
+              </Text>
+              <Button title={t('Add card')} icon='plus' onPress={addObject} />
             </View>
+            <ScrollView
+              style={styles.composerBody}
+              contentContainerStyle={styles.composerFields}
+              keyboardShouldPersistTaps='handled'
+            >
+              <TextInput
+                style={styles.input}
+                value={newTitle}
+                onChangeText={setNewTitle}
+                placeholder={t('Title')}
+                placeholderTextColor={colors.muted}
+                // A shared link arrives filled in: no keyboard over the preview.
+                autoFocus={!composerShare.current}
+              />
+              <TextInput
+                style={[styles.input, styles.multiline]}
+                value={newBody}
+                onChangeText={setNewBody}
+                placeholder={t('Description or proposal')}
+                placeholderTextColor={colors.muted}
+                multiline
+              />
+              {boardData.columns.length > 1 ? (
+                <View style={styles.composerSections}>
+                  {boardData.columns.map((column) => (
+                    <Chip
+                      key={column.id}
+                      label={column.name}
+                      selected={(composerColumn ?? boardData.columns[0].id) === column.id}
+                      onPress={() => setComposerColumn(column.id)}
+                    />
+                  ))}
+                </View>
+              ) : null}
+              {composerSource ? (
+                <View style={styles.composerSource}>
+                  <Feather name='external-link' size={14} color={colors.muted} />
+                  <Text style={styles.composerSourceText} numberOfLines={1}>
+                    {t('Original: {source}', { source: composerSource.site || composerSource.url })}
+                  </Text>
+                  <Pressable
+                    onPress={() => setComposerSource(null)}
+                    hitSlop={8}
+                    accessibilityRole='button'
+                    accessibilityLabel={t('Remove the link to the original')}
+                  >
+                    <Feather name='x' size={14} color={colors.muted} />
+                  </Pressable>
+                </View>
+              ) : null}
+              {pendingImages.length ? (
+                <ScrollView horizontal contentContainerStyle={styles.previewRow}>
+                  {pendingImages.map((image, index) => (
+                    <View key={index} style={styles.preview}>
+                      <Image source={{ uri: image.uri }} style={styles.previewImage} />
+                      <Pressable
+                        style={styles.previewRemove}
+                        onPress={() =>
+                          setPendingImages((current) => current.filter((_, i) => i !== index))
+                        }
+                        accessibilityRole='button'
+                        accessibilityLabel={t('Remove image')}
+                        hitSlop={6}
+                      >
+                        <Feather name='x' size={14} color={colors.text} />
+                      </Pressable>
+                    </View>
+                  ))}
+                </ScrollView>
+              ) : null}
+              {composerShare.current && previewsLoading.includes(composerShare.current) ? (
+                <Text style={styles.hint}>{t('Loading the link preview…')}</Text>
+              ) : null}
+              <Button
+                title={
+                  pendingImages.length
+                    ? t('Images {count}/{max}', { count: pendingImages.length, max: MAX_IMAGES })
+                    : t('Attach images')
+                }
+                icon='image'
+                variant='secondary'
+                onPress={pickImages}
+              />
+            </ScrollView>
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -1657,7 +1753,7 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
           style={styles.viewer}
           onPress={() => setViewerUri('')}
           accessibilityRole='button'
-          accessibilityLabel='Close image'
+          accessibilityLabel={t('Close image')}
         >
           {viewerUri ? (
             <Image source={{ uri: viewerUri }} style={styles.viewerImage} resizeMode='contain' />
@@ -1687,7 +1783,7 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
               </View>
             </View>
             <Button
-              title='Edit name & avatar'
+              title={t('Edit name & avatar')}
               icon='user'
               variant='secondary'
               onPress={() => {
@@ -1697,11 +1793,13 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
               }}
             />
             <StatusChip peers={peerCount} synced={synced} />
-            <Text style={styles.metaMono}>{networkStatus}</Text>
+            <Text style={styles.metaMono}>
+              {networkStatus ? describeNetwork(networkStatus) : t('Not connected')}
+            </Text>
             <Text style={styles.metaMono}>OpenCollab v{shownVersion}</Text>
-            <Button title='Share invitation' icon='share-2' onPress={shareInvitation} />
+            <Button title={t('Share invitation')} icon='share-2' onPress={shareInvitation} />
             <Button
-              title='Show QR code'
+              title={t('Show QR code')}
               icon='maximize'
               variant='secondary'
               onPress={() => {
@@ -1710,13 +1808,13 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
               }}
             />
             <Button
-              title={exporting ? 'Exporting…' : 'Export board'}
+              title={exporting ? t('Exporting…') : t('Export board')}
               icon='download'
               variant='secondary'
               onPress={exportBoard}
             />
             <Button
-              title='Board settings'
+              title={t('Board settings')}
               icon='sliders'
               variant='secondary'
               onPress={() => {
@@ -1725,7 +1823,7 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
               }}
             />
             <Button
-              title='Settings'
+              title={t('Settings')}
               icon='settings'
               variant='secondary'
               onPress={() => {
@@ -1734,16 +1832,16 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
               }}
             />
             <Button
-              title='Switch board'
+              title={t('Switch board')}
               icon='repeat'
               variant='secondary'
               onPress={() => {
                 setProfileOpen(false)
-                send({ type: messageTypes.roomLeave })
+                leaveBoard()
               }}
             />
-            <Button title='Log out' icon='log-out' variant='secondary' onPress={logout} />
-            <Button title='Close' variant='ghost' onPress={() => setProfileOpen(false)} />
+            <Button title={t('Log out')} icon='log-out' variant='secondary' onPress={logout} />
+            <Button title={t('Close')} variant='ghost' onPress={() => setProfileOpen(false)} />
           </Pressable>
         </Pressable>
       </Modal>
@@ -1756,16 +1854,20 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
       >
         <Pressable style={styles.modalBackdrop} onPress={() => setQrOpen(false)}>
           <Pressable style={styles.modalCard} onPress={(event) => event.stopPropagation()}>
-            <Text style={styles.heading}>Scan to join {boardName || 'this board'}</Text>
+            <Text style={styles.heading}>
+              {boardName
+                ? t('Scan to join {board}', { board: boardName })
+                : t('Scan to join this board')}
+            </Text>
             <Text style={styles.muted}>
-              On the other phone, open OpenCollab, tap Join, then Scan QR code.
+              {t('On the other phone, open OpenCollab, tap Join, then Scan QR code.')}
             </Text>
             <View style={styles.qrWrap}>
               <QrCode value={inviteLink(invitationLink)} size={Math.min(windowWidth - 88, 320)} />
             </View>
             <View style={styles.row}>
-              <Button title='Close' variant='secondary' onPress={() => setQrOpen(false)} />
-              <Button title='Share link' icon='share-2' grow onPress={shareInvitation} />
+              <Button title={t('Close')} variant='secondary' onPress={() => setQrOpen(false)} />
+              <Button title={t('Share link')} icon='share-2' grow onPress={shareInvitation} />
             </View>
           </Pressable>
         </Pressable>
@@ -1783,13 +1885,13 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
         >
           <Pressable style={styles.modalBackdrop} onPress={() => setEditProfileOpen(false)}>
             <Pressable style={styles.modalCard} onPress={(event) => event.stopPropagation()}>
-              <Text style={styles.heading}>Edit name & avatar</Text>
+              <Text style={styles.heading}>{t('Edit name & avatar')}</Text>
               <View style={styles.avatarEdit}>
                 <Pressable
                   onPress={pickAvatar}
                   style={({ pressed }) => pressed && styles.pressed}
                   accessibilityRole='button'
-                  accessibilityLabel='Change avatar'
+                  accessibilityLabel={t('Change avatar')}
                 >
                   <Avatar
                     hex={identityKey}
@@ -1808,7 +1910,7 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
                     hitSlop={8}
                     accessibilityRole='button'
                   >
-                    <Text style={styles.removePhoto}>Remove avatar</Text>
+                    <Text style={styles.removePhoto}>{t('Remove avatar')}</Text>
                   </Pressable>
                 ) : null}
               </View>
@@ -1817,23 +1919,25 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
                 value={displayNameDraft}
                 onChangeText={setDisplayNameDraft}
                 onSubmitEditing={saveProfile}
-                placeholder='Display name'
+                placeholder={t('Display name')}
                 placeholderTextColor={colors.muted}
                 maxLength={48}
                 returnKeyType='done'
-                accessibilityLabel='Display name'
+                accessibilityLabel={t('Display name')}
               />
-              <Text style={styles.hint}>Everyone on this board sees your name and avatar.</Text>
+              <Text style={styles.hint}>
+                {t('Everyone on this board sees your name and avatar.')}
+              </Text>
               <View style={styles.row}>
                 <Button
-                  title='Cancel'
+                  title={t('Cancel')}
                   variant='ghost'
                   onPress={() => {
                     setDisplayNameDraft(displayName)
                     setEditProfileOpen(false)
                   }}
                 />
-                <Button title='Save' grow onPress={saveProfile} />
+                <Button title={t('Save')} grow onPress={saveProfile} />
               </View>
             </Pressable>
           </Pressable>
@@ -1914,8 +2018,8 @@ function UpdateBanner() {
       />
       <Text style={styles.updateText}>
         {status === 'installed'
-          ? 'Update installed. Close and reopen OpenCollab to use it.'
-          : 'Downloading an update…'}
+          ? t('Update installed. Close and reopen OpenCollab to use it.')
+          : t('Downloading an update…')}
       </Text>
     </View>
   )
@@ -1961,7 +2065,25 @@ function StatusChip({ peers, synced }: { peers: number; synced: boolean }) {
         ]}
       />
       <Text style={styles.statusText}>
-        {peers} peer{peers === 1 ? '' : 's'} · {synced ? 'synced' : 'syncing…'}
+        {synced
+          ? plural(
+              peers,
+              ['{n} peer · synced', '{n} peers · synced'],
+              [
+                '{n} urządzenie · zsynchronizowano',
+                '{n} urządzenia · zsynchronizowano',
+                '{n} urządzeń · zsynchronizowano'
+              ]
+            )
+          : plural(
+              peers,
+              ['{n} peer · syncing…', '{n} peers · syncing…'],
+              [
+                '{n} urządzenie · synchronizuję…',
+                '{n} urządzenia · synchronizuję…',
+                '{n} urządzeń · synchronizuję…'
+              ]
+            )}
       </Text>
     </View>
   )
@@ -1981,7 +2103,7 @@ function SkeletonCards() {
     return () => loop.stop()
   }, [opacity])
   return (
-    <View style={styles.skeletons} accessibilityLabel='Syncing board'>
+    <View style={styles.skeletons} accessibilityLabel={t('Syncing board')}>
       {[0, 1, 2].map((index) => (
         <Animated.View key={index} style={[styles.skeletonCard, { opacity }]}>
           <View style={[styles.skeletonLine, { width: '60%' }]} />
@@ -2007,7 +2129,7 @@ function IdentityBadge({
       style={({ pressed }) => [styles.userPanel, pressed && styles.pressed]}
       onPress={onPress}
       accessibilityRole='button'
-      accessibilityLabel='Log out'
+      accessibilityLabel={t('Log out')}
     >
       <Identicon hex={identity} size={20} />
       <Text style={styles.userPanelKey}>{shortKey(identity)}</Text>
@@ -2058,14 +2180,14 @@ function SwipeToRemove({
         style={styles.swipeAction}
         onPress={remove}
         accessibilityRole='button'
-        accessibilityLabel={`Remove ${label}`}
+        accessibilityLabel={t('Remove {name}', { name: label })}
       >
         <Feather name='trash-2' size={18} color='white' />
-        <Text style={styles.swipeActionText}>Remove</Text>
+        <Text style={styles.swipeActionText}>{t('Remove')}</Text>
       </Pressable>
       <Animated.View
         style={[styles.swipeContent, { transform: [{ translateX }] }]}
-        accessibilityActions={[{ name: 'remove', label: 'Remove' }]}
+        accessibilityActions={[{ name: 'remove', label: t('Remove') }]}
         onAccessibilityAction={(event) => {
           if (event.nativeEvent.actionName === 'remove') remove()
         }}
@@ -2287,7 +2409,8 @@ const styles = themed(() => ({
     borderWidth: 1,
     padding: 20,
     paddingBottom: 36,
-    gap: 12
+    gap: 12,
+    maxHeight: '92%'
   },
   sheetHandle: {
     alignSelf: 'center',
@@ -2312,6 +2435,10 @@ const styles = themed(() => ({
     gap: 12
   },
   previewRow: { gap: 8 },
+  composerBar: { alignItems: 'center', flexDirection: 'row', gap: 8 },
+  composerTitle: { flex: 1, textAlign: 'center' },
+  composerBody: { flexGrow: 0, flexShrink: 1 },
+  composerFields: { gap: 12 },
   composerSections: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   composerSource: { alignItems: 'center', flexDirection: 'row', gap: 8 },
   composerSourceText: { color: colors.muted, flex: 1, fontSize: 13 },

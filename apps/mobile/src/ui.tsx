@@ -17,6 +17,7 @@ import { Feather } from '@expo/vector-icons'
 import * as ImagePicker from 'expo-image-picker'
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator'
 import { DEFAULT_TEMPLATE, themeTemplate, type ThemePalette } from '@opencollab/board-protocol'
+import { t } from './i18n'
 
 // The current palette. Mutated in place by applyPalette, so every read of
 // `colors.x` during a render sees the active theme; App re-renders the tree.
@@ -303,7 +304,7 @@ export function BoardImages({
             onPress={() => (cached?.uri ? onOpen(cached.uri) : cached?.error ? onRetry(ref) : null)}
             accessibilityRole='imagebutton'
             accessibilityLabel={
-              cached?.error ? 'Image unavailable, tap to retry' : 'Attached image'
+              cached?.error ? t('Image unavailable, tap to retry') : t('Attached image')
             }
           >
             {cached?.uri ? (
@@ -311,7 +312,7 @@ export function BoardImages({
             ) : cached?.error ? (
               <View style={styles.slotState}>
                 <Feather name='refresh-cw' size={16} color={colors.muted} />
-                <Text style={styles.metaMono}>unavailable · retry</Text>
+                <Text style={styles.metaMono}>{t('unavailable · retry')}</Text>
               </View>
             ) : (
               <View style={styles.slotState}>

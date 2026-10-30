@@ -16,6 +16,7 @@ import {
   tint,
   mix
 } from '../ui'
+import { plural, t } from '../i18n'
 import { AvatarStack, ProgressBar } from './CardExtras'
 import {
   BoardData,
@@ -90,10 +91,22 @@ export function CardFace({
       accessibilityRole='button'
       accessibilityLabel={[
         card.title,
-        blocked ? 'blocked' : '',
-        assignees.includes(me) ? 'assigned to you' : '',
-        age ? `untouched for ${idleDays(card)} days` : '',
-        viewers ? `${viewers} viewing now` : ''
+        blocked ? t('blocked') : '',
+        assignees.includes(me) ? t('assigned to you') : '',
+        age
+          ? plural(
+              idleDays(card),
+              ['untouched for {n} day', 'untouched for {n} days'],
+              ['bez zmian od {n} dnia', 'bez zmian od {n} dni', 'bez zmian od {n} dni']
+            )
+          : '',
+        viewers
+          ? plural(
+              viewers,
+              ['{n} viewing now', '{n} viewing now'],
+              ['{n} osoba ogląda teraz', '{n} osoby oglądają teraz', '{n} osób ogląda teraz']
+            )
+          : ''
       ]
         .filter(Boolean)
         .join(', ')}
@@ -116,7 +129,7 @@ export function CardFace({
           {blocked ? (
             <View style={styles.blockedBadge}>
               <Feather name='slash' size={10} color={colors.danger} />
-              <Text style={styles.blockedText}>Blocked</Text>
+              <Text style={styles.blockedText}>{t('Blocked')}</Text>
             </View>
           ) : null}
           {labels.slice(0, MAX_LABELS_ON_CARD).map((label) => (
@@ -185,7 +198,7 @@ export function CardFace({
           </View>
         ) : null}
         {can('points') && typeof card.points === 'number' ? (
-          <Text style={styles.points}>{card.points} pts</Text>
+          <Text style={styles.points}>{t('{points} pts', { points: card.points })}</Text>
         ) : null}
         {votes ? (
           <Meta icon={score < 0 ? 'chevron-down' : 'chevron-up'} text={String(score)} />
@@ -209,8 +222,10 @@ export function CardFace({
           </Text>
         ) : null}
         {mentioned ? <Text style={styles.mentioned}>@</Text> : null}
-        {age ? <Text style={styles.metaMono}>{idleDays(card)}d idle</Text> : null}
-        {card.archived ? <Text style={styles.metaMono}>archived</Text> : null}
+        {age ? (
+          <Text style={styles.metaMono}>{t('{days}d idle', { days: idleDays(card) })}</Text>
+        ) : null}
+        {card.archived ? <Text style={styles.metaMono}>{t('archived')}</Text> : null}
         {assignees.length ? (
           <View style={styles.assignees}>
             <AvatarStack

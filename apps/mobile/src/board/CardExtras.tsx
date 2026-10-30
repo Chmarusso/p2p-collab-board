@@ -18,6 +18,7 @@ import {
   themed,
   tint
 } from '../ui'
+import { plural, t } from '../i18n'
 import { Chip } from './CardSheet'
 import {
   BoardData,
@@ -41,7 +42,7 @@ const ROWS_SHOWN = 10
 function ShowAll({ total, onPress }: { total: number; onPress: () => void }) {
   return (
     <Pressable onPress={onPress} hitSlop={10} style={styles.showAll} accessibilityRole='button'>
-      <Text style={styles.link}>Show all {total}</Text>
+      <Text style={styles.link}>{t('Show all {total}', { total })}</Text>
     </Pressable>
   )
 }
@@ -139,6 +140,7 @@ export function ReactionBar({
       {used.map((emoji) => {
         const who = reactions?.[emoji] || []
         const mine = who.includes(me)
+        const summary = `${emoji} ${who.length}: ${who.map(nameFor).join(', ')}`
         return (
           <PressableScale
             key={emoji}
@@ -150,7 +152,9 @@ export function ReactionBar({
             ]}
             accessibilityRole='button'
             accessibilityState={{ selected: mine }}
-            accessibilityLabel={`${emoji} ${who.length}: ${who.map(nameFor).join(', ')}${mine ? '. Tap to remove yours' : ''}`}
+            accessibilityLabel={
+              mine ? t('{reaction}. Tap to remove yours', { reaction: summary }) : summary
+            }
           >
             <Text style={styles.emoji}>{emoji}</Text>
             <Text style={[styles.count, mine && styles.countMine]}>{who.length}</Text>
@@ -161,7 +165,7 @@ export function ReactionBar({
         onPress={() => setPicking(!picking)}
         style={[styles.reaction, compact && styles.reactionCompact, picking && styles.reactionMine]}
         accessibilityRole='button'
-        accessibilityLabel={picking ? 'Close reactions' : 'Add a reaction'}
+        accessibilityLabel={picking ? t('Close reactions') : t('Add a reaction')}
       >
         <Feather name={picking ? 'x' : 'smile'} size={15} color={colors.muted} />
       </PressableScale>
@@ -178,7 +182,9 @@ export function ReactionBar({
                 }}
                 style={[styles.pick, mine && styles.reactionMine]}
                 accessibilityRole='button'
-                accessibilityLabel={`${mine ? 'Remove' : 'React with'} ${emoji}`}
+                accessibilityLabel={
+                  mine ? t('Remove {emoji}', { emoji }) : t('React with {emoji}', { emoji })
+                }
               >
                 <Text style={styles.pickEmoji}>{emoji}</Text>
               </PressableScale>
@@ -256,7 +262,9 @@ export function ChecklistEditor({ card, send }: { card: Card; send: Send }) {
               hitSlop={10}
               accessibilityRole='button'
             >
-              <Text style={styles.link}>{hideDone ? `Show done (${done})` : 'Hide done'}</Text>
+              <Text style={styles.link}>
+                {hideDone ? t('Show done ({count})', { count: done }) : t('Hide done')}
+              </Text>
             </Pressable>
           ) : null}
         </View>
@@ -284,14 +292,14 @@ export function ChecklistEditor({ card, send }: { card: Card; send: Send }) {
             blurOnSubmit
             returnKeyType='done'
             maxLength={300}
-            accessibilityLabel='Checklist item'
+            accessibilityLabel={t('Checklist item')}
           />
           {!hideDone && i > 0 ? (
             <Pressable
               onPress={() => set({ itemId: item.id, index: i - 1 })}
               style={styles.iconHit}
               accessibilityRole='button'
-              accessibilityLabel={`Move "${item.text}" up`}
+              accessibilityLabel={t('Move “{item}” up', { item: item.text })}
             >
               <Feather name='arrow-up' size={15} color={colors.muted} />
             </Pressable>
@@ -300,7 +308,7 @@ export function ChecklistEditor({ card, send }: { card: Card; send: Send }) {
             onPress={() => set({ itemId: item.id, deleted: true })}
             style={styles.iconHit}
             accessibilityRole='button'
-            accessibilityLabel={`Delete "${item.text}"`}
+            accessibilityLabel={t('Delete “{item}”', { item: item.text })}
           >
             <Feather name='x' size={16} color={colors.muted} />
           </Pressable>
@@ -310,19 +318,19 @@ export function ChecklistEditor({ card, send }: { card: Card; send: Send }) {
         <ShowAll total={filtered.length} onPress={() => setExpanded(true)} />
       ) : null}
       {hideDone && !shown.length && total ? (
-        <Text style={styles.hint}>Everything is done.</Text>
+        <Text style={styles.hint}>{t('Everything is done.')}</Text>
       ) : null}
       <TextInput
         style={styles.input}
         value={draft}
         onChangeText={setDraft}
         onSubmitEditing={add}
-        placeholder='+ Add an item'
+        placeholder={t('+ Add an item')}
         placeholderTextColor={colors.muted}
         maxLength={300}
         returnKeyType='done'
         blurOnSubmit={false}
-        accessibilityLabel='New checklist item'
+        accessibilityLabel={t('New checklist item')}
       />
     </View>
   )
@@ -367,11 +375,14 @@ export function AssigneePicker({
               requestImage={requestImage}
             />
             <Text style={[styles.personName, styles.personNameOn]} numberOfLines={1}>
-              {identity === me ? 'You' : nameFor(identity)}
+              {identity === me ? t('You') : nameFor(identity)}
             </Text>
           </View>
         ))}
-        <Chip label={assignees.length ? 'Change' : '+ Assign'} onPress={() => setOpen(true)} />
+        <Chip
+          label={assignees.length ? t('Change') : t('+ Assign')}
+          onPress={() => setOpen(true)}
+        />
       </View>
     )
   }
@@ -387,7 +398,7 @@ export function AssigneePicker({
             style={[styles.person, on && styles.personOn]}
             accessibilityRole='button'
             accessibilityState={{ selected: on }}
-            accessibilityLabel={`${on ? 'Unassign' : 'Assign'} ${name}`}
+            accessibilityLabel={on ? t('Unassign {name}', { name }) : t('Assign {name}', { name })}
           >
             <Avatar
               hex={member.identity}
@@ -397,7 +408,7 @@ export function AssigneePicker({
               requestImage={requestImage}
             />
             <Text style={[styles.personName, on && styles.personNameOn]} numberOfLines={1}>
-              {member.identity === me ? `${name} (you)` : name}
+              {member.identity === me ? t('{name} (you)', { name }) : name}
             </Text>
             {on ? <Feather name='check' size={14} color={colors.onAccent} /> : null}
           </PressableScale>
@@ -409,7 +420,7 @@ export function AssigneePicker({
         .map((identity) => (
           <Chip key={identity} label={`✕ ${nameFor(identity)}`} onPress={() => toggle(identity)} />
         ))}
-      <Chip label='Done' selected onPress={() => setOpen(false)} />
+      <Chip label={t('Done')} selected onPress={() => setOpen(false)} />
     </View>
   )
 }
@@ -447,7 +458,7 @@ export function LinksEditor({
     send({ type: messageTypes.linkSet, objectId, targetId, kind: linkKind, linked: on })
   return (
     <View style={styles.gap}>
-      {links.length ? null : <Text style={styles.hint}>No linked cards.</Text>}
+      {links.length ? null : <Text style={styles.hint}>{t('No linked cards.')}</Text>}
       {(expanded ? links : links.slice(0, ROWS_SHOWN)).map((link) => {
         const open = !link.card.archived
         return (
@@ -478,7 +489,7 @@ export function LinksEditor({
               }
               style={styles.iconHit}
               accessibilityRole='button'
-              accessibilityLabel={`Remove link to ${link.card.title}`}
+              accessibilityLabel={t('Remove link to {card}', { card: link.card.title })}
             >
               <Feather name='x' size={16} color={colors.muted} />
             </Pressable>
@@ -491,9 +502,13 @@ export function LinksEditor({
       {adding ? (
         <View style={styles.panel}>
           <View style={styles.wrap}>
-            <Chip label='Blocks' selected={kind === 'blocks'} onPress={() => setKind('blocks')} />
             <Chip
-              label='Relates to'
+              label={t('Blocks')}
+              selected={kind === 'blocks'}
+              onPress={() => setKind('blocks')}
+            />
+            <Chip
+              label={t('Relates to')}
               selected={kind === 'relates'}
               onPress={() => setKind('relates')}
             />
@@ -502,12 +517,12 @@ export function LinksEditor({
             style={styles.input}
             value={query}
             onChangeText={setQuery}
-            placeholder='Search cards by title'
+            placeholder={t('Search cards by title')}
             placeholderTextColor={colors.muted}
             autoFocus
-            accessibilityLabel='Search cards to link'
+            accessibilityLabel={t('Search cards to link')}
           />
-          {results.length ? null : <Text style={styles.hint}>No matching cards.</Text>}
+          {results.length ? null : <Text style={styles.hint}>{t('No matching cards.')}</Text>}
           {results.map((other) => (
             <PressableScale
               key={other.id}
@@ -527,10 +542,15 @@ export function LinksEditor({
               </Text>
             </PressableScale>
           ))}
-          <Button title='Cancel' variant='ghost' onPress={() => setAdding(false)} />
+          <Button title={t('Cancel')} variant='ghost' onPress={() => setAdding(false)} />
         </View>
       ) : (
-        <Button title='Add link' icon='link' variant='secondary' onPress={() => setAdding(true)} />
+        <Button
+          title={t('Add link')}
+          icon='link'
+          variant='secondary'
+          onPress={() => setAdding(true)}
+        />
       )}
     </View>
   )
@@ -567,20 +587,31 @@ export function EstimatePanel({
   }, [revealed])
   const update = (fields: object) =>
     send({ type: messageTypes.cardUpdate, objectId: card.id, ...fields })
-  const points = typeof card.points === 'number' ? `${card.points} pts` : 'No estimate'
+  const points =
+    typeof card.points === 'number' ? t('{points} pts', { points: card.points }) : t('No estimate')
   if (!open) {
     return (
       <PressableScale
         onPress={() => setOpen(true)}
         style={styles.summary}
         accessibilityRole='button'
-        accessibilityLabel={`${points}, ${voters.length} votes. Open planning poker`}
+        accessibilityLabel={plural(
+          voters.length,
+          ['{points}, {n} vote. Open planning poker', '{points}, {n} votes. Open planning poker'],
+          [
+            '{points}, {n} głos. Otwórz planning poker',
+            '{points}, {n} głosy. Otwórz planning poker',
+            '{points}, {n} głosów. Otwórz planning poker'
+          ]
+        ).replace('{points}', () => points)}
       >
         <Text style={styles.points}>
           {points}
           <Text style={styles.metaMono}>
-            {voters.length ? ` · ${voters.length} ${voters.length === 1 ? 'vote' : 'votes'}` : ''}
-            {mine !== undefined ? ` · you: ${mine}` : ''}
+            {voters.length
+              ? ` · ${plural(voters.length, ['{n} vote', '{n} votes'], ['{n} głos', '{n} głosy', '{n} głosów'])}`
+              : ''}
+            {mine !== undefined ? ` · ${t('you: {value}', { value: mine })}` : ''}
           </Text>
         </Text>
         <Feather name='chevron-right' size={18} color={colors.muted} />
@@ -597,11 +628,11 @@ export function EstimatePanel({
             hitSlop={10}
             accessibilityRole='button'
           >
-            <Text style={styles.link}>Clear</Text>
+            <Text style={styles.link}>{t('Clear')}</Text>
           </Pressable>
         ) : null}
         <Pressable onPress={() => setOpen(false)} hitSlop={10} accessibilityRole='button'>
-          <Text style={styles.link}>Hide</Text>
+          <Text style={styles.link}>{t('Hide')}</Text>
         </Pressable>
       </View>
       <View style={styles.wrap}>
@@ -618,7 +649,11 @@ export function EstimatePanel({
             style={[styles.pokerCard, mine === value && styles.pokerMine]}
             accessibilityRole='button'
             accessibilityState={{ selected: mine === value }}
-            accessibilityLabel={mine === value ? `Withdraw my vote of ${value}` : `Vote ${value}`}
+            accessibilityLabel={
+              mine === value
+                ? t('Withdraw my vote of {value}', { value })
+                : t('Vote {value}', { value })
+            }
           >
             <Text style={[styles.pokerText, mine === value && styles.pokerTextMine]}>{value}</Text>
           </PressableScale>
@@ -627,7 +662,7 @@ export function EstimatePanel({
           onPress={() => send({ type: messageTypes.estimateSet, objectId: card.id, value: null })}
           style={[styles.pokerCard]}
           accessibilityRole='button'
-          accessibilityLabel='Not sure: withdraw my vote'
+          accessibilityLabel={t('Not sure: withdraw my vote')}
         >
           <Text style={styles.pokerText}>?</Text>
         </PressableScale>
@@ -644,7 +679,7 @@ export function EstimatePanel({
                 requestImage={requestImage}
               />
               <Text style={styles.voteName} numberOfLines={1}>
-                {identity === me ? 'You' : nameFor(identity)}
+                {identity === me ? t('You') : nameFor(identity)}
               </Text>
               {revealed && reveals ? (
                 <RevealValue key={`${identity}:${reveals}`} index={i}>
@@ -659,11 +694,15 @@ export function EstimatePanel({
           ))}
         </View>
       ) : (
-        <Text style={styles.hint}>Nobody voted yet. Votes stay hidden until revealed.</Text>
+        <Text style={styles.hint}>{t('Nobody voted yet. Votes stay hidden until revealed.')}</Text>
       )}
       {voters.length && !revealed ? (
         <Button
-          title={`Reveal ${voters.length} ${voters.length === 1 ? 'vote' : 'votes'}`}
+          title={plural(
+            voters.length,
+            ['Reveal {n} vote', 'Reveal {n} votes'],
+            ['Odkryj {n} głos', 'Odkryj {n} głosy', 'Odkryj {n} głosów']
+          )}
           icon='eye'
           variant='secondary'
           onPress={() => update({ revealEstimates: true })}
@@ -674,13 +713,13 @@ export function EstimatePanel({
           {values.map((value) => (
             <Button
               key={value}
-              title={`Use ${value}`}
+              title={t('Use {value}', { value })}
               variant={card.points === value ? 'primary' : 'secondary'}
               onPress={() => update({ points: value })}
             />
           ))}
           <Button
-            title='Hide votes'
+            title={t('Hide votes')}
             variant='ghost'
             onPress={() => update({ revealEstimates: false })}
           />
