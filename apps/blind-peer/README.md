@@ -81,6 +81,35 @@ sudo systemctl enable --now opencollab-blind-peer
 journalctl -u opencollab-blind-peer -f      # find the publicKey here
 ```
 
+### On Coolify (Docker)
+
+The [`Dockerfile`](Dockerfile) installs the locked `blind-peer-cli` and keeps its
+storage in `/data`. Build it on the server and add a Docker Compose service:
+
+```sh
+scp Dockerfile .dockerignore package.json package-lock.json vps:/opt/opencollab-blind-peer/
+ssh vps 'cd /opt/opencollab-blind-peer && docker build -t opencollab-blind-peer:local .'
+```
+
+```yaml
+services:
+  blind-peer:
+    image: opencollab-blind-peer:local
+    pull_policy: never
+    network_mode: host # the DHT needs the real UDP port, not Docker's NAT
+    restart: unless-stopped
+    command: ['--port', '49737', '--max-storage', '20000']
+    volumes:
+      - opencollab-blind-peer:/data # holds the key: never delete it
+```
+
+The `publicKey` is in the service logs. To update, rebuild the image and restart the
+service. Check a deployed peer end to end from any machine:
+
+```sh
+BLIND_PEER=<publicKey> npm run test:blind-peer
+```
+
 A VPS with a public IP works best. Behind a strict NAT it still works, but some members
 may fail to hole-punch to it.
 

@@ -61,9 +61,11 @@ const messageTypes = Object.freeze({
 })
 
 // Blind peers that keep encrypted copies of every board online (see apps/blind-peer).
-// Add your deployed blind peer's public key here; hosts can override the list at
-// runtime with `blindPeersSet`.
-const BLIND_PEERS = Object.freeze([])
+// Hosts can override the list at runtime with `blindPeersSet`.
+const BLIND_PEERS = Object.freeze([
+  // OpenCollab VPS (Coolify service opencollab-blind-peer, 185.243.55.137:49737)
+  'b5iuriqy7trkfkiuawb9htxdq3uyxwcafsft7ufkq3taq1mzqsny'
+])
 
 function command(type, fields = {}) {
   return { type, ...fields }

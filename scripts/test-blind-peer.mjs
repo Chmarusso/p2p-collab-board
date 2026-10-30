@@ -1,6 +1,7 @@
 // A board survives its only member going offline: Alice mirrors it to a local
 // blind peer and quits, then Bob joins and reads it from the blind peer alone.
 // Needs network access (public DHT) and `npm install` in apps/blind-peer.
+// BLIND_PEER=<key> tests a running blind peer (e.g. the VPS one) instead.
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import fs from 'node:fs/promises'
@@ -60,7 +61,9 @@ const until = async (session, label, check, timeout = 120000) => {
   return session.board
 }
 
-const blind = await startBlindPeer()
+const blind = process.env.BLIND_PEER
+  ? { key: process.env.BLIND_PEER, log: [], child: { kill() {} } }
+  : await startBlindPeer()
 const sessions = []
 try {
   process.env.OPENCOLLAB_BLIND_PEERS = blind.key
