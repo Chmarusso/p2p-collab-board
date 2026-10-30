@@ -83,7 +83,9 @@ export type BoardAlert = {
     | 'new-card'
     | 'due-soon'
     | 'overdue'
-  cardId: string
+    | 'chat-mention'
+  // null for chat mentions: they open the board chat, not a card.
+  cardId: string | null
   cardTitle: string
   author: string | null
   authorName: string | null
@@ -171,8 +173,16 @@ export type BoardStats = {
     pointsDone: number
   }
 }
+export type ChatMessage = {
+  id: string
+  author: string
+  text: string
+  createdAt: string
+  mentions?: string[]
+}
 export type BoardData = {
   objects: Card[]
+  chat?: ChatMessage[]
   columns: Column[]
   labels: Label[]
   theme: Theme
@@ -366,6 +376,8 @@ export function kindLabel(kind: BoardAlert['kind']) {
       return t('Due soon')
     case 'overdue':
       return t('Overdue')
+    case 'chat-mention':
+      return tx('alert', 'Chat')
   }
 }
 
@@ -378,6 +390,8 @@ export function alertText(alert: BoardAlert, shortKey: (hex: string) => string) 
       return alert.where === 'comment'
         ? t('{who} mentioned you in a comment on {card}', { who, card })
         : t('{who} mentioned you on {card}', { who, card })
+    case 'chat-mention':
+      return t('{who} mentioned you in the board chat', { who })
     case 'assigned':
       return t('{who} assigned you to {card}', { who, card })
     case 'comment':

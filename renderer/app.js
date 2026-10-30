@@ -48,6 +48,7 @@ let boardOwner = null
 let boardKindId = 'kanban'
 const can = (feature) => hasFeature(boardKindId, feature)
 let members = []
+let chatMessages = []
 let editingDescription = false
 let descriptionExpanded = false
 // Image uploads waiting for the worker: requestId → { cardId, names }.
@@ -180,6 +181,7 @@ const icons = {
   checklist: '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="m8 12 3 3 5-6"/>',
   link: '<path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/>',
   activity: '<path d="M22 12h-4l-3 9L9 3l-3 9H2"/>',
+  chat: '<path d="M21 11.5a8.4 8.4 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.4 8.4 0 0 1-3.8-.9L3 21l1.9-5.7a8.4 8.4 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.4 8.4 0 0 1 3.8-.9h.5a8.5 8.5 0 0 1 8 8z"/>',
   chart: '<path d="M3 3v18h18"/><path d="M8 17v-5M13 17V8M18 17v-8"/>',
   zap: '<path d="M13 2 3 14h9l-1 8 10-12h-9z"/>',
   smile: '<circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01"/>',
@@ -3689,6 +3691,8 @@ bridge.onWorkerIPC(workers.main, (data) => {
     members = message.members || []
     boardKindId = boardKind(boardInfo.kind).id
     applyKind()
+    chatMessages = message.chat || []
+    onChatChanged()
     renderDescription()
     renderBoardIcon()
     updateIdentityMenu()
@@ -4222,12 +4226,113 @@ function attachMentionPicker(field) {
   field.addEventListener('blur', () => setTimeout(close, 100))
 }
 // The picker must see Enter before the field's own handlers (save, submit).
-for (const id of ['card-body', 'card-comment', 'object-body']) {
+for (const id of ['card-body', 'card-comment', 'object-body', 'chat-input']) {
   attachMentionPicker(document.getElementById(id))
 }
 
+// Board chat: one conversation per board for every member, synced like
+// comments. Unread = messages from others newer than the last one seen here.
+const chatModal = document.getElementById('chat-modal')
+const chatList = document.getElementById('board-chat')
+const chatButton = document.getElementById('chat-open')
+const chatBadge = document.createElement('span')
+chatBadge.className = 'badge chat-unread'
+chatBadge.hidden = true
+chatButton.append(chatBadge)
+const seenChat = new Set()
+const chatReadKey = () => `opencollab.chat-read.${currentIdentity}.${currentBoardKey}`
+
+function chatReadAt() {
+  try {
+    return Number(localStorage.getItem(chatReadKey())) || 0
+  } catch {
+    return 0
+  }
+}
+function markChatRead() {
+  const last = chatMessages[chatMessages.length - 1]
+  if (!last) return
+  try {
+    localStorage.setItem(chatReadKey(), String(Date.parse(last.createdAt) || Date.now()))
+  } catch {}
+}
+function updateChatBadge() {
+  const readAt = chatReadAt()
+  const unread = chatMessages.filter(
+    (entry) => entry.author !== currentIdentity && Date.parse(entry.createdAt) > readAt
+  ).length
+  chatBadge.hidden = !unread || chatModal.classList.contains('open')
+  chatBadge.textContent = unread > 99 ? '99+' : String(unread)
+  chatButton.setAttribute('aria-label', unread ? `Chat, ${unread} unread` : 'Chat')
+}
+
+function canDeleteChat(entry) {
+  const role = memberById(currentIdentity)?.role
+  return entry.author === currentIdentity || role === 'owner' || role === 'admin'
+}
+
+function renderChat() {
+  const nearBottom = chatList.scrollHeight - chatList.scrollTop - chatList.clientHeight < 80
+  const first = !chatList.childElementCount
+  chatList.innerHTML = ''
+  if (!chatMessages.length) {
+    chatList.innerHTML =
+      '<p class="chat-empty">No messages yet. Say hello, plan the week, or @mention someone.</p>'
+    return
+  }
+  for (const entry of chatMessages) {
+    const element = document.createElement('div')
+    element.className = 'comment chat-message'
+    if (entry.mentions?.includes(currentIdentity)) element.classList.add('mentions-me')
+    if (!seenChat.has(entry.id)) {
+      seenChat.add(entry.id)
+      if (!first) element.classList.add('enter')
+    }
+    element.innerHTML = `<div class="comment-meta">${identityHtml(entry.author)}<span class="time" title="${escape(new Date(entry.createdAt).toLocaleString())}">${escape(relativeTime(entry.createdAt))}</span></div><div class="markdown" dir="auto"></div>`
+    element.querySelector('.markdown').append(markdownFor(entry.text, entry.mentions))
+    if (canDeleteChat(entry)) {
+      const remove = document.createElement('button')
+      remove.type = 'button'
+      remove.className = 'ghost chat-delete'
+      remove.textContent = 'Delete'
+      remove.setAttribute('aria-label', 'Delete message')
+      remove.onclick = () => send({ type: 'board:chat-delete', messageId: entry.id })
+      element.querySelector('.comment-meta').append(remove)
+    }
+    chatList.append(element)
+  }
+  if (first || nearBottom) chatList.scrollTop = chatList.scrollHeight
+}
+
+function onChatChanged() {
+  if (chatModal.classList.contains('open')) {
+    renderChat()
+    markChatRead()
+  }
+  updateChatBadge()
+}
+
+function openChat() {
+  chatList.innerHTML = ''
+  renderChat()
+  openOverlay(chatModal)
+  markChatRead()
+  updateChatBadge()
+  markAlertsRead((alert) => alert.boardKey === currentBoardKey && alert.kind === 'chat-mention')
+  document.getElementById('chat-input').focus()
+}
+chatButton.onclick = openChat
+document.getElementById('chat-form').onsubmit = (event) => {
+  event.preventDefault()
+  const input = document.getElementById('chat-input')
+  const text = input.value.trim()
+  if (!text) return
+  send({ type: 'board:chat-send', text, mentions: findMentions(text, profiles) })
+  input.value = ''
+}
+
 const notificationsModal = document.getElementById('notifications-modal')
-const NOTIFY_KINDS = ['mention', 'assigned', 'comment', 'due-soon', 'overdue']
+const NOTIFY_KINDS = ['mention', 'chat-mention', 'assigned', 'comment', 'due-soon', 'overdue']
 
 const readAlertsKey = () => `opencollab.alerts-read.${currentIdentity}`
 const alertKey = (alert) => `${alert.boardKey}:${alert.id}`
@@ -4283,6 +4388,7 @@ function alertText(alert) {
   return (
     {
       mention: `${who} mentioned you ${alert.where === 'comment' ? 'in a comment on' : 'on'} ${card}`,
+      'chat-mention': `${who} mentioned you in the board chat`,
       assigned: `${who} assigned you to ${card}`,
       comment: `${who} commented on ${card}`,
       moved: `${who} moved ${card}${alert.column ? ` to ${escape(alert.column)}` : ''}`,
@@ -4296,6 +4402,7 @@ function alertText(alert) {
 
 const KIND_LABELS = {
   mention: 'Mention',
+  'chat-mention': 'Chat',
   assigned: 'Assigned',
   comment: 'Comment',
   moved: 'Moved',
@@ -4386,9 +4493,11 @@ function openAlert(alert) {
   openBoardCard({ key: alert.boardKey, invite: alert.invite, name: alert.boardName }, alert.cardId)
 }
 
+// cardId null = the board chat (chat mentions have no card).
 function openBoardCard(board, cardId) {
   if (board.key === currentBoardKey && roomEntered) {
-    openCard(cardId)
+    if (cardId) openCard(cardId)
+    else openChat()
     return
   }
   pendingOpenCard = { boardKey: board.key, cardId }
@@ -4399,10 +4508,12 @@ function openBoardCard(board, cardId) {
 // A notification from another board asked for this card once that board shows.
 function openPendingCard() {
   if (!pendingOpenCard || pendingOpenCard.boardKey !== currentBoardKey) return
-  if (boardView.style.display !== 'block' || !cardById(pendingOpenCard.cardId)) return
+  if (boardView.style.display !== 'block') return
+  if (pendingOpenCard.cardId && !cardById(pendingOpenCard.cardId)) return
   const { cardId } = pendingOpenCard
   pendingOpenCard = null
-  openCard(cardId)
+  if (cardId) openCard(cardId)
+  else openChat()
 }
 
 function onBoardAlerts(message) {
@@ -4713,6 +4824,8 @@ function onActionError(message) {
     error.textContent = message.error
     error.hidden = false
   } else if (message.action === 'board:template-apply') {
+    showToast(message.error, 'warn')
+  } else if (message.action === 'board:chat-delete') {
     showToast(message.error, 'warn')
   } else if (!document.getElementById('theme-panel').hidden) {
     const error = document.getElementById('theme-error')

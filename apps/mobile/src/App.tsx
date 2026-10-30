@@ -250,10 +250,11 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
   // only holds small values) plus what was opened this session.
   const [readUntil, setReadUntil] = useState(0)
   const [readNow, setReadNow] = useState<Set<string>>(new Set())
-  const [openCardRequest, setOpenCardRequest] = useState<{ cardId: string; nonce: number } | null>(
-    null
-  )
-  const pendingOpen = useRef<{ boardKey: string; cardId: string } | null>(null)
+  const [openCardRequest, setOpenCardRequest] = useState<{
+    cardId: string | null
+    nonce: number
+  } | null>(null)
+  const pendingOpen = useRef<{ boardKey: string; cardId: string | null } | null>(null)
   const [composerColumn, setComposerColumn] = useState<string | null>(null)
   // The page a shared card came from, saved as its "View original" link.
   const [composerSource, setComposerSource] = useState<CardSource | null>(null)
@@ -471,6 +472,7 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
         }
         setBoardData({
           objects: message.objects || [],
+          chat: message.chat || [],
           columns: message.columns || [],
           labels: message.labels || [],
           theme: message.theme || { background: null, accent: null, template: null },
@@ -672,8 +674,9 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
     openBoardCard(board, alert.cardId)
   }
 
-  // Opens a card on any joined board, switching boards first if needed.
-  function openBoardCard(board: AlertBoard, cardId: string) {
+  // Opens a card (or, for cardId null, the board chat) on any joined board,
+  // switching boards first if needed.
+  function openBoardCard(board: AlertBoard, cardId: string | null) {
     if (board.key === currentBoardKey.current) {
       setOpenCardRequest({ cardId, nonce: Date.now() })
       return
@@ -817,7 +820,7 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
   function openPendingCard(objects: { id: string }[]) {
     const pending = pendingOpen.current
     if (!pending || pending.boardKey !== currentBoardKey.current) return
-    if (!objects.some((object) => object.id === pending.cardId)) return
+    if (pending.cardId && !objects.some((object) => object.id === pending.cardId)) return
     pendingOpen.current = null
     setOpenCardRequest({ cardId: pending.cardId, nonce: Date.now() })
   }

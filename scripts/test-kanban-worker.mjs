@@ -311,6 +311,25 @@ try {
   assert.equal(JSON.parse(await fs.readFile(file.path, 'utf8')).cards.length, 5)
   console.log('✓ owner, icon, background image, video upload/playback and export work')
 
+  // Board chat: send, delete your own message, refuse an empty one.
+  session.send({ type: messageTypes.chatSend, text: '  Hello team  ', requestId: 'c1' })
+  const sent = await session.wait(
+    (message) => message.type === 'chat-sent' && message.requestId === 'c1',
+    { label: 'chat sent' }
+  )
+  session.send({ type: messageTypes.chatSend, text: 'Second message' })
+  session.send({ type: messageTypes.chatSend, text: '   ' })
+  board = await until('two chat messages', (b) => b.chat?.length === 2)
+  assert.deepEqual(
+    board.chat.map((entry) => entry.text),
+    ['Hello team', 'Second message']
+  )
+  assert.equal(board.chat[0].id, sent.id)
+  session.send({ type: messageTypes.chatDelete, messageId: sent.id })
+  board = await until('chat message deleted', (b) => b.chat.length === 1)
+  assert.equal(board.chat[0].text, 'Second message')
+  console.log('✓ board chat: send, delete')
+
   const before = JSON.stringify(board)
   await session.close()
   console.log('✓ every Kanban command applies in the worker')

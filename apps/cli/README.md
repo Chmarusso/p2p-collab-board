@@ -25,6 +25,9 @@ opencollab comment 1 "Agreed"   # or `comment 1 -` to read the text from stdin
 opencollab vote 1 up             # up | down | clear
 opencollab images 1 --out ./downloads
 opencollab attach 1 shot.png -i demo.mp4    # add images or videos to an existing card
+opencollab chat show             # the board chat (-n 50, --json)
+opencollab chat send "Hi @Bob"   # message everyone on the board; @Name mentions (or `chat send -` for stdin)
+opencollab chat delete <id>      # your own message, or any as an admin
 opencollab watch                 # stay online and print new activity
 ```
 

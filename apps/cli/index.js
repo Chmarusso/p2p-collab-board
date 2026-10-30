@@ -650,6 +650,120 @@ const comment = command(
   })
 )
 
+// @Name in chat text → member identities, using display names from `profiles`.
+function mentionsIn(text, profiles) {
+  const found = new Set()
+  for (const [identity, name] of Object.entries(profiles || {})) {
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    if (new RegExp(`(^|\\s)@${escaped}(?![\\p{L}\\p{N}_])`, 'iu').test(text)) found.add(identity)
+  }
+  return [...found]
+}
+
+const chatShow = command(
+  'show',
+  summary('Show the board chat, oldest first'),
+  ...boardFlags(),
+  flag('--limit|-n [count]', 'how many recent messages (default 30)'),
+  flag(
+    '--json',
+    'print raw JSON: { board, profiles, chat: [{ id, author, text, createdAt, mentions }] }'
+  ),
+  action(async ({ flags }) => {
+    await withSession(flags, async (session) => {
+      const { boardName } = await openBoard(session, flags)
+      const { chat, profiles } = session.state
+      const recent = chat.slice(-Math.max(1, Number(flags.limit) || 30))
+      if (flags.json) {
+        return say(JSON.stringify({ board: boardName, profiles, chat: recent }, null, 2))
+      }
+      if (!recent.length) {
+        return say('No chat messages yet. Send one with `opencollab chat send "Hi"`.')
+      }
+      for (const entry of recent) {
+        const who = profiles[entry.author] || entry.author.slice(0, 8)
+        say(`${who} · ${relativeTime(entry.createdAt)} · ${entry.id.slice(-8)}`)
+        say(`  ${entry.text.split('\n').join('\n  ')}`)
+      }
+    })
+  })
+)
+
+const chatSend = command(
+  'send',
+  summary('Send a message to the board chat (@Name mentions a member)'),
+  arg('<text>', 'message text, or - to read it from stdin'),
+  ...boardFlags(),
+  action(async ({ args, flags }) => {
+    const text = (args.text === '-' ? await readStdin() : args.text).trim()
+    if (!text) throw new Error('The message is empty')
+    await withSession(flags, async (session) => {
+      const { room, boardName } = await openBoard(session, flags)
+      assertWritable(session, room)
+      const requestId = `chat-${Date.now()}-${Math.random().toString(36).slice(2)}`
+      session.send({
+        type: messageTypes.chatSend,
+        text,
+        mentions: mentionsIn(text, session.state.profiles),
+        requestId
+      })
+      // The board-state with the message can arrive before or after the reply.
+      let sentId = null
+      await session.wait(
+        (message, state) => {
+          if (message.type === 'chat-sent' && message.requestId === requestId) sentId = message.id
+          return sentId !== null && state.chat.some((entry) => entry.id === sentId)
+        },
+        { label: 'message to be saved' }
+      )
+      say(`Sent to the chat of "${boardName}".`)
+      await finishWrite(session)
+    })
+  })
+)
+
+const chatDelete = command(
+  'delete',
+  summary('Delete a chat message (yours, or any as an admin)'),
+  arg('<message>', 'message id or its last characters from `chat show`'),
+  ...boardFlags(),
+  action(async ({ args, flags }) => {
+    await withSession(flags, async (session) => {
+      const { room } = await openBoard(session, flags)
+      assertWritable(session, room)
+      const matches = session.state.chat.filter(
+        (entry) => entry.id.endsWith(args.message) || entry.id === args.message
+      )
+      if (matches.length !== 1) {
+        throw new Error(matches.length ? 'More than one message matches' : 'No such message')
+      }
+      const id = matches[0].id
+      session.send({ type: messageTypes.chatDelete, messageId: id })
+      await session
+        .wait(
+          (message, state) =>
+            (message.type === 'board-action-error' && message.action === messageTypes.chatDelete) ||
+            (message.type === messageTypes.boardState &&
+              !state.chat.some((entry) => entry.id === id)),
+          { label: 'message to be deleted' }
+        )
+        .then((message) => {
+          if (message.type === 'board-action-error') throw new Error(message.error)
+        })
+      say('Message deleted.')
+      await finishWrite(session)
+    })
+  })
+)
+
+const chat = command(
+  'chat',
+  summary('Board chat: show, send, delete'),
+  chatShow,
+  chatSend,
+  chatDelete
+)
+
 const vote = command(
   'vote',
   summary('Vote on a post: up, down or clear'),
@@ -748,7 +862,9 @@ const attach = command(
         continue
       }
       const type = imageType(file)
-      if (!type) throw new Error(`${file}: use an image (.jpg .png .gif .webp) or a video (.mp4 .mov .webm)`)
+      if (!type) {
+        throw new Error(`${file}: use an image (.jpg .png .gif .webp) or a video (.mp4 .mov .webm)`)
+      }
       const data = await fs.readFile(file)
       if (data.length > MAX_IMAGE_BYTES) throw new Error(`${file}: larger than 5 MB`)
       images.push({ data: data.toString('base64'), type, ...imageSize(data, type) })
@@ -765,8 +881,12 @@ const attach = command(
         if (result.error) throw new Error(`${result.error} ("${card.title}")`)
         added += result.keys.length
       }
-      if (images.length) await send(messageTypes.cardImagesAdd, 'card-images-added', { images }, 60000)
-      if (videos.length) await send(messageTypes.cardMediaAdd, 'card-media-added', { files: videos }, 600000)
+      if (images.length) {
+        await send(messageTypes.cardImagesAdd, 'card-images-added', { images }, 60000)
+      }
+      if (videos.length) {
+        await send(messageTypes.cardMediaAdd, 'card-media-added', { files: videos }, 600000)
+      }
       say(`Attached ${added} file${added === 1 ? '' : 's'} to "${card.title}".`)
     })
   })
@@ -883,7 +1003,17 @@ const board = command(
       if (flags.json) {
         return say(
           JSON.stringify(
-            { board: boardName, info, theme, columns, labels, rules, profiles, cards: objects },
+            {
+              board: boardName,
+              info,
+              theme,
+              columns,
+              labels,
+              rules,
+              profiles,
+              cards: objects,
+              chat: session.state.chat
+            },
             null,
             2
           )
@@ -2549,6 +2679,7 @@ const cli = command(
   post,
   add,
   comment,
+  chat,
   vote,
   react,
   unreact,

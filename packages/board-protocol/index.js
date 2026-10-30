@@ -15,6 +15,8 @@ const messageTypes = Object.freeze({
   boardCreate: 'board:create',
   boardVote: 'board:vote',
   boardComment: 'board:comment',
+  chatSend: 'board:chat-send',
+  chatDelete: 'board:chat-delete',
   cardUpdate: 'board:card-update',
   cardMove: 'board:card-move',
   cardArchive: 'board:card-archive',

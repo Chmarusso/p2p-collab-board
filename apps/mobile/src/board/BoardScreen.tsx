@@ -37,6 +37,7 @@ import { plural, t } from '../i18n'
 import { SoundName } from '../sounds'
 import type { SharePref } from '../share'
 import { ActivitySheet } from './Activity'
+import { ChatSheet } from './Chat'
 import { Agenda } from './Agenda'
 import { AvatarStack } from './CardExtras'
 import { CardFace } from './CardFace'
@@ -108,7 +109,7 @@ type Props = {
   onOpenAlert: (board: AlertBoard, alert: BoardAlert) => void
   onOpenMyCard: (board: AlertBoard, card: MyCard) => void
   sound: SoundName
-  openCardRequest: { cardId: string; nonce: number } | null
+  openCardRequest: { cardId: string | null; nonce: number } | null
   // Bumped by the profile menu's "Board settings".
   settingsRequest: number
   subscribe: (listener: (message: WorkerMessage) => void) => () => void
@@ -135,6 +136,7 @@ type SheetName =
   | 'notifications'
   | 'description'
   | 'activity'
+  | 'chat'
   | 'stats'
   | 'rules'
   | 'templates'
@@ -151,6 +153,17 @@ export function BoardScreen(props: Props) {
   const can = (feature: BoardFeature) => hasFeature(kind.id, feature)
   const [openCardId, setOpenCardId] = useState<string | null>(null)
   const [sheet, setSheet] = useState<SheetName>(null)
+  // Chat unread: messages from others since the chat was last open (or since
+  // this board screen opened).
+  const [chatReadAt, setChatReadAt] = useState(() => Date.now())
+  useEffect(() => {
+    if (sheet !== 'chat') return
+    setChatReadAt(Date.now())
+    props.markRead((board, alert) => board.key === props.boardKey && alert.kind === 'chat-mention')
+  }, [sheet, data.chat?.length])
+  const chatUnread = (data.chat || []).filter(
+    (entry) => entry.author !== me && Date.parse(entry.createdAt) > chatReadAt
+  ).length
   const [columnMenu, setColumnMenu] = useState<string | null>(null)
   const [filters, setFilters] = useState<Filters>(NO_FILTERS)
   const [view, setView] = useState<'board' | 'agenda'>('board')
@@ -202,7 +215,7 @@ export function BoardScreen(props: Props) {
   // A notification asked for a card (possibly after switching boards).
   useEffect(() => {
     if (props.openCardRequest) {
-      setSheet(null)
+      setSheet(props.openCardRequest.cardId ? null : 'chat')
       setOpenCardId(props.openCardRequest.cardId)
     }
   }, [props.openCardRequest?.nonce])
@@ -282,6 +295,7 @@ export function BoardScreen(props: Props) {
   }
   // Everything past the view switch, "Assigned to me" and Filter.
   const moreActions: Array<[string, () => void]> = [
+    [chatUnread ? t('Chat ({n} new)', { n: chatUnread }) : t('Chat'), () => setSheet('chat')],
     ...(can('assignees')
       ? [
           [
@@ -875,6 +889,18 @@ export function BoardScreen(props: Props) {
       ) : null}
       {sheet === 'templates' ? (
         <BoardTemplatesSheet send={send} onClose={() => setSheet(null)} />
+      ) : null}
+      {sheet === 'chat' ? (
+        <ChatSheet
+          data={data}
+          me={me}
+          send={send}
+          nameFor={props.nameFor}
+          relativeTime={props.relativeTime}
+          cache={props.cache}
+          requestImage={props.requestImage}
+          onClose={() => setSheet(null)}
+        />
       ) : null}
       {sheet === 'activity' ? (
         <ActivitySheet

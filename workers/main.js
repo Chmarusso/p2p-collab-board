@@ -241,11 +241,13 @@ function sendPeerCount() {
 }
 
 function sendBoardState() {
-  const { objects, profiles, columns, labels, theme, info, owner, members, rules } = boardState
+  const { objects, chat, profiles, columns, labels, theme, info, owner, members, rules } =
+    boardState
   pipe.write(
     JSON.stringify({
       type: 'board-state',
       objects,
+      chat,
       profiles,
       columns,
       labels,
@@ -797,7 +799,7 @@ function replyError(msg, error) {
 // Everything on the board as plain JSON. No invite or secret: the file is safe
 // to share, and attachments stay references to the members' encrypted blobs.
 function boardExport() {
-  const { objects, columns, labels, theme, info, profiles, owner, members } = boardState
+  const { objects, chat, columns, labels, theme, info, profiles, owner, members } = boardState
   return {
     format: 'opencollab-board',
     version: 1,
@@ -810,7 +812,8 @@ function boardExport() {
     labels,
     theme,
     icon: info.icon,
-    cards: objects
+    cards: objects,
+    chat
   }
 }
 const columnById = (id) => boardState.columns.find((column) => column.id === id)
@@ -1890,6 +1893,38 @@ pipe.on('data', async (data) => {
           mentions: Array.isArray(msg.mentions) ? msg.mentions : []
         }
       })
+    } else if (msg.type === messageTypes.chatSend) {
+      const text = typeof msg.text === 'string' ? msg.text.trim().slice(0, LIMITS.chat) : ''
+      if (!text) return
+      const identity = await unlockedIdentity()
+      const sent = await sendOwnOp({
+        type: 'chat',
+        message: {
+          id: uniqueId(identity),
+          text,
+          createdAt: new Date().toISOString(),
+          mentions: Array.isArray(msg.mentions) ? msg.mentions : []
+        }
+      })
+      if (msg.requestId) {
+        pipe.write(
+          JSON.stringify({
+            type: 'chat-sent',
+            requestId: msg.requestId,
+            id: sent.payload.message.id
+          })
+        )
+      }
+    } else if (msg.type === messageTypes.chatDelete) {
+      if (typeof msg.messageId !== 'string') return
+      const entry = (boardState.chat || []).find((item) => item.id === msg.messageId)
+      if (!entry) return replyError(msg, 'That message is gone')
+      const identity = await unlockedIdentity()
+      const role = memberOf(identity)?.role
+      if (entry.author !== identity && !['owner', 'admin'].includes(role)) {
+        return replyError(msg, 'Only the author or an admin can delete a message')
+      }
+      await sendOwnOp({ type: 'chat:delete', messageId: msg.messageId })
     } else if (msg.type === messageTypes.cardUpdate) {
       if (!cardById(msg.objectId)) return
       const payload = { type: 'card:update', objectId: msg.objectId }

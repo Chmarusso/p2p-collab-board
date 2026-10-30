@@ -14,6 +14,7 @@ class Session {
       publicKey: null,
       room: null,
       objects: [],
+      chat: [],
       profiles: {},
       members: [],
       columns: [],
@@ -80,6 +81,7 @@ class Session {
     }
     if (message.type === messageTypes.boardState) {
       state.objects = message.objects || []
+      state.chat = message.chat || []
       state.profiles = message.profiles || {}
       state.members = message.members || []
       state.columns = message.columns || []
