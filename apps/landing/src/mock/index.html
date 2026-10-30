@@ -1,0 +1,1453 @@
+<!doctype html>
+<!--
+  Phone mockups of the OpenCollab app for the landing page: screenshots and
+  short clips. Not shipped; render with apps/landing/src/mock/render.mjs.
+
+    index.html?scene=feed|slides|chores|game|app|chat|desktop&lang=en|pl
+
+  `desktop` is the same Weekend reading board on a laptop (1600×1000).
+
+  Animations are Web Animations created paused; the renderer sets every
+  animation's currentTime frame by frame, so clips are smooth and repeatable.
+  Photos: GPT Image 2.5 (treg), generated for these mockups.
+-->
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=390" />
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        width: 390px;
+        height: 844px;
+        overflow: hidden;
+        font-family:
+          'Roboto',
+          -apple-system,
+          'Segoe UI',
+          sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      body {
+        background: var(--bg);
+        color: var(--text);
+        position: relative;
+      }
+      .status {
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 22px 0 26px;
+        font:
+          600 14px/1 -apple-system,
+          sans-serif;
+        color: var(--text);
+      }
+      .status .sys {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+      }
+      .status i {
+        display: inline-block;
+        background: var(--text);
+        border-radius: 2px;
+      }
+      .screen {
+        padding: 6px 16px 0;
+      }
+      .top {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 6px;
+      }
+      .top h1 {
+        flex: 1;
+        margin: 0;
+        font-size: 22px;
+        font-weight: 800;
+        color: var(--text);
+        letter-spacing: -0.01em;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        height: 34px;
+        padding: 0 12px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: var(--surface);
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--text);
+        white-space: nowrap;
+      }
+      .pill.accent {
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+      .pill.filled {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: var(--ink);
+      }
+      .ico {
+        width: 15px;
+        height: 15px;
+        flex: none;
+        fill: none;
+        stroke: currentColor;
+        stroke-width: 2;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+      .av {
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font:
+          700 11px/1 -apple-system,
+          sans-serif;
+        color: #fff;
+        flex: none;
+      }
+      .av.big {
+        width: 30px;
+        height: 30px;
+        font-size: 13px;
+      }
+      .online span:last-child {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        min-width: 0;
+      }
+      .online {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        height: 26px;
+        font-size: 13px;
+        color: var(--muted);
+      }
+      .stack {
+        display: flex;
+      }
+      .stack .av {
+        margin-right: -6px;
+        border: 2px solid var(--bg);
+        width: 24px;
+        height: 24px;
+      }
+      .dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--accent);
+        margin-left: 8px;
+      }
+      .spin {
+        width: 13px;
+        height: 13px;
+        border-radius: 50%;
+        border: 2px solid var(--border);
+        border-top-color: var(--accent);
+        flex: none;
+      }
+      .desc {
+        font-size: 13px;
+        color: var(--muted);
+        margin: 2px 0 12px;
+      }
+      .toolbar {
+        display: flex;
+        gap: 8px;
+        margin-bottom: 14px;
+      }
+      /* Desktop (scene=desktop): 1600×1000 */
+      body.desktop {
+        width: 1600px;
+        height: 1000px;
+        display: grid;
+        grid-template-columns: 1fr 380px;
+        font-size: 15px;
+      }
+      .dmain {
+        padding: 28px 40px;
+        min-width: 0;
+      }
+      .dtop {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        margin-bottom: 4px;
+      }
+      .dtop h1 {
+        margin: 0;
+        font-size: 30px;
+        font-weight: 800;
+        letter-spacing: -0.01em;
+      }
+      .dtop .tabs {
+        display: flex;
+        gap: 4px;
+        margin-left: 18px;
+      }
+      .dtop .tabs span {
+        padding: 7px 12px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--muted);
+      }
+      .dtop .tabs span.on {
+        background: var(--surface);
+        color: var(--text);
+        border: 1px solid var(--border);
+      }
+      .dtop .right {
+        margin-left: auto;
+        display: flex;
+        gap: 10px;
+        align-items: center;
+      }
+      .dgrid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 16px;
+        margin-top: 18px;
+      }
+      .dgrid .post {
+        margin: 0;
+      }
+      .dgrid .post img {
+        height: 190px;
+      }
+      .dcover {
+        height: 190px;
+        display: flex;
+        align-items: flex-end;
+        padding: 16px;
+        font-size: 20px;
+        font-weight: 800;
+        line-height: 1.15;
+        color: #fff;
+        text-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
+      }
+      .dchat {
+        border-left: 1px solid var(--border);
+        background: var(--surface);
+        padding: 24px 22px;
+        display: flex;
+        flex-direction: column;
+      }
+      .dchat h2 {
+        margin: 0 0 4px;
+        font-size: 18px;
+      }
+      .dchat .sub {
+        font-size: 12px;
+        color: var(--muted);
+        margin-bottom: 22px;
+      }
+      .dchat .msgs {
+        flex: 1;
+      }
+      .dchat .composer {
+        position: static;
+        margin-top: auto;
+      }
+      /* Feed */
+      .keypoints {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px;
+        border-radius: 14px;
+        background: var(--accent);
+        color: var(--ink);
+        margin-bottom: 12px;
+      }
+      .keypoints .ic {
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.28);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .keypoints b {
+        display: block;
+        font-size: 15px;
+      }
+      .keypoints span {
+        font-size: 12px;
+        opacity: 0.85;
+      }
+      .post {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        overflow: hidden;
+        margin-bottom: 12px;
+      }
+      .post .who {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 12px;
+        font-size: 14px;
+        font-weight: 600;
+      }
+      .post .who small {
+        color: var(--muted);
+        font-weight: 400;
+        font-size: 12px;
+      }
+      .post img {
+        display: block;
+        width: 100%;
+        height: 196px;
+        object-fit: cover;
+      }
+      .post .text {
+        padding: 10px 12px 12px;
+      }
+      .post h3 {
+        margin: 0 0 4px;
+        font-size: 15px;
+        color: var(--text);
+      }
+      .post p {
+        margin: 0;
+        font-size: 13px;
+        line-height: 1.45;
+        color: var(--muted);
+      }
+      .post .src {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+        margin-top: 8px;
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--accent);
+      }
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        margin: 0 12px 8px;
+        padding: 3px 9px 3px 6px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: var(--bg);
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--muted);
+      }
+      /* Slides */
+      .player {
+        position: absolute;
+        inset: 0;
+        overflow: hidden;
+        background: #000;
+        color: #fff;
+      }
+      .player .bg {
+        position: absolute;
+        inset: -30px;
+        background-size: cover;
+        background-position: center;
+        filter: blur(26px) saturate(1.2);
+        transform: scale(1.1);
+      }
+      .player .shade {
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(
+          180deg,
+          rgba(0, 0, 0, 0.55),
+          rgba(0, 0, 0, 0.3) 40%,
+          rgba(0, 0, 0, 0.72)
+        );
+      }
+      .bars {
+        position: absolute;
+        top: 46px;
+        left: 12px;
+        right: 12px;
+        display: flex;
+        gap: 4px;
+      }
+      .bars span {
+        flex: 1;
+        height: 3px;
+        border-radius: 2px;
+        background: rgba(255, 255, 255, 0.3);
+        overflow: hidden;
+      }
+      .bars span i {
+        display: block;
+        height: 100%;
+        background: #fff;
+        transform-origin: left;
+      }
+      .phead {
+        position: absolute;
+        top: 60px;
+        left: 14px;
+        right: 14px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 13px;
+      }
+      .phead .badge {
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        background: var(--accent);
+        color: var(--ink);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 800;
+      }
+      .phead small {
+        display: block;
+        opacity: 0.75;
+        font-size: 11px;
+      }
+      .slide {
+        position: absolute;
+        left: 26px;
+        right: 26px;
+        top: 230px;
+      }
+      .slide .label {
+        font-size: 14px;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--accent);
+        margin-bottom: 10px;
+      }
+      .slide h2 {
+        margin: 0 0 18px;
+        font-size: 34px;
+        line-height: 1.12;
+        font-weight: 900;
+      }
+      .slide p {
+        margin: 0 0 14px;
+        font-size: 20px;
+        line-height: 1.42;
+        font-weight: 500;
+      }
+      .slide p b {
+        color: var(--accent);
+        font-weight: 800;
+      }
+      .pbtns {
+        position: absolute;
+        left: 14px;
+        bottom: 34px;
+        display: flex;
+        gap: 10px;
+      }
+      .pbtns span {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 9px 14px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.14);
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        font-size: 13px;
+        font-weight: 600;
+      }
+      .tap {
+        position: absolute;
+        width: 56px;
+        height: 56px;
+        margin: -28px 0 0 -28px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.35);
+        opacity: 0;
+        pointer-events: none;
+      }
+      /* Lists */
+      .list {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        overflow: hidden;
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 13px 14px;
+        border-top: 1px solid var(--border);
+        background: var(--surface);
+        position: relative;
+      }
+      .row:first-child {
+        border-top: 0;
+      }
+      .check {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        border: 2px solid var(--muted);
+        flex: none;
+        position: relative;
+      }
+      .check .fill {
+        position: absolute;
+        inset: -2px;
+        border-radius: 50%;
+        background: var(--accent);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--ink);
+        font-size: 14px;
+        font-weight: 900;
+        opacity: 0;
+      }
+      .done .check .fill {
+        opacity: 1;
+      }
+      .row .t {
+        flex: 1;
+        font-size: 15px;
+        color: var(--text);
+      }
+      .row .t small {
+        display: block;
+        font-size: 12px;
+        color: var(--muted);
+        margin-top: 2px;
+      }
+      .done .t {
+        color: var(--muted);
+        text-decoration: line-through;
+      }
+      .due {
+        font-size: 11px;
+        font-weight: 700;
+        padding: 3px 8px;
+        border-radius: 999px;
+        background: color-mix(in srgb, var(--warn) 18%, transparent);
+        color: var(--warn);
+      }
+      .section {
+        font:
+          600 11px ui-monospace,
+          Menlo,
+          monospace;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin: 18px 4px 8px;
+      }
+      /* Kanban */
+      .cols {
+        display: flex;
+        gap: 12px;
+        width: max-content;
+      }
+      .col {
+        min-height: 430px;
+        width: 290px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 10px;
+      }
+      .col h4 {
+        display: flex;
+        justify-content: space-between;
+        margin: 2px 4px 10px;
+        font-size: 14px;
+        color: var(--text);
+      }
+      .col h4 span {
+        color: var(--muted);
+        font:
+          500 12px ui-monospace,
+          Menlo,
+          monospace;
+      }
+      .card {
+        background: var(--raised);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 10px;
+        margin-bottom: 8px;
+        position: relative;
+      }
+      .card img {
+        display: block;
+        width: calc(100% + 20px);
+        margin: -10px -10px 10px;
+        height: 110px;
+        object-fit: cover;
+        border-radius: 12px 12px 0 0;
+      }
+      .labels {
+        display: flex;
+        gap: 5px;
+        margin-bottom: 6px;
+      }
+      .lb {
+        font-size: 10px;
+        font-weight: 800;
+        padding: 2px 7px;
+        border-radius: 5px;
+        color: #111;
+      }
+      .card .title {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--text);
+        line-height: 1.3;
+      }
+      .meta span {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+      }
+      .meta {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 8px;
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .meta .grow {
+        flex: 1;
+      }
+      .progress {
+        height: 4px;
+        border-radius: 2px;
+        background: var(--border);
+        margin-top: 8px;
+        overflow: hidden;
+      }
+      .progress i {
+        display: block;
+        height: 100%;
+        background: var(--accent);
+      }
+      .pts {
+        font:
+          700 10px ui-monospace,
+          Menlo,
+          monospace;
+        border: 1px solid var(--border);
+        border-radius: 5px;
+        padding: 1px 5px;
+      }
+      /* Chat */
+      .msg {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 16px;
+      }
+      .msg .b {
+        font-size: 14px;
+        line-height: 1.45;
+        color: var(--text);
+      }
+      .msg .n {
+        font-size: 13px;
+        font-weight: 700;
+        margin-bottom: 2px;
+      }
+      .msg .n small {
+        font-weight: 400;
+        color: var(--muted);
+        margin-left: 6px;
+      }
+      .agent {
+        font:
+          700 9px ui-monospace,
+          Menlo,
+          monospace;
+        color: var(--accent);
+        border: 1px solid var(--accent);
+        border-radius: 4px;
+        padding: 0 4px;
+        margin-left: 6px;
+        vertical-align: 1px;
+      }
+      .composer {
+        position: absolute;
+        left: 16px;
+        right: 16px;
+        bottom: 26px;
+        display: flex;
+        gap: 8px;
+      }
+      .composer .in {
+        flex: 1;
+        height: 44px;
+        border-radius: 12px;
+        border: 1px solid var(--border);
+        background: var(--surface);
+        color: var(--muted);
+        font-size: 14px;
+        display: flex;
+        align-items: center;
+        padding: 0 14px;
+      }
+      .composer .send {
+        width: 44px;
+        height: 44px;
+        border-radius: 12px;
+        background: var(--accent);
+      }
+    </style>
+  </head>
+  <body>
+    <script>
+      const ICONS = {
+        'external-link':
+          '<path d="M15 3h6v6" /> <path d="M10 14 21 3" /> <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />',
+        filter: '<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />',
+        'columns-3':
+          '<rect width="18" height="18" x="3" y="3" rx="2" /> <path d="M9 3v18" /> <path d="M15 3v18" />',
+        x: '<path d="M18 6 6 18" /> <path d="m6 6 12 12" />',
+        'list-checks':
+          '<path d="m3 17 2 2 4-4" /> <path d="m3 7 2 2 4-4" /> <path d="M13 6h8" /> <path d="M13 12h8" /> <path d="M13 18h8" />',
+        bell: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /> <path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" />',
+        send: '<path d="M14.536 21.686a.5.5 0 0 0 .937-.024l6.5-19a.496.496 0 0 0-.635-.635l-19 6.5a.5.5 0 0 0-.024.937l7.93 3.18a2 2 0 0 1 1.112 1.11z" /> <path d="m21.854 2.147-10.94 10.939" />',
+        layers:
+          '<path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z" /> <path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65" /> <path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65" />',
+        'message-circle': '<path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" />',
+        ellipsis:
+          '<circle cx="12" cy="12" r="1" /> <circle cx="19" cy="12" r="1" /> <circle cx="5" cy="12" r="1" />'
+      }
+      const ic = (name, size = 15) =>
+        `<svg class="ico" viewBox="0 0 24 24" style="width:${size}px;height:${size}px">${ICONS[name]}</svg>`
+      const params = new URLSearchParams(location.search)
+      const scene = params.get('scene') || 'feed'
+      const lang = params.get('lang') || 'en'
+      const L = (en, pl) => (lang === 'pl' ? pl : en)
+
+      const THEMES = {
+        rose: [
+          '#140a10',
+          '#1c0f17',
+          '#27141f',
+          '#3b2031',
+          '#f3dce8',
+          '#a88798',
+          '#f472b6',
+          '#22040f'
+        ],
+        ocean: [
+          '#07111c',
+          '#0c1826',
+          '#112031',
+          '#1b2d42',
+          '#d0e1f2',
+          '#7f97b0',
+          '#38bdf8',
+          '#031018'
+        ],
+        ember: [
+          '#120c09',
+          '#1a120d',
+          '#241913',
+          '#36261c',
+          '#f0e0d4',
+          '#a48d7e',
+          '#fb923c',
+          '#1a0a02'
+        ],
+        nebula: [
+          '#0d0b16',
+          '#141022',
+          '#1b1630',
+          '#2a2343',
+          '#ded7f4',
+          '#9187b3',
+          '#a78bfa',
+          '#120a24'
+        ]
+      }
+      function theme(id) {
+        const [bg, surface, raised, border, text, muted, accent, ink] = THEMES[id]
+        Object.entries({
+          bg,
+          surface,
+          raised,
+          border,
+          text,
+          muted,
+          accent,
+          ink,
+          warn: '#f5cd47'
+        }).forEach(([k, v]) => document.documentElement.style.setProperty(`--${k}`, v))
+      }
+      const PEOPLE = {
+        me: { name: L('Maya', 'Ola'), color: '#e879f9' },
+        sam: { name: L('Sam', 'Kuba'), color: '#f59e0b' },
+        priya: { name: L('Priya', 'Zosia'), color: '#10b981' },
+        bot: { name: 'Enricher', color: '#6366f1' }
+      }
+      const av = (who, cls = '') =>
+        `<span class="av ${cls}" style="background:${PEOPLE[who].color}">${PEOPLE[who].name[0]}</span>`
+      const statusBar = `<div class="status"><span>9:41</span><span class="sys"><i style="width:17px;height:10px"></i><i style="width:15px;height:10px;border-radius:5px"></i><i style="width:24px;height:11px;border-radius:3px"></i></span></div>`
+      const header = (title, bell = 2) =>
+        `<div class="top"><h1>${title}</h1><span class="pill accent">${ic('bell')} ${bell}</span><span class="pill">${av('me')} @${PEOPLE.me.name}</span></div>`
+      const online = (html, id = 'online') => `<div class="online" id="${id}">${html}</div>`
+      const onlineIdle = (who) =>
+        `<span class="stack">${who.map((w) => av(w)).join('')}</span><span class="dot"></span><span>${
+          who.length === 1
+            ? L(`${PEOPLE[who[0]].name} is online`, `${PEOPLE[who[0]].name} jest online`)
+            : L(`${who.length} online now`, `${who.length} osoby online`)
+        }</span>`
+      const toolbar = (first = L('Board', 'Tablica')) =>
+        `<div class="toolbar"><span class="pill filled">${ic(first === L('Board', 'Tablica') ? 'columns-3' : 'list-checks')} ${first}</span><span class="pill">${ic('filter')} ${L('Filter', 'Filtr')}</span><span class="pill">${ic('ellipsis')} ${L('More', 'Więcej')}</span></div>`
+      const photo = (name) => `photos/${name}.webp`
+      const spin = '<span class="spin"></span>'
+      // Paused animations; the renderer drives currentTime.
+      const anim = (el, frames, opts) => {
+        const a = (typeof el === 'string' ? document.querySelector(el) : el).animate(frames, {
+          fill: 'both',
+          easing: 'cubic-bezier(0.23, 1, 0.32, 1)',
+          ...opts
+        })
+        a.pause()
+        return a
+      }
+      // One animation per element: steps are [ms, keyframe] over the whole scene, so
+      // phases never fight over the same property.
+      const timeline = (el, total, steps) => {
+        const target = typeof el === 'string' ? document.querySelector(el) : el
+        const frames = steps.map(([t, frame]) => ({
+          easing: 'cubic-bezier(0.23, 1, 0.32, 1)',
+          ...frame,
+          offset: Math.min(1, Math.max(0, t / total))
+        }))
+        if (frames[0].offset > 0) frames.unshift({ ...steps[0][1], offset: 0 })
+        if (frames[frames.length - 1].offset < 1)
+          frames.push({ ...steps[steps.length - 1][1], offset: 1 })
+        const a = target.animate(frames, { duration: total, fill: 'both' })
+        a.pause()
+        return a
+      }
+      const tapAt = (x, y, at, total) => {
+        const tap = document.createElement('div')
+        tap.className = 'tap'
+        tap.style.left = `${x}px`
+        tap.style.top = `${y}px`
+        document.body.appendChild(tap)
+        timeline(tap, total, [
+          [at, { opacity: 0, transform: 'scale(0.5)' }],
+          [at + 150, { opacity: 1, transform: 'scale(1)' }],
+          [at + 450, { opacity: 0, transform: 'scale(1.4)' }]
+        ])
+      }
+      window.sceneDuration = 0
+
+      const scenes = {}
+
+      scenes.feed = () => {
+        theme('rose')
+        const working = params.get('state') === 'working'
+        document.body.innerHTML = `${statusBar}<div class="screen">
+          ${header(L('Weekend reading', 'Do poczytania'), 3)}
+          ${online(
+            working
+              ? `<span class="stack">${av('bot')}${av('priya')}</span>${spin}<span>Enricher: ${L('Making key points', 'Tworzy najważniejsze punkty')} · “${L('How podcasts ship…', 'Jak podcasty…')}”</span>`
+              : onlineIdle(['priya'])
+          )}
+          <div class="desc">${L('Links we save to read later. Enricher turns each into key points.', 'Linki na później. Enricher zamienia je w najważniejsze punkty.')}</div>
+          ${toolbar()}
+          <div class="keypoints"><span class="ic">${ic('layers', 18)}</span><div><b>${L('Key points', 'Najważniejsze punkty')}</b><span>${L('2 new posts to flip through', '2 nowe posty do przejrzenia')}</span></div></div>
+          <div class="post" id="p1">
+            <div class="who">${av('priya', 'big')}${PEOPLE.priya.name} <small>${L('12 min', '12 min')}</small></div>
+            <div class="chip" id="busy" style="${working ? '' : 'display:none'}">${spin}${L('Making key points', 'Tworzy najważniejsze punkty')}</div>
+            <img src="${photo('podcast')}" alt="" />
+            <div class="text"><h3>${L('Why small podcasts beat big studios', 'Dlaczego małe podcasty wygrywają ze studiami')}</h3>
+            <p id="hook">${working ? '<span style="opacity:.5">open.spotify.com/episode/…</span>' : L('Two mics and a quiet room get you 90% of the sound.', 'Dwa mikrofony i cichy pokój dają 90% dźwięku.')}</p>
+            <div class="src">${ic('external-link', 12)} open.spotify.com</div></div>
+          </div>
+          <div class="post">
+            <div class="who">${av('sam', 'big')}${PEOPLE.sam.name} <small>${L('1 h', '1 godz.')}</small></div>
+            <img src="${photo('hike')}" alt="" />
+            <div class="text"><h3>${L('Sunday hike? Kampinos, 9am', 'Niedziela: Kampinos o 9?')}</h3><p>${L('Train from Gdańska at 8:12. Bring snacks.', 'Pociąg z Gdańskiej o 8:12. Weźcie przekąski.')}</p></div>
+          </div>
+        </div>`
+      }
+
+      scenes.desktop = () => {
+        theme('rose')
+        document.body.className = 'desktop'
+        const post = (who, when, title, body, img, src, cover) => `<div class="post">
+          <div class="who">${av(who, 'big')}${PEOPLE[who].name} <small>${when}</small></div>
+          ${img ? `<img src="${photo(img)}" alt="" />` : `<div class="dcover" style="background:linear-gradient(160deg, ${cover[0]}, ${cover[1]})">${title}</div>`}
+          <div class="text">${img ? `<h3>${title}</h3>` : ''}<p>${body}</p>${src ? `<div class="src">${ic('external-link', 12)} ${src}</div>` : ''}</div></div>`
+        const msgs = [
+          [
+            'priya',
+            '18:40',
+            L(
+              'Saved the Seinfeld one for the train home',
+              'Zostawiam Seinfelda na powrót pociągiem'
+            )
+          ],
+          [
+            'me',
+            '18:42',
+            L(
+              'The key points are great. Didn’t know they rehearsed 200 times',
+              'Te punkty są świetne. Nie wiedziałam, że ćwiczyli 200 razy'
+            )
+          ],
+          [
+            'bot',
+            '18:43',
+            L(
+              'Key points are ready for the podcast episode: 8 slides from the transcript.',
+              'Najważniejsze punkty z podcastu gotowe: 8 slajdów z transkrypcji.'
+            ),
+            true
+          ],
+          [
+            'sam',
+            '18:51',
+            L(
+              'Hike is on. Train 8:12, see you at Gdańska',
+              'Wycieczka aktualna. Pociąg 8:12, widzimy się na Gdańskiej'
+            )
+          ]
+        ]
+        document.body.innerHTML = `<div class="dmain">
+          <div class="dtop"><h1>${L('Weekend reading', 'Do poczytania')}</h1>
+            <div class="tabs"><span class="on">${ic('columns-3')} ${L('Feed', 'Aktualności')}</span><span>${L('Members', 'Członkowie')}</span><span>${L('Activity', 'Aktywność')}</span></div>
+            <div class="right"><span class="online">${onlineIdle(['priya', 'sam'])}</span><span class="pill accent">${ic('bell')} 3</span><span class="pill">${av('me')} @${PEOPLE.me.name}</span><span class="pill filled">+ ${L('New post', 'Nowy post')}</span></div></div>
+          <div class="desc">${L('Links we save to read later. Enricher turns each into key points.', 'Linki na później. Enricher zamienia je w najważniejsze punkty.')}</div>
+          <div class="keypoints" style="max-width:420px"><span class="ic">${ic('layers', 18)}</span><div><b>${L('Key points', 'Najważniejsze punkty')}</b><span>${L('2 new posts to flip through', '2 nowe posty do przejrzenia')}</span></div></div>
+          <div class="dgrid">
+            ${post('priya', L('12 min', '12 min'), L('Why small podcasts beat big studios', 'Dlaczego małe podcasty wygrywają ze studiami'), L('Two mics and a quiet room get you 90% of the sound.', 'Dwa mikrofony i cichy pokój dają 90% dźwięku.'), 'podcast', 'open.spotify.com')}
+            ${post('sam', L('1 h', '1 godz.'), L('Sunday hike? Kampinos, 9am', 'Niedziela: Kampinos o 9?'), L('Train from Gdańska at 8:12. Bring snacks.', 'Pociąg z Gdańskiej o 8:12. Weźcie przekąski.'), 'hike')}
+            ${post('me', L('Yesterday', 'Wczoraj'), L('Shakshuka for six', 'Szakszuka dla sześciu osób'), L('Double the sauce, bread goes on the table whole.', 'Podwójna porcja sosu, chleb na stół w całości.'), 'recipe')}
+            ${post('priya', L('2 d', '2 dni'), L('Why Seinfeld still earns millions', 'Dlaczego Seinfeld wciąż zarabia miliony'), L('A show that ended in 1998 reached 72 million people this year.', 'Serial zakończony w 1998 obejrzało w tym roku 72 miliony osób.'), null, 'open.spotify.com', ['#7a1f4b', '#2b0b1b'])}
+            ${post('sam', L('3 d', '3 dni'), L('Night Market: Sunday playtest notes', 'Nocny Targ: notatki z niedzielnych testów'), L('Smuggler won 4 of 5. Cap it at one steal per round?', 'Przemytnik wygrał 4 z 5. Ograniczmy do jednej kradzieży na rundę?'), 'cards')}
+            ${post('me', L('4 d', '4 dni'), L('Plants: who waters what', 'Kwiaty: kto co podlewa'), L('Monstera Mondays, the rest on Thursdays.', 'Monstera w poniedziałki, reszta w czwartki.'), 'plants')}
+          </div></div>
+          <aside class="dchat"><h2>${L('Chat', 'Czat')}</h2><div class="sub">${L('Everyone on this board', 'Wszyscy na tej tablicy')}</div>
+          <div class="msgs">${msgs.map(([w, time, text, isBot]) => `<div class="msg">${av(w, 'big')}<div><div class="n" style="color:${PEOPLE[w].color}">${PEOPLE[w].name}${isBot ? `<span class="agent">AGENT</span>` : ''}<small>${time}</small></div><div class="b">${text}</div></div></div>`).join('')}</div>
+          <div class="composer"><div class="in">${L('Message the board', 'Napisz do tablicy')}</div><div class="send" style="display:flex;align-items:center;justify-content:center;color:var(--ink)">${ic('send', 18)}</div></div></aside>`
+      }
+
+      scenes.agent = () => {
+        // The feed while Enricher works, then its key points arrive.
+        const url = new URL(location)
+        theme('rose')
+        scenes.feed.call(null)
+        document.getElementById('online').innerHTML =
+          `<span class="stack">${av('bot')}${av('priya')}</span>${spin}<span>Enricher: ${L('Making key points', 'Tworzy najważniejsze punkty')} · “${L('Why small podcasts…', 'Dlaczego małe podcasty…')}”</span>`
+        document.getElementById('busy').style.display = ''
+        const hook = document.getElementById('hook')
+        hook.innerHTML = `<span id="raw" style="opacity:.5">open.spotify.com/episode/4kTq…</span><span id="done" style="position:absolute;left:0;top:0;right:0;opacity:0">${L('Two mics and a quiet room get you 90% of the sound.', 'Dwa mikrofony i cichy pokój dają 90% dźwięku.')}</span>`
+        hook.style.position = 'relative'
+        document.querySelector('.keypoints span:last-child').innerHTML =
+          `<span id="kp1">${L('1 new post to flip through', '1 nowy post do przejrzenia')}</span><span id="kp2" style="position:absolute;left:0;bottom:0;opacity:0;white-space:nowrap">${L('2 new posts to flip through', '2 nowe posty do przejrzenia')}</span>`
+        document.querySelector('.keypoints div').style.position = 'relative'
+        // Spinners turn throughout.
+        document.querySelectorAll('.spin').forEach((el) =>
+          anim(el, [{ transform: 'rotate(0)' }, { transform: 'rotate(360deg)' }], {
+            duration: 800,
+            iterations: Infinity,
+            easing: 'linear'
+          })
+        )
+        const line = document.getElementById('online')
+        const syncing = document.createElement('div')
+        syncing.className = 'online'
+        syncing.style.cssText = 'position:absolute;top:84px;left:16px;opacity:0'
+        syncing.innerHTML = `<span class="stack">${av('bot')}</span>${spin}<span>${L('Syncing changes from Enricher…', 'Synchronizacja zmian od: Enricher…')}</span>`
+        document.body.appendChild(syncing)
+        anim(
+          syncing.querySelector('.spin'),
+          [{ transform: 'rotate(0)' }, { transform: 'rotate(360deg)' }],
+          { duration: 800, iterations: Infinity, easing: 'linear' }
+        )
+        // 0–2.8s working; 2.8s changes arrive; settled by 6.5s.
+        const T = 6500
+        timeline(line, T, [
+          [2800, { opacity: 1 }],
+          [3000, { opacity: 0 }]
+        ])
+        timeline(syncing, T, [
+          [2850, { opacity: 0 }],
+          [3050, { opacity: 1 }],
+          [5200, { opacity: 1 }],
+          [5500, { opacity: 0 }]
+        ])
+        timeline('#busy', T, [
+          [2900, { opacity: 1, transform: 'scale(1)' }],
+          [3100, { opacity: 0, transform: 'scale(0.96)' }]
+        ])
+        timeline('#raw', T, [
+          [3000, { opacity: 0.5 }],
+          [3150, { opacity: 0 }]
+        ])
+        timeline('#done', T, [
+          [3100, { opacity: 0, transform: 'translateY(6px)' }],
+          [3500, { opacity: 1, transform: 'translateY(0)' }]
+        ])
+        timeline('#kp1', T, [
+          [3300, { opacity: 1 }],
+          [3450, { opacity: 0 }]
+        ])
+        timeline('#kp2', T, [
+          [3350, { opacity: 0 }],
+          [3600, { opacity: 1 }]
+        ])
+        timeline('.keypoints', T, [
+          [3350, { transform: 'scale(1)' }],
+          [3600, { transform: 'scale(1.025)' }],
+          [3850, { transform: 'scale(1)' }]
+        ])
+        window.sceneDuration = 6500
+      }
+
+      scenes.slides = () => {
+        theme('rose')
+        const animate = params.get('anim') === '1'
+        const slides = [
+          {
+            label: L('The claim', 'Teza'),
+            h: L('Small rooms sound better', 'Małe pokoje brzmią lepiej'),
+            p: [
+              L(
+                'Two mics and a rug get you <b>90% of studio sound</b>.',
+                'Dwa mikrofony i dywan dają <b>90% brzmienia studia</b>.'
+              ),
+              L('The rest is editing, not gear.', 'Reszta to montaż, nie sprzęt.')
+            ]
+          },
+          {
+            label: L('The numbers', 'Liczby'),
+            h: L('Weekly beats perfect', 'Co tydzień zamiast idealnie'),
+            p: [
+              L(
+                'Shows that publish weekly keep <b>3× more listeners</b> after a year.',
+                'Podcasty wydawane co tydzień mają <b>3× więcej słuchaczy</b> po roku.'
+              )
+            ]
+          },
+          {
+            label: L('Takeaway', 'Wniosek'),
+            h: L('Record this Sunday', 'Nagraj w tę niedzielę'),
+            p: [
+              L(
+                'Pick one topic, <b>talk for 20 minutes</b>, cut it to 12.',
+                'Wybierz jeden temat, <b>mów 20 minut</b>, przytnij do 12.'
+              )
+            ]
+          }
+        ]
+        const start = Number(params.get('slide') || 0)
+        document.body.innerHTML = `<div class="player"><div class="bg" style="background-image:url(${photo('podcast')})"></div><div class="shade"></div>
+          ${statusBar.replace('class="status"', 'class="status" style="position:relative;color:#fff"')}
+          <div class="bars">${[0, 1, 2, 3].map((i) => `<span><i id="bar${i}" style="transform:scaleX(${i < start + 1 ? 1 : 0})"></i></span>`).join('')}</div>
+          <div class="phead"><span class="badge">S</span><div>open.spotify.com<small>${L('Post 1 of 2', 'Post 1 z 2')}</small></div><span style="margin-left:auto">${ic('x', 24)}</span></div>
+          ${slides
+            .map(
+              (
+                s,
+                i
+              ) => `<div class="slide" id="s${i}" style="opacity:${i === start || animate ? 1 : 0}">
+              <div class="label">${s.label}</div><h2>${s.h}</h2>${s.p.map((p) => `<p>${p}</p>`).join('')}</div>`
+            )
+            .join('')}
+          <div class="pbtns"><span>${ic('external-link', 13)} ${L('View original', 'Zobacz oryginał')}</span><span>${ic('message-circle', 13)} ${L('Comment', 'Skomentuj')}</span></div>
+          <div class="tap" id="tap" style="left:300px;top:520px"></div></div>`
+        if (!animate) return
+        // Three slides, ~2.6s each; a tap on the right moves on.
+        const SLIDE = 2600
+        const T = SLIDE * 3
+        slides.forEach((s, i) => {
+          const el = document.getElementById(`s${i}`)
+          const t0 = i * SLIDE
+          const t1 = t0 + SLIDE
+          const steps = []
+          if (i > 0) steps.push([t0 - 1, { opacity: 0 }], [t0, { opacity: 1 }])
+          else steps.push([0, { opacity: 1 }])
+          if (i < slides.length - 1) steps.push([t1 - 120, { opacity: 1 }], [t1, { opacity: 0 }])
+          timeline(el, T, steps)
+          Array.from(el.children).forEach((part, k) =>
+            timeline(part, T, [
+              [t0 + 60 + k * 90, { opacity: 0, transform: 'translateY(26px)' }],
+              [t0 + 580 + k * 90, { opacity: 1, transform: 'translateY(0)' }]
+            ])
+          )
+          timeline(`#bar${i + 1}`, T, [
+            [t0, { transform: 'scaleX(0)', easing: 'linear' }],
+            [t1 - 200, { transform: 'scaleX(1)' }]
+          ])
+          if (i > 0) tapAt(300, 520, t0 - 300, T)
+        })
+        document.getElementById('tap').remove()
+        document.getElementById('bar0').style.transform = 'scaleX(1)'
+        window.sceneDuration = SLIDE * 3
+      }
+
+      scenes.chores = () => {
+        theme('ocean')
+        const animate = params.get('anim') === '1'
+        const items = [
+          [L('Take out the recycling', 'Wynieść segregację'), 'priya', L('Tomorrow', 'Jutro')],
+          [L('Water the plants', 'Podlać kwiaty'), 'me', ''],
+          [L('Pay the internet bill', 'Zapłacić za internet'), 'me', L('Mon', 'pon.')],
+          [
+            L('Book a plumber', 'Umówić hydraulika'),
+            'priya',
+            '',
+            L('1 of 2 done', '1 z 2 zrobione')
+          ],
+          [L('Descale the kettle', 'Odkamienić czajnik'), '', '']
+        ]
+        const done = [
+          [L('Buy dish soap and sponges', 'Kupić płyn i gąbki'), 'priya'],
+          [L('Defrost the freezer', 'Rozmrozić zamrażarkę'), 'sam']
+        ]
+        const row = ([t, who, due, sub], cls = '', id = '') =>
+          `<div class="row ${cls}" ${id ? `id="${id}"` : ''}><span class="check"><span class="fill">✓</span></span><span class="t">${t}${sub ? `<small>${sub}</small>` : ''}</span>${due ? `<span class="due">${due}</span>` : ''}${who ? av(who) : ''}</div>`
+        document.body.innerHTML = `${statusBar}<div class="screen">
+          ${header(L('Flat chores', 'Mieszkanie'), 1)}
+          ${online(onlineIdle(['sam']))}
+          <div class="desc">${L('Who does what at Sienna 12.', 'Kto co robi na Siennej 12.')}</div>
+          ${toolbar(L('List', 'Lista'))}
+          <div class="list" id="todo">${items.map((it, i) => row(it, '', `r${i}`)).join('')}</div>
+          <div class="section">${L('Done', 'Zrobione')} · <span id="donecount">2</span></div>
+          <div class="list" id="donelist">${done.map((d) => row(d, 'done')).join('')}</div>
+        </div><div class="tap" id="tap" style="left:42px;top:${0}px;background:color-mix(in srgb, var(--accent) 45%, transparent)"></div>`
+        if (!animate) return
+        // Tick "Water the plants": it fills, strikes through, leaves the list and
+        // lands on top of Done.
+        const T = 3800
+        const target = document.getElementById('r1')
+        const rect = target.getBoundingClientRect()
+        const h = rect.height
+        document.getElementById('tap').remove()
+        tapAt(rect.left + 26, rect.top + h / 2, 900, T)
+        timeline(target.querySelector('.check'), T, [
+          [950, { transform: 'scale(1)' }],
+          [1100, { transform: 'scale(0.85)' }],
+          [1250, { transform: 'scale(1)' }]
+        ])
+        timeline(target.querySelector('.fill'), T, [
+          [1000, { opacity: 0, transform: 'scale(0.4)' }],
+          [1260, { opacity: 1, transform: 'scale(1)' }]
+        ])
+        const t = target.querySelector('.t')
+        t.style.textDecoration = 'line-through'
+        timeline(t, T, [
+          [1100, { color: 'var(--text)', textDecorationColor: 'transparent' }],
+          [1400, { color: 'var(--muted)', textDecorationColor: 'var(--muted)' }]
+        ])
+        target.style.overflow = 'hidden'
+        timeline(target, T, [
+          [1800, { opacity: 1, height: `${h}px`, paddingTop: '13px', paddingBottom: '13px' }],
+          [2050, { opacity: 0, height: `${h}px`, paddingTop: '13px', paddingBottom: '13px' }],
+          [2400, { opacity: 0, height: '0px', paddingTop: '0px', paddingBottom: '0px' }]
+        ])
+        const doneList = document.getElementById('donelist')
+        const holder = document.createElement('div')
+        holder.innerHTML = row(items[1], 'done')
+        const landed = holder.firstChild
+        landed.style.overflow = 'hidden'
+        doneList.prepend(landed)
+        doneList.children[1].style.borderTop = '1px solid var(--border)'
+        timeline(landed, T, [
+          [2300, { opacity: 0, height: '0px', paddingTop: '0px', paddingBottom: '0px' }],
+          [2650, { opacity: 0, height: `${h - 1}px`, paddingTop: '13px', paddingBottom: '13px' }],
+          [2950, { opacity: 1, height: `${h - 1}px`, paddingTop: '13px', paddingBottom: '13px' }]
+        ])
+        const count = document.getElementById('donecount')
+        count.innerHTML =
+          '<span id="c2">2</span><span id="c3" style="position:absolute;left:0;opacity:0">3</span>'
+        count.style.position = 'relative'
+        timeline('#c2', T, [
+          [2600, { opacity: 1 }],
+          [2700, { opacity: 0 }]
+        ])
+        timeline('#c3', T, [
+          [2600, { opacity: 0 }],
+          [2700, { opacity: 1 }]
+        ])
+        window.sceneDuration = 3800
+      }
+
+      function kanban(themeId, title, bell, desc, who, cols, scrollTo = 0) {
+        theme(themeId)
+        document.body.innerHTML = `${statusBar}<div class="screen">
+          ${header(title, bell)}
+          ${online(onlineIdle(who))}
+          <div class="desc">${desc}</div>
+          ${toolbar()}
+        </div><div style="padding-left:16px;overflow:hidden"><div class="cols" id="cols" style="transform:translateX(-${scrollTo}px)">${cols
+          .map(
+            (c) =>
+              `<div class="col"><h4>${c.name}<span>${c.cards.length}</span></h4>${c.cards
+                .map(
+                  (k) =>
+                    `<div class="card" ${k.id ? `id="${k.id}"` : ''}>${k.img ? `<img src="${photo(k.img)}" alt="">` : ''}${
+                      k.labels
+                        ? `<div class="labels">${k.labels.map(([n, c]) => `<span class="lb" style="background:${c}">${n}</span>`).join('')}</div>`
+                        : ''
+                    }<div class="title">${k.t}</div>${k.prog != null ? `<div class="progress"><i style="width:${k.prog}%"></i></div>` : ''}<div class="meta">${k.items ? `<span>${ic('list-checks', 12)} ${k.items}</span>` : ''}${k.due ? `<span class="due">${k.due}</span>` : ''}${k.c ? `<span>${ic('message-circle', 12)} ${k.c}</span>` : ''}${k.pts ? `<span class="pts">${k.pts} ${L('pts', 'pkt')}</span>` : ''}<span class="grow"></span>${(k.who || []).map((w) => av(w)).join('')}</div></div>`
+                )
+                .join('')}</div>`
+          )
+          .join('')}</div></div>`
+      }
+
+      const GAME = () => [
+        {
+          name: L('Ideas', 'Pomysły'),
+          cards: [
+            {
+              t: L('Lantern tokens instead of coins', 'Lampiony zamiast monet'),
+              labels: [[L('rules', 'zasady'), '#fbbf24']]
+            },
+            {
+              t: L('Trade one card at dusk', 'Wymiana jednej karty o zmierzchu'),
+              labels: [[L('rules', 'zasady'), '#fbbf24']],
+              c: 2
+            }
+          ]
+        },
+        {
+          name: L('Designing', 'Projekt'),
+          cards: [
+            {
+              t: L('Draw the 12 merchant cards', 'Narysować 12 kart kupców'),
+              img: 'cards',
+              labels: [[L('art', 'grafika'), '#f472b6']],
+              prog: 66,
+              items: '2/3',
+              who: ['priya']
+            },
+            {
+              t: L('Rebalance the Smuggler', 'Osłabić Przemytnika'),
+              labels: [[L('rules', 'zasady'), '#fbbf24']],
+              c: 4,
+              pts: 3,
+              who: ['me']
+            }
+          ]
+        },
+        {
+          name: L('Playtesting', 'Testy'),
+          cards: [
+            {
+              id: 'print',
+              t: L('Print a prototype deck', 'Wydrukować prototyp talii'),
+              labels: [[L('print', 'druk'), '#38bdf8']],
+              prog: 100,
+              items: '3/3',
+              due: L('Sat', 'sob.'),
+              who: ['sam']
+            }
+          ]
+        },
+        {
+          name: L('Done', 'Gotowe'),
+          cards: [{ t: L('Name the game', 'Wymyślić nazwę'), who: ['sam'] }]
+        }
+      ]
+
+      scenes.game = () => {
+        kanban(
+          'ember',
+          L('Night Market', 'Nocny Targ'),
+          3,
+          L(
+            'A trading card game for 2–4. Playtest every Sunday.',
+            'Gra karciana w handel dla 2–4 osób. Testy w niedzielę.'
+          ),
+          ['sam', 'priya'],
+          GAME(),
+          Number(params.get('x') || 0)
+        )
+        if (params.get('anim') !== '1') return
+        // Drag "Print a prototype deck" from Playtesting to Done.
+        const T = 3600
+        // The board scrolls to Playtesting, then follows the drag (auto-scroll) so
+        // Done slides in under the card.
+        timeline('#cols', T, [
+          [300, { transform: 'translateX(-302px)', easing: 'cubic-bezier(0.32, 0.72, 0, 1)' }],
+          [1000, { transform: 'translateX(-604px)' }],
+          [1420, { transform: 'translateX(-604px)', easing: 'cubic-bezier(0.77, 0, 0.175, 1)' }],
+          [2320, { transform: 'translateX(-906px)' }]
+        ])
+        const card = document.getElementById('print')
+        card.style.zIndex = 5
+        timeline(card, T, [
+          [
+            1200,
+            { transform: 'translate(0, 0) scale(1) rotate(0)', boxShadow: '0 0 0 rgba(0,0,0,0)' }
+          ],
+          [
+            1420,
+            {
+              transform: 'translate(0, 0) scale(1.04) rotate(-1.5deg)',
+              boxShadow: '0 18px 40px rgba(0,0,0,.55)',
+              easing: 'cubic-bezier(0.77, 0, 0.175, 1)'
+            }
+          ],
+          [
+            2320,
+            {
+              transform: 'translate(302px, 78px) scale(1.04) rotate(1deg)',
+              boxShadow: '0 18px 40px rgba(0,0,0,.55)'
+            }
+          ],
+          [
+            2560,
+            {
+              transform: 'translate(302px, 78px) scale(1) rotate(0)',
+              boxShadow: '0 0 0 rgba(0,0,0,0)'
+            }
+          ]
+        ])
+        window.sceneDuration = 3600
+      }
+
+      scenes.app = () => {
+        kanban(
+          'nebula',
+          L('Habit app', 'Aplikacja nawyków'),
+          1,
+          L(
+            'Side project: a tiny habit tracker. Ship v1 before December.',
+            'Projekt po godzinach: mały tracker nawyków. Wersja 1 przed grudniem.'
+          ),
+          ['priya', 'bot'],
+          [
+            {
+              name: L('Building', 'W budowie'),
+              cards: [
+                {
+                  t: L('Onboarding: three screens', 'Onboarding: trzy ekrany'),
+                  labels: [[L('design', 'projekt'), '#a78bfa']],
+                  prog: 33,
+                  items: '1/3',
+                  c: 3,
+                  who: ['me']
+                },
+                {
+                  t: L('Streak summary every Sunday', 'Podsumowanie serii w niedzielę'),
+                  labels: [[L('feature', 'funkcja'), '#34d399']],
+                  c: 1,
+                  who: ['bot']
+                }
+              ]
+            },
+            {
+              name: L('Review', 'Do sprawdzenia'),
+              cards: [
+                {
+                  t: L('Reminders fire twice after reboot', 'Przypomnienia dwa razy po restarcie'),
+                  labels: [[L('bug', 'błąd'), '#f87171']],
+                  pts: 2,
+                  c: 2,
+                  who: ['priya']
+                }
+              ]
+            },
+            {
+              name: L('Shipped', 'Wydane'),
+              cards: [
+                {
+                  t: L('Daily check-in widget', 'Widżet codziennego meldunku'),
+                  labels: [[L('feature', 'funkcja'), '#34d399']],
+                  who: ['me']
+                }
+              ]
+            }
+          ]
+        )
+      }
+
+      scenes.chat = () => {
+        theme('nebula')
+        const msgs = [
+          [
+            'priya',
+            L('9:02', '9:02'),
+            L(
+              'Reminders still fire twice for me after a reboot.',
+              'U mnie przypomnienia dalej przychodzą dwa razy po restarcie.'
+            )
+          ],
+          [
+            'me',
+            L('9:05', '9:05'),
+            L(
+              '@Enricher can you check the iOS docs for that?',
+              '@Enricher możesz sprawdzić to w dokumentacji iOS?'
+            )
+          ],
+          [
+            'bot',
+            L('9:06', '9:06'),
+            L(
+              'Found it: notifications scheduled before a reboot are restored by the system. Clear pending ones on launch. I added the steps to the bug card.',
+              'Znalazłem: system przywraca powiadomienia zaplanowane przed restartem. Wyczyść oczekujące przy starcie. Dopisałem kroki do karty z błędem.'
+            ),
+            true
+          ],
+          [
+            'priya',
+            L('9:08', '9:08'),
+            L(
+              'That was it. Fixed, moving it to Review.',
+              'To było to. Naprawione, przenoszę do sprawdzenia.'
+            )
+          ]
+        ]
+        document.body.innerHTML = `${statusBar}<div class="screen">
+          <div class="top"><h1 style="font-size:22px">${L('Chat', 'Czat')}</h1><span style="color:var(--muted)">${ic('x', 22)}</span></div>
+          <div class="desc" style="margin-bottom:22px">${L('Habit app · everyone on this board', 'Aplikacja nawyków · wszyscy na tablicy')}</div>
+          ${msgs
+            .map(
+              ([w, time, text, isBot]) =>
+                `<div class="msg">${av(w, 'big')}<div><div class="n" style="color:${PEOPLE[w].color}">${PEOPLE[w].name}${isBot ? `<span class="agent">${L('AGENT', 'AGENT')}</span>` : ''}<small>${time}</small></div><div class="b">${text.replace(/@Enricher/, '<b style="color:var(--accent)">@Enricher</b>')}</div></div></div>`
+            )
+            .join('')}
+        </div><div class="composer"><div class="in">${L('Message the board', 'Napisz do tablicy')}</div><div class="send" style="display:flex;align-items:center;justify-content:center;color:var(--ink)">${ic('send', 18)}</div></div>`
+      }
+
+      scenes[scene]()
+      document.documentElement.setAttribute('data-ready', '1')
+    </script>
+  </body>
+</html>

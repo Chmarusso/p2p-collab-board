@@ -5,12 +5,13 @@
   --raised: #141d29;
   --border: #1c2633;
   --text: #c9d4e3;
-  --muted: #6b7a90;
+  --muted: #8a98ad;
   --accent: #39ff88;
   --on-accent: #04110a;
   --info: #22d3ee;
   --magenta: #ff4fd8;
   --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
 }
 
@@ -20,6 +21,21 @@
 
 html {
   scroll-behavior: smooth;
+  interpolate-size: allow-keywords;
+}
+
+p,
+li,
+figcaption,
+summary {
+  text-wrap: pretty;
+}
+
+h1,
+h2,
+h3,
+.eyebrow {
+  text-wrap: balance;
 }
 
 body {
@@ -39,10 +55,24 @@ a:hover {
   text-decoration: underline;
 }
 
+/* Links inside running text are underlined, not told apart by colour alone. */
+p a,
+li a,
+.faq a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+}
+
 code,
 pre {
   font-family: var(--mono);
-  font-size: 0.85em;
+  font-size: 0.9em;
+}
+
+p code,
+li code {
+  color: var(--text);
 }
 
 h1,
@@ -71,6 +101,7 @@ h3 {
 .nav nav {
   display: flex;
   gap: 22px;
+  margin-left: auto;
 }
 
 .nav nav a {
@@ -81,6 +112,18 @@ h3 {
 .nav nav a:hover {
   color: var(--text);
   text-decoration: none;
+}
+
+.nav nav a.nav-get {
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 700;
+}
+
+.nav nav a.nav-get:hover {
+  color: var(--on-accent);
 }
 
 .logo {
@@ -161,12 +204,23 @@ h1 {
   border: 1px solid var(--accent);
   color: var(--accent);
   font-weight: 700;
-  transition: transform 0.15s ease;
+  transition: transform 160ms var(--ease-out);
 }
 
 .button:hover {
   text-decoration: none;
-  transform: translateY(-1px);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .button:hover {
+    transform: translateY(-1px);
+  }
+}
+
+/* Pressing confirms the tap, on touch screens too. */
+.button:active,
+.lang:active {
+  transform: scale(0.97);
 }
 
 .button.primary {
@@ -175,10 +229,85 @@ h1 {
 }
 
 .platforms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  list-style: none;
+  padding: 0;
+  margin: 26px 0 0;
   font-family: var(--mono);
-  font-size: 13px;
+  font-size: 12px;
   color: var(--muted);
-  margin: 22px 0 0;
+}
+
+.platforms li {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 44px;
+}
+
+.brand {
+  width: 22px;
+  height: 22px;
+  color: var(--text);
+}
+
+/* Icons from src/icons.svg */
+.icon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+
+.tile-icon {
+  width: 22px;
+  height: 22px;
+  color: var(--accent);
+  margin-bottom: 12px;
+}
+
+.feature-icon {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  margin-top: 3px;
+  color: var(--accent);
+}
+
+/* Keyboard users skip the navigation */
+.skip {
+  position: absolute;
+  left: 16px;
+  top: -48px;
+  z-index: 20;
+  padding: 8px 14px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 700;
+}
+
+.skip:focus {
+  top: 12px;
+}
+
+.lang {
+  transition: transform 160ms var(--ease-out);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text);
+  font-size: 13px;
+}
+
+.lang:hover {
+  border-color: var(--accent);
+  text-decoration: none;
 }
 
 /* Hero visual: real screenshots on the brand art */
@@ -194,7 +323,7 @@ h1 {
   position: absolute;
   inset: -18% -24% -6% -12%;
   z-index: -1;
-  background: url('assets/hero-art.jpg') center / cover;
+  background: url('assets/hero-art.webp') center / cover;
   opacity: 0.45;
   -webkit-mask-image: radial-gradient(closest-side, #000 45%, transparent);
   mask-image: radial-gradient(closest-side, #000 45%, transparent);
@@ -212,14 +341,34 @@ h1 {
   box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55);
 }
 
+.shots-hero .phone img {
+  width: 100%;
+  border-radius: 22px;
+  border-width: 2px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+}
+
+/* The phone settles onto the desktop shot: the same board, in your pocket.
+   The desktop shot and the headline stay still (they are the LCP). */
 .shots-hero .phone {
+  animation: phone-in 600ms var(--ease-out) 150ms both;
   position: absolute;
   left: 0;
   bottom: 0;
   width: 27%;
-  border-radius: 22px;
-  border-width: 2px;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes phone-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
 }
 
 /* Screenshots */
@@ -262,6 +411,17 @@ h1 {
   margin-top: 16px;
 }
 
+.shot video {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: var(--surface);
+}
+
+.phones.three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .phones .shot {
   border-radius: 24px;
 }
@@ -297,13 +457,25 @@ h2 {
 }
 
 .tile h3 {
-  font-size: 17px;
+  font-size: 18px;
+  font-weight: 650;
   margin-bottom: 8px;
 }
 
 .tile p {
   margin: 0;
+  font-size: 15px;
   color: var(--muted);
+}
+
+.tile .plain {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--muted);
+  font-size: 15px;
+  display: grid;
+  gap: 4px;
 }
 
 .tile pre {
@@ -312,9 +484,12 @@ h2 {
   background: var(--bg);
   border: 1px solid var(--border);
   border-radius: 8px;
-  white-space: pre-wrap;
-  word-break: break-all;
+  white-space: pre;
+  overflow-x: auto;
+  scrollbar-width: thin;
   color: var(--accent);
+  -webkit-mask-image: linear-gradient(90deg, #000 82%, transparent);
+  mask-image: linear-gradient(90deg, #000 82%, transparent);
 }
 
 .features {
@@ -327,13 +502,17 @@ h2 {
 }
 
 .features li {
-  padding: 14px 0 14px 18px;
-  border-left: 2px solid var(--border);
+  display: flex;
+  gap: 14px;
+  padding: 14px 0;
+  font-size: 15px;
   color: var(--muted);
 }
 
 .features strong {
   display: block;
+  font-size: 17px;
+  font-weight: 650;
   color: #e6edf6;
 }
 
@@ -362,16 +541,19 @@ h2 {
 }
 
 .steps h3 {
-  font-size: 17px;
+  font-size: 18px;
+  font-weight: 650;
   margin-bottom: 8px;
 }
 
 .steps p {
   margin: 0;
+  font-size: 15px;
   color: var(--muted);
 }
 
 .note {
+  max-width: 38em;
   margin: 24px 0 0;
   padding: 16px 18px;
   border: 1px solid var(--border);
@@ -416,10 +598,27 @@ h2 {
   content: '+';
   font-family: var(--mono);
   color: var(--accent);
+  transition: transform 200ms var(--ease-out);
 }
 
 .faq details[open] summary::after {
-  content: '−';
+  transform: rotate(45deg);
+}
+
+/* Answers slide open where ::details-content is supported; elsewhere they snap. */
+.faq details::details-content {
+  block-size: 0;
+  opacity: 0;
+  overflow: clip;
+  transition:
+    block-size 250ms var(--ease-out),
+    opacity 200ms ease-out,
+    content-visibility 250ms allow-discrete;
+}
+
+.faq details[open]::details-content {
+  block-size: auto;
+  opacity: 1;
 }
 
 .faq details p {
@@ -429,7 +628,7 @@ h2 {
 }
 
 .stack p {
-  max-width: 48em;
+  max-width: 38em;
   color: var(--muted);
   margin: 0;
 }
@@ -450,15 +649,140 @@ h2 {
   gap: 20px;
 }
 
+h2 + .intro {
+  margin: -12px 0 28px;
+  max-width: 34em;
+  color: var(--muted);
+  font-size: 17px;
+}
+
+/* "Or build your own" under the agent roles */
+.build {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+  gap: 24px;
+  align-items: center;
+  margin-top: 16px;
+  padding: 22px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.build h3 {
+  font-size: 17px;
+  margin-bottom: 8px;
+}
+
+.build p {
+  margin: 0;
+  color: var(--muted);
+}
+
+.build pre {
+  margin: 0;
+  padding: 14px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--accent);
+}
+
+/* Who can see what */
+.who {
+  margin-top: 24px;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--surface);
+}
+
+.who table {
+  width: 100%;
+  min-width: 520px;
+  border-collapse: collapse;
+  font-size: 15px;
+}
+
+.who caption {
+  text-align: left;
+  padding: 16px 18px 4px;
+  font-weight: 700;
+  color: #e6edf6;
+}
+
+.who th,
+.who td {
+  text-align: left;
+  padding: 12px 18px;
+  border-top: 1px solid var(--border);
+}
+
+.who thead th {
+  border-top: 0;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.who tbody th {
+  color: #e6edf6;
+  font-weight: 600;
+}
+
+.who td {
+  color: var(--muted);
+}
+
+.who .no {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.live::before {
+  content: '';
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 6px;
+  vertical-align: -1px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 800ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.live {
+  color: var(--text);
+  font-style: normal;
+  font-family: var(--mono);
+  font-size: 0.9em;
+}
+
 /* Narrow screens */
 @media (max-width: 900px) {
+  .build {
+    grid-template-columns: minmax(0, 1fr);
+  }
   .hero {
     grid-template-columns: minmax(0, 1fr);
     padding-top: 56px;
   }
   .grid,
   .steps,
-  .phones {
+  .phones,
+  .phones.three {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .shots-hero {
@@ -469,6 +793,43 @@ h2 {
 @media (max-width: 640px) {
   .nav nav {
     display: none;
+  }
+  /* The table becomes a list of small cards, two labelled lines each. */
+  .who table {
+    min-width: 0;
+  }
+  .who thead {
+    display: none;
+  }
+  .who tr {
+    display: block;
+    padding: 12px 18px;
+    border-top: 1px solid var(--border);
+  }
+  .who th,
+  .who td {
+    display: block;
+    padding: 0;
+    border: 0;
+  }
+  .who tbody th {
+    margin-bottom: 6px;
+  }
+  .who td {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 14px;
+  }
+  .who td {
+    text-align: right;
+  }
+  .who td::before {
+    content: attr(data-label);
+    flex: none;
+    text-align: left;
+    color: var(--muted);
+    font-weight: 400;
   }
   .grid,
   .steps,
@@ -481,6 +842,10 @@ h2 {
   .lead {
     font-size: 17px;
   }
+  .platforms {
+    justify-content: space-between;
+    gap: 8px 4px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -489,5 +854,17 @@ h2 {
   }
   .cursor {
     animation: none;
+  }
+  .shots-hero .phone {
+    animation-name: fade-in;
+  }
+  .live::before {
+    animation: none;
+    border-color: var(--accent);
+  }
+  .faq details::details-content,
+  .button,
+  .lang {
+    transition-duration: 0ms;
   }
 }
