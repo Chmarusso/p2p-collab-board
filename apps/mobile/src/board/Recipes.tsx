@@ -4,6 +4,7 @@ import React, { useState } from 'react'
 import { Dimensions, Image, Pressable, ScrollView, Text, View } from 'react-native'
 import { Feather } from '@expo/vector-icons'
 import { CachedImage, ImageRef, colors, mono, themed, tint } from '../ui'
+import { t } from '../i18n'
 import { useImageUri } from './Panels'
 import { Card, Column, imagesOf, sourceSite } from './model'
 
@@ -65,7 +66,7 @@ export function RecipesView({
       >
         {tab(
           null,
-          'All',
+          t('All'),
           columns.reduce((sum, column) => sum + visible(column.id).length, 0)
         )}
         {columns.map((column) => tab(column.id, column.name, visible(column.id).length))}
@@ -85,15 +86,21 @@ export function RecipesView({
           onPress={() => onAdd(current?.id || columns[0]?.id)}
           style={({ pressed }) => [styles.tile, styles.add, pressed && styles.pressed]}
           accessibilityRole='button'
-          accessibilityLabel={`Add a recipe${current ? ` to ${current.name}` : ''}`}
+          accessibilityLabel={
+            current ? t('Add a recipe to {section}', { section: current.name }) : t('Add a recipe')
+          }
         >
           <Feather name='plus' size={22} color={colors.muted} />
-          <Text style={styles.addText}>{current ? `Add to ${current.name}` : 'Add a recipe'}</Text>
+          <Text style={styles.addText}>
+            {current ? t('Add to {section}', { section: current.name }) : t('Add a recipe')}
+          </Text>
         </Pressable>
       </View>
       {!cards.length ? (
         <Text style={styles.empty}>
-          Share a recipe from TikTok, Instagram or a website and pick this board, or add one here.
+          {t(
+            'Share a recipe from TikTok, Instagram or a website and pick this board, or add one here.'
+          )}
         </Text>
       ) : null}
     </View>

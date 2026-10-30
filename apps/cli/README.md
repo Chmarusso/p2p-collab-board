@@ -200,3 +200,48 @@ member: systemd units, scripting with `--json`, and an example AI bot
 such as Claude Code can drive the CLI with the
 [`opencollab-cli` skill](../../.claude/skills/opencollab-cli/SKILL.md), or connect to
 `opencollab mcp` (above).
+
+[`examples/recipe-enricher.mjs`](examples/recipe-enricher.mjs) turns shared recipe posts
+into recipes: for every card with a link that isn't labelled `enriched`, it fetches the
+post's transcript and caption through [treg](https://treg.to) (TikTok, Instagram, YouTube,
+X posts and articles, Spotify podcast episodes, or the page's text), asks a model command (`claude -p` by default) for ingredients and
+steps, writes them into the description and labels the card. About $0.003 of treg calls per
+video post; `--dry-run` shows the result without writing.
+
+```sh
+OPENCOLLAB_PASSWORD=… ENRICH_BOARD="Family recipes" node apps/cli/examples/recipe-enricher.mjs --dry-run
+```
+
+[`examples/feed-slides.mjs`](examples/feed-slides.mjs) turns shared posts into short stories
+of key points that members watch in the app like Instagram stories (slides advance on
+their own; tap, hold to pause, swipe for the next post). Per post it reads the caption or
+article, the video's transcript and the card's comments, has a model write a hook and one
+idea per slide, writes the deck into the description (slides
+separated by `---`) and labels the card `slides`. About $0.002 of treg calls per post.
+
+Spotify sells no transcripts, so a Spotify episode is read cheapest source first: the
+title, show and length from Spotify's embed page, the show notes from Apple Podcasts, and
+the transcript from the podcast's own RSS feed when the host publishes one (all free);
+otherwise from the same episode on YouTube (about $0.003; it must come from the same show and
+have the same length, so clips and recaps are skipped). Treg's Spotify scraper is the last resort, only for show notes nothing else had.
+An episode with no transcript anywhere gets its slides from the show notes.
+
+A card without a picture gets the post's own: for a Spotify episode its video thumbnail
+or the show's cover, otherwise the page's link-preview image (`opencollab attach <card>
+<image>` does the same by hand).
+
+```sh
+OPENCOLLAB_PASSWORD=… SLIDES_BOARD="To watch" node apps/cli/examples/feed-slides.mjs --dry-run
+```
+
+[`examples/feed-shorts.mjs`](examples/feed-shorts.mjs) turns new posts on a Feed board into
+vertical shorts (≤ 90 s) that members watch one after another in the app's **Shorts**
+player. Per post it gathers the caption, transcript, comments and web facts through treg,
+has a model write a scene-by-scene script, records a voiceover, picks or generates a
+picture per scene and renders a 1080×1920 video with captions using ffmpeg. The video is
+posted as a card labelled `short`, linked to its post. About $0.07 of treg calls per short;
+needs ffmpeg.
+
+```sh
+OPENCOLLAB_PASSWORD=… SHORTS_BOARD="Family news" node apps/cli/examples/feed-shorts.mjs --dry-run
+```

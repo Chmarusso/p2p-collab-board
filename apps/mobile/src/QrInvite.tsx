@@ -4,6 +4,7 @@ import { Feather } from '@expo/vector-icons'
 import { CameraView, useCameraPermissions } from 'expo-camera'
 import { encode } from 'uqr'
 import { Button, colors, themed } from './ui'
+import { t } from './i18n'
 
 // An invitation as a QR code, drawn with plain views: one black run per row
 // segment, on white whatever the theme, since scanners expect dark on light.
@@ -29,7 +30,7 @@ export function QrCode({ value, size }: { value: string; size: number }) {
     <View
       style={{ width, height: width, backgroundColor: '#ffffff' }}
       accessibilityRole='image'
-      accessibilityLabel='Invitation QR code'
+      accessibilityLabel={t('Invitation QR code')}
     >
       {runs.map(([y, x, length]) => (
         <View
@@ -88,21 +89,21 @@ export function QrScanner({
         ) : (
           <View style={styles.permission}>
             <Feather name='camera' size={32} color={colors.muted} />
-            <Text style={styles.text}>Allow the camera to scan an invitation QR code.</Text>
-            <Button title='Allow camera' icon='camera' onPress={() => void allow()} />
+            <Text style={styles.text}>{t('Allow the camera to scan an invitation QR code.')}</Text>
+            <Button title={t('Allow camera')} icon='camera' onPress={() => void allow()} />
           </View>
         )}
         {permission?.granted ? (
           <View style={styles.overlay} pointerEvents='none'>
             <View style={styles.frame} />
-            <Text style={styles.overlayText}>Point at an invitation QR code</Text>
+            <Text style={styles.overlayText}>{t('Point at an invitation QR code')}</Text>
           </View>
         ) : null}
         <Pressable
           style={styles.close}
           onPress={onClose}
           accessibilityRole='button'
-          accessibilityLabel='Close scanner'
+          accessibilityLabel={t('Close scanner')}
         >
           <Feather name='x' size={24} color='#ffffff' />
         </Pressable>

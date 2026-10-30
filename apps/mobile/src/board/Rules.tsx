@@ -6,6 +6,7 @@ import { Alert, Pressable, Switch, Text, TextInput, View } from 'react-native'
 import { Feather } from '@expo/vector-icons'
 import { messageTypes } from '@opencollab/board-protocol'
 import { Button, colors, mono, themed } from '../ui'
+import { plural, t } from '../i18n'
 import { Chip } from './CardSheet'
 import { Sheet } from './Panels'
 import { BoardData, BoardRule, RuleActions, RuleTrigger, assignable } from './model'
@@ -13,10 +14,10 @@ import { BoardData, BoardRule, RuleActions, RuleTrigger, assignable } from './mo
 type Send = (message: object) => void
 type Draft = Omit<BoardRule, 'id'> & { id: string | null }
 
-const EVERY: Array<{ id: 'day' | 'week' | 'month'; label: string }> = [
-  { id: 'day', label: 'Every day' },
-  { id: 'week', label: 'Every week' },
-  { id: 'month', label: 'Every month' }
+const EVERY: Array<{ id: 'day' | 'week' | 'month'; label: () => string }> = [
+  { id: 'day', label: () => t('Every day') },
+  { id: 'week', label: () => t('Every week') },
+  { id: 'month', label: () => t('Every month') }
 ]
 
 const blankActions = (): RuleActions => ({
@@ -30,15 +31,19 @@ const blankActions = (): RuleActions => ({
 
 function describeTrigger(trigger: RuleTrigger, data: BoardData) {
   const column = (id: string | null) =>
-    data.columns.find((entry) => entry.id === id)?.name || 'a deleted column'
-  if (trigger.kind === 'enter') return `When a card enters ${column(trigger.columnId)}`
+    data.columns.find((entry) => entry.id === id)?.name || t('a deleted column')
+  if (trigger.kind === 'enter') {
+    return t('When a card enters {column}', { column: column(trigger.columnId) })
+  }
   if (trigger.kind === 'create') {
     return trigger.columnId
-      ? `When a card is added to ${column(trigger.columnId)}`
-      : 'When a card is added'
+      ? t('When a card is added to {column}', { column: column(trigger.columnId) })
+      : t('When a card is added')
   }
-  const every = EVERY.find((entry) => entry.id === trigger.every)?.label || trigger.every
-  return `${every}, add a card${trigger.columnId ? ` to ${column(trigger.columnId)}` : ''}`
+  const every = EVERY.find((entry) => entry.id === trigger.every)?.label() || trigger.every
+  return trigger.columnId
+    ? t('{every}, add a card to {column}', { every, column: column(trigger.columnId) })
+    : t('{every}, add a card', { every })
 }
 
 function describeActions(actions: RuleActions, data: BoardData, nameFor: (id: string) => string) {
@@ -46,15 +51,25 @@ function describeActions(actions: RuleActions, data: BoardData, nameFor: (id: st
   const labels = actions.labelIds
     .map((id) => data.labels.find((label) => label.id === id)?.name)
     .filter(Boolean)
-  if (labels.length) parts.push(`label ${labels.join(', ')}`)
-  if (actions.assignees.length) parts.push(`assign ${actions.assignees.map(nameFor).join(', ')}`)
-  if (actions.assignActor) parts.push('assign whoever moved it')
-  if (actions.dueInDays !== null) {
-    parts.push(actions.dueInDays ? `due in ${actions.dueInDays} days` : 'due today')
+  if (labels.length) parts.push(t('label {labels}', { labels: labels.join(', ') }))
+  if (actions.assignees.length) {
+    parts.push(t('assign {people}', { people: actions.assignees.map(nameFor).join(', ') }))
   }
-  if (actions.completeChecklist) parts.push('tick the checklist')
-  if (actions.archive) parts.push('archive it')
-  return parts.length ? parts.join(' · ') : 'no actions'
+  if (actions.assignActor) parts.push(t('assign whoever moved it'))
+  if (actions.dueInDays !== null) {
+    parts.push(
+      actions.dueInDays
+        ? plural(
+            actions.dueInDays,
+            ['due in {n} day', 'due in {n} days'],
+            ['termin za {n} dzień', 'termin za {n} dni', 'termin za {n} dni']
+          )
+        : t('due today')
+    )
+  }
+  if (actions.completeChecklist) parts.push(t('tick the checklist'))
+  if (actions.archive) parts.push(t('archive it'))
+  return parts.length ? parts.join(' · ') : t('no actions')
 }
 
 export function RulesSheet({
@@ -90,14 +105,16 @@ export function RulesSheet({
     )
   }
   return (
-    <Sheet title='Automation' onClose={onClose}>
+    <Sheet title={t('Automation')} onClose={onClose}>
       <Text style={styles.muted}>
-        Rules act on cards for everyone on the board. Whoever is online when a rule is due runs it.
+        {t(
+          'Rules act on cards for everyone on the board. Whoever is online when a rule is due runs it.'
+        )}
       </Text>
       {rules.length ? null : (
         <View style={styles.empty}>
           <Feather name='zap' size={22} color={colors.muted} />
-          <Text style={styles.muted}>No rules yet.</Text>
+          <Text style={styles.muted}>{t('No rules yet.')}</Text>
         </View>
       )}
       {rules.map((rule) => (
@@ -106,7 +123,9 @@ export function RulesSheet({
             style={[styles.ruleMain, !rule.enabled && styles.ruleOff]}
             onPress={() => setDraft({ ...rule, actions: { ...rule.actions } })}
             accessibilityRole='button'
-            accessibilityLabel={`Edit rule ${rule.name || describeTrigger(rule.trigger, data)}`}
+            accessibilityLabel={t('Edit rule {rule}', {
+              rule: rule.name || describeTrigger(rule.trigger, data)
+            })}
           >
             {rule.name ? (
               <Text style={styles.ruleName} numberOfLines={2}>
@@ -124,14 +143,14 @@ export function RulesSheet({
               value={rule.enabled}
               onValueChange={(enabled) => save({ ...rule, enabled })}
               trackColor={{ true: colors.accent, false: colors.border }}
-              accessibilityLabel={`${rule.enabled ? 'Disable' : 'Enable'} rule`}
+              accessibilityLabel={rule.enabled ? t('Disable rule') : t('Enable rule')}
             />
             <Pressable
               onPress={() =>
-                Alert.alert('Delete this rule?', 'It stops for everyone on the board.', [
-                  { text: 'Cancel', style: 'cancel' },
+                Alert.alert(t('Delete this rule?'), t('It stops for everyone on the board.'), [
+                  { text: t('Cancel'), style: 'cancel' },
                   {
-                    text: 'Delete',
+                    text: t('Delete'),
                     style: 'destructive',
                     onPress: () => send({ type: messageTypes.ruleDelete, ruleId: rule.id })
                   }
@@ -139,7 +158,7 @@ export function RulesSheet({
               }
               style={styles.iconHit}
               accessibilityRole='button'
-              accessibilityLabel='Delete rule'
+              accessibilityLabel={t('Delete rule')}
             >
               <Feather name='trash-2' size={16} color={colors.muted} />
             </Pressable>
@@ -147,7 +166,7 @@ export function RulesSheet({
         </View>
       ))}
       <Button
-        title='New rule'
+        title={t('New rule')}
         icon='plus'
         onPress={() =>
           setDraft({
@@ -196,11 +215,11 @@ function RuleForm({
   const submit = () => {
     const days = due.trim() === '' ? null : Number(due)
     if (days !== null && !(Number.isInteger(days) && days >= 0 && days <= 365)) {
-      return setError('Due in days must be a whole number from 0 to 365.')
+      return setError(t('Due in days must be a whole number from 0 to 365.'))
     }
-    if (trigger.kind === 'enter' && !trigger.columnId) return setError('Pick a column.')
+    if (trigger.kind === 'enter' && !trigger.columnId) return setError(t('Pick a column.'))
     if (trigger.kind === 'schedule' && !card.title.trim()) {
-      return setError('A scheduled rule needs a card title.')
+      return setError(t('A scheduled rule needs a card title.'))
     }
     onSave({
       ...draft,
@@ -222,33 +241,33 @@ function RuleForm({
   }
 
   return (
-    <Sheet title={initial.id ? 'Edit rule' : 'New rule'} onClose={onCancel}>
-      <Text style={styles.sectionLabel}>Name (optional)</Text>
+    <Sheet title={initial.id ? t('Edit rule') : t('New rule')} onClose={onCancel}>
+      <Text style={styles.sectionLabel}>{t('Name (optional)')}</Text>
       <TextInput
         style={styles.input}
         value={draft.name}
         onChangeText={(name) => setDraft({ ...draft, name })}
-        placeholder='e.g. Done cards get archived'
+        placeholder={t('e.g. Done cards get archived')}
         placeholderTextColor={colors.muted}
         maxLength={80}
       />
 
-      <Text style={styles.sectionLabel}>When</Text>
+      <Text style={styles.sectionLabel}>{t('When')}</Text>
       <View style={styles.chips}>
         <Chip
-          label='Card enters a column'
+          label={t('Card enters a column')}
           selected={trigger.kind === 'enter'}
           onPress={() =>
             setTrigger({ kind: 'enter', columnId: columnId || data.columns[0]?.id || '' })
           }
         />
         <Chip
-          label='Card is added'
+          label={t('Card is added')}
           selected={trigger.kind === 'create'}
           onPress={() => setTrigger({ kind: 'create', columnId: columnId || null })}
         />
         <Chip
-          label='On a schedule'
+          label={t('On a schedule')}
           selected={trigger.kind === 'schedule'}
           onPress={() =>
             setTrigger({ kind: 'schedule', every: 'week', columnId: columnId || null })
@@ -260,7 +279,7 @@ function RuleForm({
           {EVERY.map((entry) => (
             <Chip
               key={entry.id}
-              label={entry.label}
+              label={entry.label()}
               selected={trigger.every === entry.id}
               onPress={() => setTrigger({ ...trigger, every: entry.id })}
             />
@@ -269,12 +288,16 @@ function RuleForm({
       ) : null}
 
       <Text style={styles.sectionLabel}>
-        {trigger.kind === 'enter' ? 'Column' : trigger.kind === 'create' ? 'In column' : 'Add to'}
+        {trigger.kind === 'enter'
+          ? t('Column')
+          : trigger.kind === 'create'
+            ? t('In column')
+            : t('Add to')}
       </Text>
       <View style={styles.chips}>
         {trigger.kind !== 'enter' ? (
           <Chip
-            label={trigger.kind === 'create' ? 'Any column' : 'First column'}
+            label={trigger.kind === 'create' ? t('Any column') : t('First column')}
             selected={!columnId}
             onPress={() => setTrigger({ ...trigger, columnId: null })}
           />
@@ -293,12 +316,12 @@ function RuleForm({
 
       {trigger.kind === 'schedule' ? (
         <>
-          <Text style={styles.sectionLabel}>Card to add</Text>
+          <Text style={styles.sectionLabel}>{t('Card to add')}</Text>
           <TextInput
             style={styles.input}
             value={card.title}
             onChangeText={(title) => setDraft({ ...draft, card: { ...card, title } })}
-            placeholder='Card title, e.g. Weekly review'
+            placeholder={t('Card title, e.g. Weekly review')}
             placeholderTextColor={colors.muted}
             maxLength={200}
           />
@@ -306,7 +329,7 @@ function RuleForm({
             style={[styles.input, styles.multiline]}
             value={card.body}
             onChangeText={(body) => setDraft({ ...draft, card: { ...card, body } })}
-            placeholder='Description (optional)'
+            placeholder={t('Description (optional)')}
             placeholderTextColor={colors.muted}
             multiline
           />
@@ -314,24 +337,24 @@ function RuleForm({
             style={[styles.input, styles.multiline]}
             value={checklist}
             onChangeText={setChecklist}
-            placeholder='Checklist, one item per line (optional)'
+            placeholder={t('Checklist, one item per line (optional)')}
             placeholderTextColor={colors.muted}
             multiline
           />
         </>
       ) : null}
 
-      <Text style={styles.sectionLabel}>Then</Text>
+      <Text style={styles.sectionLabel}>{t('Then')}</Text>
       {data.labels.length ? (
         <>
-          <Text style={styles.hint}>Add labels</Text>
+          <Text style={styles.hint}>{t('Add labels')}</Text>
           <View style={styles.chips}>
             {data.labels.map((label) => {
               const on = actions.labelIds.includes(label.id)
               return (
                 <Chip
                   key={label.id}
-                  label={label.name || 'Unnamed'}
+                  label={label.name || t('Unnamed')}
                   color={label.color || '#8590a2'}
                   filled={on}
                   selected={on}
@@ -342,11 +365,11 @@ function RuleForm({
           </View>
         </>
       ) : null}
-      <Text style={styles.hint}>Assign</Text>
+      <Text style={styles.hint}>{t('Assign')}</Text>
       <View style={styles.chips}>
         {trigger.kind !== 'schedule' ? (
           <Chip
-            label='Whoever did it'
+            label={t('Whoever did it')}
             selected={actions.assignActor}
             onPress={() => setActions({ assignActor: !actions.assignActor })}
           />
@@ -361,7 +384,7 @@ function RuleForm({
         ))}
       </View>
       <View style={styles.toggleRow}>
-        <Text style={styles.toggleText}>Due in days</Text>
+        <Text style={styles.toggleText}>{t('Due in days')}</Text>
         <TextInput
           style={[styles.input, styles.days]}
           value={due}
@@ -370,28 +393,28 @@ function RuleForm({
           placeholderTextColor={colors.muted}
           keyboardType='number-pad'
           maxLength={3}
-          accessibilityLabel='Set the due date this many days ahead; empty leaves it'
+          accessibilityLabel={t('Set the due date this many days ahead; empty leaves it')}
         />
       </View>
       <ToggleRow
-        label='Tick every checklist item'
+        label={t('Tick every checklist item')}
         value={actions.completeChecklist}
         onChange={(completeChecklist) => setActions({ completeChecklist })}
       />
       <ToggleRow
-        label='Archive the card'
+        label={t('Archive the card')}
         value={actions.archive}
         onChange={(archive) => setActions({ archive })}
       />
       <ToggleRow
-        label='Rule is on'
+        label={t('Rule is on')}
         value={draft.enabled}
         onChange={(enabled) => setDraft({ ...draft, enabled })}
       />
       {error ? <Text style={styles.error}>{error}</Text> : null}
       <View style={styles.chips}>
-        <Button title={initial.id ? 'Save rule' : 'Create rule'} grow onPress={submit} />
-        <Button title='Cancel' variant='ghost' onPress={onCancel} />
+        <Button title={initial.id ? t('Save rule') : t('Create rule')} grow onPress={submit} />
+        <Button title={t('Cancel')} variant='ghost' onPress={onCancel} />
       </View>
     </Sheet>
   )
@@ -419,18 +442,36 @@ function ToggleRow({
   )
 }
 
-const TEMPLATES: Array<{ id: 'sprint' | 'bugs' | 'personal'; name: string; columns: string }> = [
-  { id: 'sprint', name: 'Sprint', columns: 'Backlog · To do · In progress · Review · Done' },
-  { id: 'bugs', name: 'Bug triage', columns: 'Reported · Triaged · Fixing · Verifying · Closed' },
-  { id: 'personal', name: 'Personal', columns: 'Inbox · Today · This week · Waiting · Done' }
+// The columns stay English: the worker creates them with these names.
+const TEMPLATES: Array<{
+  id: 'sprint' | 'bugs' | 'personal'
+  name: () => string
+  columns: string
+}> = [
+  {
+    id: 'sprint',
+    name: () => t('Sprint'),
+    columns: 'Backlog · To do · In progress · Review · Done'
+  },
+  {
+    id: 'bugs',
+    name: () => t('Bug triage'),
+    columns: 'Reported · Triaged · Fixing · Verifying · Closed'
+  },
+  {
+    id: 'personal',
+    name: () => t('Personal'),
+    columns: 'Inbox · Today · This week · Waiting · Done'
+  }
 ]
 
 export function BoardTemplatesSheet({ send, onClose }: { send: Send; onClose: () => void }) {
   return (
-    <Sheet title='Start from a template' onClose={onClose}>
+    <Sheet title={t('Start from a template')} onClose={onClose}>
       <Text style={styles.muted}>
-        Renames the board's columns in order, adds the missing ones, removes empty extra columns and
-        adds missing labels. Cards stay where they are.
+        {t(
+          "Renames the board's columns in order, adds the missing ones, removes empty extra columns and adds missing labels. Cards stay where they are."
+        )}
       </Text>
       {TEMPLATES.map((template) => (
         <Pressable
@@ -438,12 +479,12 @@ export function BoardTemplatesSheet({ send, onClose }: { send: Send; onClose: ()
           style={({ pressed }) => [styles.rule, pressed && styles.pressed]}
           onPress={() =>
             Alert.alert(
-              `Use the ${template.name} template?`,
-              'Columns are renamed for everyone on the board.',
+              t('Use the {name} template?', { name: template.name() }),
+              t('Columns are renamed for everyone on the board.'),
               [
-                { text: 'Cancel', style: 'cancel' },
+                { text: t('Cancel'), style: 'cancel' },
                 {
-                  text: 'Apply',
+                  text: t('Apply'),
                   onPress: () => {
                     send({ type: messageTypes.templateApply, template: template.id })
                     onClose()
@@ -455,7 +496,7 @@ export function BoardTemplatesSheet({ send, onClose }: { send: Send; onClose: ()
           accessibilityRole='button'
         >
           <View style={styles.ruleMain}>
-            <Text style={styles.ruleName}>{template.name}</Text>
+            <Text style={styles.ruleName}>{template.name()}</Text>
             <Text style={styles.ruleMeta}>{template.columns}</Text>
           </View>
           <Feather name='chevron-right' size={18} color={colors.muted} />

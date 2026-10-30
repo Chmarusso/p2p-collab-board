@@ -6,6 +6,7 @@ import { FlatList, Pressable, Text, View } from 'react-native'
 import { Feather } from '@expo/vector-icons'
 import { messageTypes } from '@opencollab/board-protocol'
 import { Avatar, CachedImage, FeatherName, ImageRef, colors, mono, themed } from '../ui'
+import { t, tx } from '../i18n'
 import { Sheet } from './Panels'
 import { ActivityEntry, BoardData, avatarOf, requestId, timeAgo } from './model'
 
@@ -54,31 +55,110 @@ const KIND_ICONS: Record<string, FeatherName> = {
   estimated: 'hash'
 }
 
+// The worker's `detail` is English (packages/board-protocol/activity.js). Its
+// fixed wordings are translated here; anything unrecognised shows as sent.
+const EDIT_PATTERNS: Array<[RegExp, (value: string) => string]> = [
+  [/^renamed to "(.*)"$/, (title) => t('renamed to "{title}"', { title })],
+  [/^due (\d{4}-\d{2}-\d{2})$/, (date) => t('due {date}', { date })],
+  [/^labels: (.*)$/, (labels) => t('labels: {labels}', { labels })],
+  [/^assigned (.*)$/, (people) => t('assigned {people}', { people })],
+  [/^estimate (.*)$/, (points) => t('estimate {points}', { points })]
+]
+
+function editPart(part: string) {
+  for (const [pattern, text] of EDIT_PATTERNS) {
+    const match = part.match(pattern)
+    if (match) return text(match[1])
+  }
+  switch (part) {
+    case 'edited the description':
+      return t('edited the description')
+    case 'removed the due date':
+      return t('removed the due date')
+    case 'cleared labels':
+      return t('cleared labels')
+    case 'unassigned everyone':
+      return t('unassigned everyone')
+    case 'cleared the estimate':
+      return t('cleared the estimate')
+    case 'revealed estimates':
+      return t('revealed estimates')
+    case 'made it a template':
+      return t('made it a template')
+    case 'stopped using it as a template':
+      return t('stopped using it as a template')
+  }
+  return null
+}
+
+function linkDetail(detail: string) {
+  const match = detail.match(/^(no longer )?(blocks|relates to) (.*)$/)
+  if (!match) return detail
+  const [, gone, verb, card] = match
+  if (card === 'a card') {
+    if (verb === 'blocks') return gone ? t('no longer blocks a card') : t('blocks a card')
+    return gone ? t('no longer relates to a card') : t('relates to a card')
+  }
+  if (verb === 'blocks') {
+    return gone ? t('no longer blocks {card}', { card }) : t('blocks {card}', { card })
+  }
+  return gone ? t('no longer relates to {card}', { card }) : t('relates to {card}', { card })
+}
+
+function translateDetail(kind: string, detail: string) {
+  if (!detail) return detail
+  if (kind === 'created') {
+    const match = detail.match(/^in (.*)$/)
+    return match ? t('in {column}', { column: match[1] }) : detail
+  }
+  if (kind === 'edited') {
+    // A '; ' inside a new title would split wrongly: then show it as sent.
+    const parts = detail.split('; ').map(editPart)
+    return parts.every(Boolean) ? parts.join('; ') : detail
+  }
+  if (kind === 'checklist') {
+    if (detail === 'removed an item') return t('removed an item')
+    if (detail === 'checked an item') return t('checked an item')
+    if (detail === 'unchecked an item') return t('unchecked an item')
+    const match = detail.match(/^item "(.*)"$/)
+    return match ? t('item "{text}"', { text: match[1] }) : detail
+  }
+  if (kind === 'linked') return linkDetail(detail)
+  return detail
+}
+
 // The worker sends a fragment (`detail`) per kind; the verb is added here, as
 // on desktop. On the board feed the card's title follows the verb.
 function phrase(entry: ActivityEntry, withCard: boolean): [string, string] {
-  const self = withCard ? '' : ' this card'
-  const detail = entry.detail
+  const detail = translateDetail(entry.kind, entry.detail)
   switch (entry.kind) {
     case 'created':
-      return [`created${self}`, detail]
-    case 'moved':
-      return [`moved${self} to ${detail}`, '']
+      return [withCard ? t('created') : t('created this card'), detail]
+    case 'moved': {
+      const column = detail === 'another column' ? t('another column') : detail
+      return [
+        withCard
+          ? t('moved to {column}', { column })
+          : t('moved this card to {column}', { column }),
+        ''
+      ]
+    }
     case 'archived':
+      return [withCard ? tx('activity', 'archived') : t('archived this card'), '']
     case 'restored':
-      return [`${entry.kind}${self}`, '']
+      return [withCard ? t('restored') : t('restored this card'), '']
     case 'commented':
-      return ['commented', detail]
+      return [t('commented'), detail]
     case 'edited':
-      return [`edited${self}`, detail]
+      return [withCard ? t('edited') : t('edited this card'), detail]
     case 'checklist':
-      return ['updated the checklist', detail]
+      return [t('updated the checklist'), detail]
     case 'linked':
-      return ['changed links', detail]
+      return [t('changed links'), detail]
     case 'attached':
-      return ['added an attachment', '']
+      return [t('added an attachment'), '']
     case 'estimated':
-      return ['voted on the estimate', '']
+      return [t('voted on the estimate'), '']
     default:
       return [entry.kind, detail]
   }
@@ -114,8 +194,10 @@ export function ActivityList({
     (message) => message.entries || [],
     data
   )
-  if (!entries) return <Text style={styles.empty}>Loading activity…</Text>
-  if (!entries.length) return <Text style={styles.empty}>Nothing has happened here yet.</Text>
+  if (!entries) return <Text style={styles.empty}>{t('Loading activity…')}</Text>
+  if (!entries.length) {
+    return <Text style={styles.empty}>{t('Nothing has happened here yet.')}</Text>
+  }
   const renderEntry = (entry: ActivityEntry) => {
     const [what, more] = phrase(entry, !cardId)
     const body = (
@@ -191,7 +273,7 @@ export function ActivitySheet(props: {
   onClose: () => void
 }) {
   return (
-    <Sheet title='Activity' onClose={props.onClose} scroll={false}>
+    <Sheet title={t('Activity')} onClose={props.onClose} scroll={false}>
       <ActivityList {...props} cardId={null} virtualized />
     </Sheet>
   )

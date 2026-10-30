@@ -2,6 +2,7 @@
 // Tapping a suggestion inserts "@Name " at the caret.
 import React, { useState } from 'react'
 import { Pressable, Text, TextInput, TextInputProps, View } from 'react-native'
+import { t } from '../i18n'
 import { Identicon, colors, themed } from '../ui'
 
 type Props = Omit<TextInputProps, 'onChangeText' | 'value'> & {
@@ -47,7 +48,7 @@ export function MentionInput({ value, onChangeText, profiles, me, style, ...rest
               style={({ pressed }) => [styles.suggestion, pressed && styles.pressed]}
               onPress={() => pick(name)}
               accessibilityRole='menuitem'
-              accessibilityLabel={`Mention ${name}`}
+              accessibilityLabel={t('Mention {name}', { name })}
             >
               <Identicon hex={identity} size={16} />
               <Text style={styles.name} numberOfLines={1}>

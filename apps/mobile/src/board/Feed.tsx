@@ -1,12 +1,15 @@
 // The Feed layout (board-protocol/kinds.js, layout 'feed'): every post newest
 // first, full width. A post without a photo gets a cover drawn from its text
 // (feedCover: the same colours on every client).
-import React from 'react'
+import React, { useState } from 'react'
 import { Image, Linking, Pressable, Text, View } from 'react-native'
 import { Feather } from '@expo/vector-icons'
 import { REACTIONS, feedCover } from '@opencollab/board-protocol'
 import { Avatar, CachedImage, ImageRef, colors, themed } from '../ui'
+import { t } from '../i18n'
 import { Markdown } from './Markdown'
+import { ShortsButton, ShortsPlayer, shortsOf, useWatched } from './Shorts'
+import { SlidesButton, SlidesPlayer, decksOf } from './Slides'
 import { useImageUri } from './Panels'
 import { BoardData, Card, avatarOf, imagesOf, sourceSite } from './model'
 
@@ -19,11 +22,17 @@ export function FeedView({
   nameFor,
   relativeTime,
   onOpen,
-  onCompose
+  onCompose,
+  boardKey,
+  send,
+  subscribe
 }: {
   data: BoardData
   cards: Card[]
   me: string
+  boardKey: string
+  send: (message: object) => void
+  subscribe: (listener: (message: { type: string; [key: string]: any }) => void) => () => void
   cache: Record<string, CachedImage>
   requestImage: (ref: ImageRef) => void
   nameFor: (identity: string) => string
@@ -31,9 +40,55 @@ export function FeedView({
   onOpen: (cardId: string) => void
   onCompose: () => void
 }) {
-  const posts = [...cards].sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
+  // Shorts play in their own player, not in the list of posts.
+  const shorts = shortsOf(data, cards)
+  const shortIds = new Set(shorts.map((card) => card.id))
+  const posts = cards
+    .filter((card) => !shortIds.has(card.id))
+    .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
+  const { watched, markWatched } = useWatched(me, boardKey)
+  const [playing, setPlaying] = useState(false)
+  // Posts with key points open as slides; the button flips through unread ones.
+  const decks = decksOf(data, posts)
+  const deckIds = new Set(decks.map((card) => card.id))
+  const read = useWatched(me, boardKey, 'slides')
+  const [flipping, setFlipping] = useState<Card[] | null>(null)
   return (
     <View style={styles.root}>
+      {decks.length ? (
+        <SlidesButton
+          decks={decks}
+          read={read.watched}
+          onPress={() => setFlipping(decks.filter((card) => !read.watched.includes(card.id)))}
+        />
+      ) : null}
+      {flipping ? (
+        <SlidesPlayer
+          data={data}
+          queue={flipping}
+          markRead={read.markWatched}
+          cache={cache}
+          requestImage={requestImage}
+          onOpenCard={(cardId) => {
+            setFlipping(null)
+            onOpen(cardId)
+          }}
+          onClose={() => setFlipping(null)}
+        />
+      ) : null}
+      {shorts.length ? (
+        <ShortsButton shorts={shorts} watched={watched} onPress={() => setPlaying(true)} />
+      ) : null}
+      {playing ? (
+        <ShortsPlayer
+          shorts={shorts}
+          watched={watched}
+          markWatched={markWatched}
+          send={send}
+          subscribe={subscribe}
+          onClose={() => setPlaying(false)}
+        />
+      ) : null}
       <Pressable
         onPress={onCompose}
         style={({ pressed }) => [styles.compose, pressed && styles.pressed]}
@@ -46,7 +101,7 @@ export function FeedView({
           cache={cache}
           requestImage={requestImage}
         />
-        <Text style={styles.composeText}>Share something…</Text>
+        <Text style={styles.composeText}>{t('Share something…')}</Text>
         <Feather name='image' size={18} color={colors.muted} />
       </Pressable>
       {posts.map((card) => (
@@ -58,12 +113,12 @@ export function FeedView({
           requestImage={requestImage}
           nameFor={nameFor}
           relativeTime={relativeTime}
-          onPress={() => onOpen(card.id)}
+          onPress={() => (deckIds.has(card.id) ? setFlipping([card]) : onOpen(card.id))}
         />
       ))}
       {!posts.length ? (
         <Text style={styles.empty}>
-          No posts yet. Write one, or share a link from any app and pick this board.
+          {t('No posts yet. Write one, or share a link from any app and pick this board.')}
         </Text>
       ) : null}
     </View>

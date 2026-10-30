@@ -4,6 +4,7 @@
 import React from 'react'
 import { Pressable, Text, View } from 'react-native'
 import { Feather } from '@expo/vector-icons'
+import { t } from '../i18n'
 import { PressableScale, colors, mono, themed } from '../ui'
 import { ProgressBar } from './CardExtras'
 import { Sheet } from './Panels'
@@ -26,14 +27,14 @@ export function MyWorkSheet({
     .sort((a, b) => Number(b.key === currentKey) - Number(a.key === currentKey))
   const total = withCards.reduce((sum, board) => sum + (board.mine?.length || 0), 0)
   return (
-    <Sheet title={total ? `My work (${total})` : 'My work'} onClose={onClose}>
+    <Sheet title={total ? t('My work ({n})', { n: total }) : t('My work')} onClose={onClose}>
       {!withCards.length ? (
         <View style={styles.empty}>
           <Feather name='check-circle' size={24} color={colors.muted} />
           <Text style={styles.muted}>
             {boards.some((board) => !board.checkedAt)
-              ? 'Checking your boards…'
-              : 'Nothing is assigned to you on any board.'}
+              ? t('Checking your boards…')
+              : t('Nothing is assigned to you on any board.')}
           </Text>
         </View>
       ) : null}
@@ -41,9 +42,11 @@ export function MyWorkSheet({
         <View key={board.key} style={styles.group}>
           <View style={styles.groupHead}>
             <Text style={styles.groupName} numberOfLines={1}>
-              {board.name || 'Board'}
+              {board.name || t('Board')}
             </Text>
-            {board.key === currentKey ? <Text style={styles.openTag}> · open</Text> : null}
+            {board.key === currentKey ? (
+              <Text style={styles.openTag}>{` · ${t('open')}`}</Text>
+            ) : null}
           </View>
           {(board.mine || []).map((card) => {
             const due = dueInfo(card.dueDate)
@@ -54,7 +57,14 @@ export function MyWorkSheet({
                 style={[styles.card]}
                 scaleTo={0.98}
                 accessibilityRole='button'
-                accessibilityLabel={`${card.title}, ${card.columnName}${card.blocked ? ', blocked' : ''}${due ? `, due ${due.text}` : ''}`}
+                accessibilityLabel={[
+                  card.title,
+                  card.columnName,
+                  card.blocked ? t('blocked') : '',
+                  due ? t('due {date}', { date: due.text }) : ''
+                ]
+                  .filter(Boolean)
+                  .join(', ')}
               >
                 <Text style={styles.title} numberOfLines={3}>
                   {card.title}
@@ -71,11 +81,13 @@ export function MyWorkSheet({
                         due.status === 'soon' && styles.soon
                       ]}
                     >
-                      {due.status === 'overdue' ? 'overdue · ' : ''}
+                      {due.status === 'overdue' ? `${t('overdue')} · ` : ''}
                       {due.text}
                     </Text>
                   ) : null}
-                  {card.blocked ? <Text style={[styles.mono, styles.overdue]}>blocked</Text> : null}
+                  {card.blocked ? (
+                    <Text style={[styles.mono, styles.overdue]}>{t('blocked')}</Text>
+                  ) : null}
                 </View>
                 {card.checklist.total ? (
                   <View style={styles.meta}>

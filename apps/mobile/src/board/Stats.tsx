@@ -4,6 +4,7 @@ import React from 'react'
 import { StyleSheet, Text, View } from 'react-native'
 import { messageTypes } from '@opencollab/board-protocol'
 import { colors, mono, themed, mix } from '../ui'
+import { locale, plural, t, tx } from '../i18n'
 import { useWorkerReply } from './Activity'
 import { Sheet } from './Panels'
 import { BoardData, BoardStats, formatDuration, wipState } from './model'
@@ -36,9 +37,9 @@ export function StatsSheet({
     data
   )
   return (
-    <Sheet title='Stats' onClose={onClose}>
+    <Sheet title={t('Stats')} onClose={onClose}>
       {!stats ? (
-        <Text style={[styles.muted, styles.center]}>Counting…</Text>
+        <Text style={[styles.muted, styles.center]}>{t('Counting…')}</Text>
       ) : (
         <StatsBody stats={stats} nameFor={nameFor} accent={accent} />
       )}
@@ -63,25 +64,37 @@ function StatsBody({
   return (
     <>
       <View style={styles.tiles}>
-        <Tile label='Open' value={totals.open} />
-        <Tile label='Done' value={totals.done} />
-        <Tile label='Overdue' value={totals.overdue} warn={totals.overdue > 0} />
-        <Tile label='Blocked' value={totals.blocked} warn={totals.blocked > 0} />
-        <Tile label='Points open' value={totals.pointsOpen} />
-        <Tile label='Points done' value={totals.pointsDone} />
+        <Tile label={t('Open')} value={totals.open} />
+        <Tile label={tx('stats', 'Done')} value={totals.done} />
+        <Tile label={t('Overdue')} value={totals.overdue} warn={totals.overdue > 0} />
+        <Tile label={tx('stats', 'Blocked')} value={totals.blocked} warn={totals.blocked > 0} />
+        <Tile label={t('Points open')} value={totals.pointsOpen} />
+        <Tile label={t('Points done')} value={totals.pointsDone} />
       </View>
 
-      <Text style={styles.sectionLabel}>Throughput, last {stats.weeks.length} weeks</Text>
+      <Text style={styles.sectionLabel}>
+        {plural(
+          stats.weeks.length,
+          ['Throughput, last {n} week', 'Throughput, last {n} weeks'],
+          [
+            'Przepustowość, ostatni {n} tydzień',
+            'Przepustowość, ostatnie {n} tygodnie',
+            'Przepustowość, ostatnie {n} tygodni'
+          ]
+        )}
+      </Text>
       <View style={styles.legend}>
         <View style={[styles.key, { backgroundColor: accent }]} />
-        <Text style={styles.muted}>Done</Text>
+        <Text style={styles.muted}>{tx('stats', 'Done')}</Text>
         <View style={[styles.key, styles.keyCreated]} />
-        <Text style={styles.muted}>Created</Text>
+        <Text style={styles.muted}>{t('Created')}</Text>
       </View>
       <View
         style={styles.chart}
         accessible
-        accessibilityLabel={`Cards done per week: ${stats.weeks.map((week) => week.done).join(', ')}`}
+        accessibilityLabel={t('Cards done per week: {counts}', {
+          counts: stats.weeks.map((week) => week.done).join(', ')
+        })}
       >
         {stats.weeks.map((week) => (
           <View key={week.start} style={styles.week}>
@@ -116,7 +129,7 @@ function StatsBody({
               />
             </View>
             <Text style={styles.axis}>
-              {new Date(week.start).toLocaleDateString(undefined, {
+              {new Date(week.start).toLocaleDateString(locale(), {
                 month: 'numeric',
                 day: 'numeric'
               })}
@@ -125,14 +138,14 @@ function StatsBody({
         ))}
       </View>
 
-      <Text style={styles.sectionLabel}>Cycle time</Text>
+      <Text style={styles.sectionLabel}>{t('Cycle time')}</Text>
       <View style={styles.tiles}>
-        <Tile label='Median' value={formatDuration(stats.cycleTime.median)} />
-        <Tile label='85th percentile' value={formatDuration(stats.cycleTime.p85)} />
-        <Tile label='Cards measured' value={stats.cycleTime.count} />
+        <Tile label={t('Median')} value={formatDuration(stats.cycleTime.median)} />
+        <Tile label={t('85th percentile')} value={formatDuration(stats.cycleTime.p85)} />
+        <Tile label={t('Cards measured')} value={stats.cycleTime.count} />
       </View>
 
-      <Text style={styles.sectionLabel}>Columns</Text>
+      <Text style={styles.sectionLabel}>{t('Columns')}</Text>
       {stats.columns.map((column) => {
         const state = wipState(column.count, column.wipLimit)
         return (
@@ -149,7 +162,7 @@ function StatsBody({
                 ]}
               >
                 {column.wipLimit ? `${column.count}/${column.wipLimit}` : column.count}
-                {column.points ? ` · ${column.points} pts` : ''}
+                {column.points ? ` · ${t('{n} pts', { n: column.points })}` : ''}
               </Text>
             </View>
             <View style={styles.track}>
@@ -173,13 +186,13 @@ function StatsBody({
         )
       })}
 
-      <Text style={styles.sectionLabel}>People</Text>
+      <Text style={styles.sectionLabel}>{t('People')}</Text>
       {stats.members.length ? (
         <View style={styles.table}>
           <View style={styles.tableRow}>
-            <Text style={[styles.cell, styles.nameCell, styles.muted]}>Member</Text>
-            <Text style={[styles.cell, styles.muted]}>Open</Text>
-            <Text style={[styles.cell, styles.muted]}>Done/wk</Text>
+            <Text style={[styles.cell, styles.nameCell, styles.muted]}>{t('Member')}</Text>
+            <Text style={[styles.cell, styles.muted]}>{t('Open')}</Text>
+            <Text style={[styles.cell, styles.muted]}>{t('Done/wk')}</Text>
           </View>
           {stats.members.map((member) => (
             <View key={member.identity} style={styles.tableRow}>
@@ -192,7 +205,7 @@ function StatsBody({
           ))}
         </View>
       ) : (
-        <Text style={styles.muted}>Assign cards to see who holds what.</Text>
+        <Text style={styles.muted}>{t('Assign cards to see who holds what.')}</Text>
       )}
     </>
   )
@@ -207,7 +220,7 @@ function Tile({ label, value, warn }: { label: string; value: number | string; w
         adjustsFontSizeToFit
         minimumFontScale={0.5}
       >
-        {typeof value === 'number' ? value.toLocaleString() : value}
+        {typeof value === 'number' ? value.toLocaleString(locale()) : value}
       </Text>
       <Text style={styles.tileLabel}>{label}</Text>
     </View>

@@ -6,6 +6,7 @@
 import React, { useEffect } from 'react'
 import { Image, Linking, Pressable, ScrollView, Text, View } from 'react-native'
 import { Lexer, type Token, type Tokens } from 'marked'
+import { t } from '../i18n'
 import { CachedImage, ImageRef, colors, imageKey, mono, themed } from '../ui'
 
 export type Mention = { identity: string; name: string }
@@ -171,14 +172,18 @@ function MdImage({ token, props }: { token: Tokens.Image; props: Props }) {
     if (ref && !cached) props.onRequestImage?.(ref)
   }, [ref, cached])
   if (!ref || cached?.error) {
-    return <Text style={styles.missing}>{token.text || 'Image'} (image unavailable)</Text>
+    return (
+      <Text style={styles.missing}>
+        {t('{image} (image unavailable)', { image: token.text || t('Image') })}
+      </Text>
+    )
   }
   const ratio = ref.width && ref.height ? ref.width / ref.height : 4 / 3
   return (
     <Pressable
       onPress={() => cached?.uri && props.onOpenImage?.(cached.uri)}
       accessibilityRole='imagebutton'
-      accessibilityLabel={token.text || 'Image'}
+      accessibilityLabel={token.text || t('Image')}
       style={[styles.image, { aspectRatio: ratio }]}
     >
       {cached?.uri ? <Image source={{ uri: cached.uri }} style={styles.fill} /> : null}

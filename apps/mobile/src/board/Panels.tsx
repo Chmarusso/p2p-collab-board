@@ -31,6 +31,7 @@ import {
   themed,
   tint
 } from '../ui'
+import { plural, t } from '../i18n'
 import { Chip } from './CardSheet'
 import {
   ACCENTS,
@@ -40,12 +41,12 @@ import {
   BoardData,
   Column,
   Filters,
-  KIND_LABELS,
   LABEL_COLORS,
   Member,
   NO_FILTERS,
   alertText,
   assignable,
+  kindLabel,
   memberPowers,
   newLabelId
 } from './model'
@@ -93,7 +94,7 @@ export function Sheet({
             onPress={onClose}
             hitSlop={10}
             accessibilityRole='button'
-            accessibilityLabel='Close'
+            accessibilityLabel={t('Close')}
           >
             <Feather name='x' size={22} color={colors.muted} />
           </Pressable>
@@ -128,7 +129,7 @@ function Swatches({
           onPress={() => onPick(null)}
           style={[styles.swatch, styles.swatchNone, !selected && styles.swatchSelected]}
           accessibilityRole='button'
-          accessibilityLabel='No color'
+          accessibilityLabel={t('No color')}
           accessibilityState={{ selected: !selected }}
         >
           <Feather name='slash' size={14} color={colors.muted} />
@@ -144,7 +145,7 @@ function Swatches({
             selected === color && styles.swatchSelected
           ]}
           accessibilityRole='button'
-          accessibilityLabel={`Color ${color}`}
+          accessibilityLabel={t('Color {color}', { color })}
           accessibilityState={{ selected: selected === color }}
         />
       ))}
@@ -175,19 +176,19 @@ export function LabelsSheet({
     const name = newName.trim()
     if (!name) return
     if (data.labels.some((label) => label.name.toLowerCase() === name.toLowerCase())) {
-      return setError('A label with this name already exists.')
+      return setError(t('A label with this name already exists.'))
     }
     send({ type: messageTypes.labelUpsert, labelId: newLabelId(), name, color: newColor })
     setNewName('')
     setError('')
   }
   return (
-    <Sheet title='Labels' onClose={onClose}>
+    <Sheet title={t('Labels')} onClose={onClose}>
       <Text style={styles.muted}>
-        Shared by everyone on this board. Changes apply to every card.
+        {t('Shared by everyone on this board. Changes apply to every card.')}
       </Text>
       {data.labels.length ? null : (
-        <Text style={styles.muted}>No labels yet. Create the first one below.</Text>
+        <Text style={styles.muted}>{t('No labels yet. Create the first one below.')}</Text>
       )}
       {data.labels.map((label) => {
         const used = data.objects.filter((card) => card.labelIds?.includes(label.id)).length
@@ -209,7 +210,7 @@ export function LabelsSheet({
                 onPress={() => setRecolor(recolor === label.id ? null : label.id)}
                 style={[styles.swatch, { backgroundColor: label.color || '#8590a2' }]}
                 accessibilityRole='button'
-                accessibilityLabel={`Change color of ${label.name}`}
+                accessibilityLabel={t('Change color of {label}', { label: label.name })}
               />
               <TextInput
                 style={[styles.input, styles.flex]}
@@ -217,10 +218,10 @@ export function LabelsSheet({
                 onChangeText={(value) => setNames((current) => ({ ...current, [label.id]: value }))}
                 onEndEditing={rename}
                 maxLength={40}
-                accessibilityLabel='Label name'
+                accessibilityLabel={t('Label name')}
               />
               <Text style={[styles.usage, styles.usageColumn]}>
-                {used} {used === 1 ? 'card' : 'cards'}
+                {plural(used, ['{n} card', '{n} cards'], ['{n} karta', '{n} karty', '{n} kart'])}
               </Text>
               <Pressable
                 onPress={() => {
@@ -230,10 +231,18 @@ export function LabelsSheet({
                 }}
                 style={[styles.delete, confirm === label.id && styles.deleteConfirm]}
                 accessibilityRole='button'
-                accessibilityLabel={`Delete label ${label.name}`}
+                accessibilityLabel={t('Delete label {label}', { label: label.name })}
               >
                 {confirm === label.id ? (
-                  <Text style={styles.deleteText}>{used ? `Remove from ${used}?` : 'Delete?'}</Text>
+                  <Text style={styles.deleteText}>
+                    {used
+                      ? plural(
+                          used,
+                          ['Remove from {n}?', 'Remove from {n}?'],
+                          ['Usunąć z {n} karty?', 'Usunąć z {n} kart?', 'Usunąć z {n} kart?']
+                        )
+                      : t('Delete?')}
+                  </Text>
                 ) : (
                   <Feather name='trash-2' size={16} color={colors.muted} />
                 )}
@@ -258,7 +267,7 @@ export function LabelsSheet({
         )
       })}
       <View style={styles.divider} />
-      <Text style={styles.sectionLabel}>New label</Text>
+      <Text style={styles.sectionLabel}>{t('New label')}</Text>
       <TextInput
         style={styles.input}
         value={newName}
@@ -267,7 +276,7 @@ export function LabelsSheet({
           setError('')
         }}
         onSubmitEditing={create}
-        placeholder='Label name'
+        placeholder={t('Label name')}
         placeholderTextColor={colors.muted}
         maxLength={40}
       />
@@ -277,7 +286,7 @@ export function LabelsSheet({
         onPick={(color) => color && setNewColor(color)}
       />
       {error ? <Text style={styles.error}>{error}</Text> : null}
-      <Button title='Create label' icon='plus' onPress={create} />
+      <Button title={t('Create label')} icon='plus' onPress={create} />
     </Sheet>
   )
 }
@@ -338,9 +347,9 @@ export function ThemeSheet({
     })
   const boardTemplate = themeTemplate(data.theme.template).id
   return (
-    <Sheet title='Customize' onClose={onClose}>
-      <Text style={styles.muted}>Everyone on this board sees the same theme.</Text>
-      <Text style={styles.sectionLabel}>Template</Text>
+    <Sheet title={t('Customize')} onClose={onClose}>
+      <Text style={styles.muted}>{t('Everyone on this board sees the same theme.')}</Text>
+      <Text style={styles.sectionLabel}>{t('Template')}</Text>
       <View style={styles.templates}>
         {THEME_TEMPLATES.map((template) => {
           const palette = template[scheme]
@@ -352,7 +361,7 @@ export function ThemeSheet({
               // A template shows as designed: clear the custom colors.
               onPress={() => setTheme({ template: template.id, accent: null, background: null })}
               accessibilityRole='button'
-              accessibilityLabel={`${template.name} template`}
+              accessibilityLabel={t('{name} template', { name: template.name })}
               accessibilityState={{ selected }}
             >
               <View style={[styles.templatePreview, { backgroundColor: palette.bg }]}>
@@ -366,7 +375,7 @@ export function ThemeSheet({
           )
         })}
       </View>
-      <Text style={styles.sectionLabel}>Board icon</Text>
+      <Text style={styles.sectionLabel}>{t('Board icon')}</Text>
       <View style={styles.rowCenter}>
         <View style={styles.iconPreview}>
           {iconUri ? (
@@ -376,16 +385,16 @@ export function ThemeSheet({
           )}
         </View>
         <Button
-          title={uploading === 'icon' ? 'Uploading…' : icon ? 'Change' : 'Choose image'}
+          title={uploading === 'icon' ? t('Uploading…') : icon ? t('Change') : t('Choose image')}
           icon='image'
           variant='secondary'
           onPress={() => uploading !== 'icon' && void pick('icon')}
         />
         {icon && uploading !== 'icon' ? (
-          <Button title='Remove' variant='ghost' onPress={() => clear('icon')} />
+          <Button title={t('Remove')} variant='ghost' onPress={() => clear('icon')} />
         ) : null}
       </View>
-      <Text style={styles.sectionLabel}>Background image</Text>
+      <Text style={styles.sectionLabel}>{t('Background image')}</Text>
       {backgroundImage ? (
         <View style={styles.backgroundPreview}>
           {backgroundUri ? (
@@ -397,20 +406,20 @@ export function ThemeSheet({
         <Button
           title={
             uploading === 'background'
-              ? 'Uploading…'
+              ? t('Uploading…')
               : backgroundImage
-                ? 'Change image'
-                : 'Choose image'
+                ? t('Change image')
+                : t('Choose image')
           }
           icon='image'
           variant='secondary'
           onPress={() => uploading !== 'background' && void pick('background')}
         />
         {backgroundImage && uploading !== 'background' ? (
-          <Button title='Remove' variant='ghost' onPress={() => clear('background')} />
+          <Button title={t('Remove')} variant='ghost' onPress={() => clear('background')} />
         ) : null}
       </View>
-      <Text style={styles.sectionLabel}>Background color</Text>
+      <Text style={styles.sectionLabel}>{t('Background color')}</Text>
       <View style={styles.swatches}>
         <Pressable
           onPress={() => setTheme({ background: null })}
@@ -420,7 +429,7 @@ export function ThemeSheet({
             !data.theme.background && styles.swatchSelected
           ]}
           accessibilityRole='button'
-          accessibilityLabel='Default background'
+          accessibilityLabel={t('Default background')}
         />
         {Object.entries(BACKGROUNDS).map(([id, preset]) => (
           <Pressable
@@ -432,7 +441,7 @@ export function ThemeSheet({
               data.theme.background === id && styles.swatchSelected
             ]}
             accessibilityRole='button'
-            accessibilityLabel={`${preset.name} background`}
+            accessibilityLabel={t('{name} background', { name: preset.name })}
           />
         ))}
       </View>
@@ -441,18 +450,18 @@ export function ThemeSheet({
           style={[styles.input, styles.flex]}
           value={custom}
           onChangeText={setCustom}
-          placeholder='Custom color, e.g. #1a2a3a'
+          placeholder={t('Custom color, e.g. #1a2a3a')}
           placeholderTextColor={colors.muted}
           autoCapitalize='none'
           autoCorrect={false}
         />
         <Button
-          title='Use'
+          title={t('Use')}
           variant='secondary'
           onPress={() => /^#[0-9a-f]{6}$/i.test(custom) && setTheme({ background: custom })}
         />
       </View>
-      <Text style={styles.sectionLabel}>Accent</Text>
+      <Text style={styles.sectionLabel}>{t('Accent')}</Text>
       {/* None follows the template's accent. */}
       <Swatches
         none
@@ -508,12 +517,14 @@ export function MembersSheet({
   const nameOf = (member: Member) => member.name || nameFor(member.identity)
   const ban = (member: Member) =>
     Alert.alert(
-      `Remove ${nameOf(member)}?`,
-      'They can still see the board, because they already hold its key, but everything they change from now on is ignored by everyone. What they added before stays.',
+      t('Remove {name}?', { name: nameOf(member) }),
+      t(
+        'They can still see the board, because they already hold its key, but everything they change from now on is ignored by everyone. What they added before stays.'
+      ),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('Cancel'), style: 'cancel' },
         {
-          text: 'Remove',
+          text: t('Remove'),
           style: 'destructive',
           onPress: () =>
             send({ type: messageTypes.memberBan, identity: member.identity, banned: true })
@@ -522,36 +533,41 @@ export function MembersSheet({
     )
   const block = (member: Member) =>
     Alert.alert(
-      `Block ${nameOf(member)}?`,
-      "You won't see their comments or get notifications from them on this device. They aren't told, and the board doesn't change for anyone else.",
+      t('Block {name}?', { name: nameOf(member) }),
+      t(
+        "You won't see their comments or get notifications from them on this device. They aren't told, and the board doesn't change for anyone else."
+      ),
       [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Block', style: 'destructive', onPress: () => toggleBlocked(member.identity) }
+        { text: t('Cancel'), style: 'cancel' },
+        { text: t('Block'), style: 'destructive', onPress: () => toggleBlocked(member.identity) }
       ]
     )
   // No server to report to: the board's owner and admins can remove the
   // member, and abuse of the app itself goes to the maintainers on GitHub.
   const report = (member: Member) =>
     Alert.alert(
-      `Report ${nameOf(member)}?`,
-      "The board's owner and admins can remove them. To report abuse to the OpenCollab team, open a report on GitHub. Don't include private board content.",
+      t('Report {name}?', { name: nameOf(member) }),
+      t(
+        "The board's owner and admins can remove them. To report abuse to the OpenCollab team, open a report on GitHub. Don't include private board content."
+      ),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('Cancel'), style: 'cancel' },
         ...(blocked.includes(member.identity)
           ? []
-          : [{ text: 'Block', onPress: () => toggleBlocked(member.identity) }]),
-        { text: 'Report on GitHub', onPress: () => void Linking.openURL(reportUrl(member)) }
+          : [{ text: t('Block'), onPress: () => toggleBlocked(member.identity) }]),
+        { text: t('Report on GitHub'), onPress: () => void Linking.openURL(reportUrl(member)) }
       ]
     )
   return (
-    <Sheet title='Members' onClose={onClose}>
+    <Sheet title={t('Members')} onClose={onClose}>
       {status}
       <Text style={styles.muted}>
-        The owner and admins can remove members. A removed member can still see the board, but their
-        changes are ignored. Anyone can block or report a member.
+        {t(
+          'The owner and admins can remove members. A removed member can still see the board, but their changes are ignored. Anyone can block or report a member.'
+        )}
       </Text>
       {members.length ? null : (
-        <Text style={styles.muted}>Nobody has written to this board yet.</Text>
+        <Text style={styles.muted}>{t('Nobody has written to this board yet.')}</Text>
       )}
       {members.map((member) => {
         const canBan = powers.canBan(member)
@@ -570,28 +586,31 @@ export function MembersSheet({
               />
               <View style={styles.flex}>
                 <Text style={styles.memberName} numberOfLines={1}>
-                  {nameOf(member)}
-                  {member.identity === me ? ' (you)' : ''}
+                  {member.identity === me
+                    ? t('{name} (you)', { name: nameOf(member) })
+                    : nameOf(member)}
                 </Text>
                 <Text style={styles.usage}>{shortKey(member.identity)}</Text>
               </View>
               {member.banned ? (
-                <Text style={[styles.badge, styles.badgeBanned]}>Banned</Text>
+                <Text style={[styles.badge, styles.badgeBanned]}>{t('Banned')}</Text>
               ) : member.role === 'owner' ? (
-                <Text style={[styles.badge, styles.badgeOwner]}>Owner</Text>
+                <Text style={[styles.badge, styles.badgeOwner]}>{t('Owner')}</Text>
               ) : member.role === 'admin' ? (
-                <Text style={[styles.badge, styles.badgeAdmin]}>Admin</Text>
+                <Text style={[styles.badge, styles.badgeAdmin]}>{t('Admin')}</Text>
               ) : null}
             </View>
             {member.banned && member.bannedBy ? (
-              <Text style={styles.usage}>Banned by {nameFor(member.bannedBy)}</Text>
+              <Text style={styles.usage}>
+                {t('Banned by {name}', { name: nameFor(member.bannedBy) })}
+              </Text>
             ) : null}
-            {isBlocked ? <Text style={styles.usage}>Blocked on this device</Text> : null}
+            {isBlocked ? <Text style={styles.usage}>{t('Blocked on this device')}</Text> : null}
             {canRole || canBan || other ? (
               <View style={styles.rowCenter}>
                 {canRole ? (
                   <Button
-                    title={member.role === 'admin' ? 'Remove admin' : 'Make admin'}
+                    title={member.role === 'admin' ? t('Remove admin') : t('Make admin')}
                     icon='shield'
                     variant='secondary'
                     onPress={() =>
@@ -605,7 +624,7 @@ export function MembersSheet({
                 ) : null}
                 {canBan && member.banned ? (
                   <Button
-                    title='Unban'
+                    title={t('Unban')}
                     icon='user-check'
                     variant='secondary'
                     onPress={() =>
@@ -618,7 +637,7 @@ export function MembersSheet({
                   />
                 ) : canBan ? (
                   <Button
-                    title='Remove from board'
+                    title={t('Remove from board')}
                     icon='user-x'
                     variant='ghost'
                     onPress={() => ban(member)}
@@ -626,7 +645,7 @@ export function MembersSheet({
                 ) : null}
                 {other ? (
                   <Button
-                    title={isBlocked ? 'Unblock' : 'Block'}
+                    title={isBlocked ? t('Unblock') : t('Block')}
                     icon={isBlocked ? 'eye' : 'eye-off'}
                     variant='ghost'
                     onPress={() => (isBlocked ? toggleBlocked(member.identity) : block(member))}
@@ -634,7 +653,7 @@ export function MembersSheet({
                 ) : null}
                 {other ? (
                   <Button
-                    title='Report'
+                    title={t('Report')}
                     icon='flag'
                     variant='ghost'
                     onPress={() => report(member)}
@@ -663,22 +682,22 @@ export function FilterSheet({
   onClose: () => void
 }) {
   const dues: [Filters['due'], string][] = [
-    ['', 'Any time'],
-    ['overdue', 'Overdue'],
-    ['week', 'Next 7 days'],
-    ['none', 'No due date']
+    ['', t('Any time')],
+    ['overdue', t('Overdue')],
+    ['week', t('Next 7 days')],
+    ['none', t('No due date')]
   ]
   return (
     <Sheet
-      title='Filter'
+      title={t('Filter')}
       onClose={onClose}
       right={
         <Pressable onPress={() => setFilters(NO_FILTERS)} hitSlop={8} accessibilityRole='button'>
-          <Text style={styles.link}>Clear</Text>
+          <Text style={styles.link}>{t('Clear')}</Text>
         </Pressable>
       }
     >
-      <Text style={styles.sectionLabel}>Labels</Text>
+      <Text style={styles.sectionLabel}>{t('Labels')}</Text>
       <View style={styles.swatches}>
         {data.labels.length ? (
           data.labels.map((label) => {
@@ -686,7 +705,7 @@ export function FilterSheet({
             return (
               <Chip
                 key={label.id}
-                label={label.name || 'Unnamed'}
+                label={label.name || t('Unnamed')}
                 color={label.color || '#8590a2'}
                 filled={on}
                 selected={on}
@@ -702,45 +721,45 @@ export function FilterSheet({
             )
           })
         ) : (
-          <Text style={styles.muted}>No labels yet</Text>
+          <Text style={styles.muted}>{t('No labels yet')}</Text>
         )}
       </View>
-      <Text style={styles.sectionLabel}>Mentioned</Text>
+      <Text style={styles.sectionLabel}>{t('Mentioned')}</Text>
       <View style={styles.swatches}>
         <Chip
-          label='Anyone'
+          label={t('Anyone')}
           selected={!filters.member}
           onPress={() => setFilters({ ...filters, member: '' })}
         />
         {Object.entries(data.profiles).map(([identity, name]) => (
           <Chip
             key={identity}
-            label={identity === me ? `${name} (you)` : name}
+            label={identity === me ? t('{name} (you)', { name }) : name}
             selected={filters.member === identity}
             onPress={() => setFilters({ ...filters, member: identity })}
           />
         ))}
       </View>
-      <Text style={styles.sectionLabel}>Assigned to</Text>
+      <Text style={styles.sectionLabel}>{t('Assigned to')}</Text>
       <View style={styles.swatches}>
         <Chip
-          label='Anyone'
+          label={t('Anyone')}
           selected={!filters.assignee}
           onPress={() => setFilters({ ...filters, assignee: '' })}
         />
         {assignable(data, me).map((member) => {
-          const name = member.name || data.profiles[member.identity] || 'Member'
+          const name = member.name || data.profiles[member.identity] || t('Member')
           return (
             <Chip
               key={member.identity}
-              label={member.identity === me ? `${name} (you)` : name}
+              label={member.identity === me ? t('{name} (you)', { name }) : name}
               selected={filters.assignee === member.identity}
               onPress={() => setFilters({ ...filters, assignee: member.identity })}
             />
           )
         })}
       </View>
-      <Text style={styles.sectionLabel}>Due</Text>
+      <Text style={styles.sectionLabel}>{t('Due')}</Text>
       <View style={styles.swatches}>
         {dues.map(([value, label]) => (
           <Chip
@@ -783,7 +802,7 @@ export function ColumnSheet({
   const saveLimit = (value: string) => {
     const next = value.trim() === '' ? null : Number(value)
     if (next !== null && !(Number.isInteger(next) && next >= 1 && next <= 999)) {
-      return setLimitError('Use a whole number from 1 to 999, or leave it empty for no limit.')
+      return setLimitError(t('Use a whole number from 1 to 999, or leave it empty for no limit.'))
     }
     setLimitError('')
     if (next !== (column.wipLimit ?? null)) {
@@ -796,8 +815,8 @@ export function ColumnSheet({
     onClose()
   }
   return (
-    <Sheet title='Column' onClose={onClose}>
-      <Text style={styles.sectionLabel}>Name</Text>
+    <Sheet title={t('Column')} onClose={onClose}>
+      <Text style={styles.sectionLabel}>{t('Name')}</Text>
       <TextInput
         style={styles.input}
         value={name}
@@ -808,9 +827,9 @@ export function ColumnSheet({
           name.trim() !== column.name &&
           send({ type: messageTypes.columnUpdate, columnId: column.id, name: name.trim() })
         }
-        accessibilityLabel='Column name'
+        accessibilityLabel={t('Column name')}
       />
-      <Text style={styles.sectionLabel}>Color</Text>
+      <Text style={styles.sectionLabel}>{t('Color')}</Text>
       <Swatches
         colors={LABEL_COLORS}
         selected={column.color}
@@ -819,7 +838,7 @@ export function ColumnSheet({
       />
       {wip ? (
         <>
-          <Text style={styles.sectionLabel}>Work in progress limit</Text>
+          <Text style={styles.sectionLabel}>{t('Work in progress limit')}</Text>
           <View style={styles.rowCenter}>
             <TextInput
               style={[styles.input, styles.limitInput]}
@@ -829,16 +848,16 @@ export function ColumnSheet({
                 setLimitError('')
               }}
               onEndEditing={() => saveLimit(limit)}
-              placeholder='None'
+              placeholder={t('None')}
               placeholderTextColor={colors.muted}
               keyboardType='number-pad'
               returnKeyType='done'
               maxLength={3}
-              accessibilityLabel='Work in progress limit'
+              accessibilityLabel={t('Work in progress limit')}
             />
             {column.wipLimit ? (
               <Button
-                title='No limit'
+                title={t('No limit')}
                 variant='ghost'
                 onPress={() => {
                   setLimit('')
@@ -848,22 +867,28 @@ export function ColumnSheet({
             ) : null}
           </View>
           <Text style={styles.hint}>
-            {cards} {cards === 1 ? 'card' : 'cards'} now. The header turns amber at the limit and
-            red above it; moving a card into a full column asks first.
+            {plural(
+              cards,
+              ['{n} card now.', '{n} cards now.'],
+              ['Teraz {n} karta.', 'Teraz {n} karty.', 'Teraz {n} kart.']
+            )}{' '}
+            {t(
+              'The header turns amber at the limit and red above it; moving a card into a full column asks first.'
+            )}
           </Text>
           {limitError ? <Text style={styles.error}>{limitError}</Text> : null}
         </>
       ) : null}
-      <Text style={styles.sectionLabel}>Position</Text>
+      <Text style={styles.sectionLabel}>{t('Position')}</Text>
       <View style={styles.rowCenter}>
         <Button
-          title='Move left'
+          title={t('Move left')}
           icon='arrow-left'
           variant='secondary'
           onPress={() => index > 0 && moveTo(index - 1)}
         />
         <Button
-          title='Move right'
+          title={t('Move right')}
           icon='arrow-right'
           variant='secondary'
           onPress={() => index < count - 1 && moveTo(index + 1)}
@@ -872,7 +897,9 @@ export function ColumnSheet({
       <View style={styles.divider} />
       {count > 1 ? (
         <Button
-          title={confirm ? 'Tap again to delete (cards move to the first column)' : 'Delete column'}
+          title={
+            confirm ? t('Tap again to delete (cards move to the first column)') : t('Delete column')
+          }
           icon='trash-2'
           variant='secondary'
           onPress={() => {
@@ -882,7 +909,7 @@ export function ColumnSheet({
           }}
         />
       ) : (
-        <Text style={styles.muted}>A board keeps at least one column.</Text>
+        <Text style={styles.muted}>{t('A board keeps at least one column.')}</Text>
       )}
     </Sheet>
   )
@@ -910,32 +937,35 @@ export function NotificationsSheet({
   const withAlerts = boards.filter((board) => board.alerts.length)
   return (
     <Sheet
-      title='Notifications'
+      title={t('Notifications')}
       onClose={onClose}
       right={
         <Pressable onPress={onReadAll} hitSlop={8} accessibilityRole='button'>
-          <Text style={styles.link}>Mark all read</Text>
+          <Text style={styles.link}>{t('Mark all read')}</Text>
         </Pressable>
       }
     >
       {!withAlerts.length ? (
         <Text style={[styles.muted, styles.center]}>
           {boards.some((board) => !board.checkedAt)
-            ? 'Checking your boards…'
-            : 'You’re all caught up.'}
+            ? t('Checking your boards…')
+            : t('You’re all caught up.')}
         </Text>
       ) : null}
       {withAlerts.map((board) => (
         <View key={board.key} style={styles.group}>
           <View style={styles.groupHead}>
             <Text style={styles.groupName} numberOfLines={1}>
-              {board.name || 'Board'}
-              {board.key === currentKey ? ' · open' : ''}
+              {board.key === currentKey
+                ? t('{board} · open', { board: board.name || t('Board') })
+                : board.name || t('Board')}
             </Text>
             <Text style={styles.usage}>
               {board.checkedAt
-                ? `checked ${relativeTime(new Date(board.checkedAt).toISOString())}`
-                : 'checking…'}
+                ? t('checked {time}', {
+                    time: relativeTime(new Date(board.checkedAt).toISOString())
+                  })
+                : t('checking…')}
             </Text>
           </View>
           {board.alerts.map((alert) => {
@@ -955,7 +985,7 @@ export function NotificationsSheet({
                       styles[`kind_${alert.kind}` as keyof typeof styles] as object
                     ]}
                   >
-                    {KIND_LABELS[alert.kind]}
+                    {kindLabel(alert.kind)}
                   </Text>
                   <Text style={styles.usage}>{relativeTime(new Date(alert.at).toISOString())}</Text>
                 </View>

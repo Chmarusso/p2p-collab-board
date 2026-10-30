@@ -1,13 +1,35 @@
 // The notification sound. Players are created on first use and reused; the
 // audio session mixes with other apps and respects the silent switch.
 import { AudioPlayer, createAudioPlayer, setAudioModeAsync } from 'expo-audio'
+import { t } from './i18n'
 
 export type SoundName = 'off' | 'chime' | 'pop' | 'ding'
-export const SOUND_OPTIONS: { id: SoundName; label: string }[] = [
-  { id: 'off', label: 'Off' },
-  { id: 'chime', label: 'Chime' },
-  { id: 'pop', label: 'Pop' },
-  { id: 'ding', label: 'Ding' }
+// Labels are getters so they follow a language change.
+export const SOUND_OPTIONS: { id: SoundName; readonly label: string }[] = [
+  {
+    id: 'off',
+    get label() {
+      return t('Off')
+    }
+  },
+  {
+    id: 'chime',
+    get label() {
+      return t('Chime')
+    }
+  },
+  {
+    id: 'pop',
+    get label() {
+      return t('Pop')
+    }
+  },
+  {
+    id: 'ding',
+    get label() {
+      return t('Ding')
+    }
+  }
 ]
 export const DEFAULT_SOUND: SoundName = 'chime'
 export const soundPrefKey = 'opencollab.notification-sound'
