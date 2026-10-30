@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { Alert, FlatList, Pressable, Text, View } from 'react-native'
 import { messageTypes } from '@opencollab/board-protocol'
+import { t } from '../i18n'
 import { Avatar, Button, CachedImage, ImageRef, colors, mono, themed } from '../ui'
 import { Markdown, Mention } from './Markdown'
 import { MentionInput } from './MentionInput'
@@ -48,17 +49,17 @@ export function ChatSheet(props: {
     setText('')
   }
   const confirmDelete = (entry: ChatMessage) =>
-    Alert.alert('Delete message?', entry.text.slice(0, 120), [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(t('Delete message?'), entry.text.slice(0, 120), [
+      { text: t('Cancel'), style: 'cancel' },
       {
-        text: 'Delete',
+        text: t('Delete'),
         style: 'destructive',
         onPress: () => send({ type: messageTypes.chatDelete, messageId: entry.id })
       }
     ])
 
   return (
-    <Sheet title='Chat' onClose={props.onClose} scroll={false}>
+    <Sheet title={t('Chat')} onClose={props.onClose} scroll={false}>
       <FlatList
         ref={list}
         style={styles.flex}
@@ -68,14 +69,14 @@ export function ChatSheet(props: {
         onContentSizeChange={() => list.current?.scrollToEnd({ animated: false })}
         ListEmptyComponent={
           <Text style={styles.empty}>
-            No messages yet. Everyone on this board sees the chat; @name mentions someone.
+            {t('No messages yet. Everyone on this board sees the chat; @name mentions someone.')}
           </Text>
         }
         renderItem={({ item: entry }) => (
           <Pressable
             onLongPress={canDelete(entry) ? () => confirmDelete(entry) : undefined}
             style={[styles.message, entry.mentions?.includes(me) && styles.mentionsMe]}
-            accessibilityHint={canDelete(entry) ? 'Long-press to delete' : undefined}
+            accessibilityHint={canDelete(entry) ? t('Long-press to delete') : undefined}
           >
             <View style={styles.meta}>
               <Avatar
@@ -103,12 +104,12 @@ export function ChatSheet(props: {
           onChangeText={setText}
           profiles={data.profiles}
           me={me}
-          placeholder='Message the board'
+          placeholder={t('Message the board')}
           onSubmitEditing={submit}
           returnKeyType='send'
           maxLength={2000}
         />
-        <Button title='Send' icon='send' onPress={submit} />
+        <Button title={t('Send')} icon='send' onPress={submit} />
       </View>
     </Sheet>
   )

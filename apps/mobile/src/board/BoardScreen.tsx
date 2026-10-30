@@ -295,7 +295,7 @@ export function BoardScreen(props: Props) {
   }
   // Everything past the view switch, "Assigned to me" and Filter.
   const moreActions: Array<[string, () => void]> = [
-    [chatUnread ? `Chat (${chatUnread} new)` : 'Chat', () => setSheet('chat')],
+    [chatUnread ? t('Chat ({n} new)', { n: chatUnread }) : t('Chat'), () => setSheet('chat')],
     ...(can('assignees')
       ? [
           [
