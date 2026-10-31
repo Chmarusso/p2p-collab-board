@@ -149,7 +149,7 @@ h3 {
 
 .nav nav a,
 .footer nav a,
-.lang {
+.nav .lang {
   text-decoration: none;
   font-size: 14px;
 }
@@ -184,7 +184,7 @@ h3 {
   color: var(--accent);
 }
 
-.lang {
+.nav .lang {
   display: inline-flex;
   align-items: center;
   gap: 6px;

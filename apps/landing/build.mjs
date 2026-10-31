@@ -551,7 +551,21 @@ function page(lang) {
     <link rel="alternate" hreflang="x-default" href="${SITE}" />
     <meta name="theme-color" content="#0a0e14" />
     <meta name="color-scheme" content="dark" />
-    <script>document.documentElement.classList.add('js')</script>
+    <script>
+      document.documentElement.classList.add('js')
+      // Language: a remembered choice (the switch sets it) wins; otherwise a Polish
+      // browser arriving at the English page is sent to /pl/ once. A direct link
+      // to /pl/ is respected. Without script, hreflang alone does the work.
+      ;(function () {
+        try {
+          var here = '${lang}', other = '${other}', to = '${otherHref}'
+          var chosen = localStorage.getItem('opencollab.lang')
+          var go = chosen ? chosen === other : here === 'en' &&
+              ((navigator.languages || [navigator.language])[0] || '').slice(0, 2).toLowerCase() === 'pl'
+          if (go) location.replace(to + location.hash)
+        } catch (e) {}
+      })()
+    </script>
     <link rel="icon" href="${root}assets/icon.svg" type="image/svg+xml" />
     <link rel="icon" href="${root}icon.png" sizes="64x64" />
     <link rel="apple-touch-icon" href="${root}assets/apple-touch-icon.png" />
@@ -770,6 +784,7 @@ function page(lang) {
     <footer class="footer">
       <span class="logo"><span class="prompt">&gt;</span> opencollab</span>
       <nav aria-label="Footer">
+        <a class="lang" href="${otherHref}" hreflang="${other}" lang="${other}">${t.switchLabel}</a>
         <a href="${root}design-system.html">${t.footer[0]}</a>
         <a href="${REPO}/blob/main/PRIVACY.md">${t.footer[1]}</a>
         <a href="${REPO}">${t.footer[2]}</a>
@@ -794,6 +809,15 @@ function page(lang) {
         { rootMargin: '200px' }
       )
       document.querySelectorAll('video[data-src]').forEach((video) => watch.observe(video))
+      // The language switch keeps the section you are reading and remembers the choice.
+      document.querySelectorAll('a.lang').forEach((link) => {
+        link.addEventListener('click', () => {
+          try {
+            localStorage.setItem('opencollab.lang', link.getAttribute('hreflang'))
+          } catch (e) {}
+          link.href = link.getAttribute('href') + location.hash
+        })
+      })
       // Each section's parts rise as it comes into view, once.
       const reveal = new IntersectionObserver(
         (entries) => {
