@@ -43,7 +43,9 @@ async function startBlindPeer() {
 }
 
 async function peer() {
-  const session = new Session(await tmp('peer'))
+  const dir = await tmp('peer')
+  const session = new Session(dir)
+  session.dir = dir
   session.board = null
   session.waiters.add((message) => {
     if (message.type === messageTypes.boardState) session.board = message
@@ -84,6 +86,28 @@ try {
   const board = await until(bob, 'board from blind peer', (b) => b.objects.length === 1)
   assert.equal(board.objects[0].title, 'Kept by the blind peer')
   console.log('✓ joiner reads the board from the blind peer alone')
+
+  // Bob closes the board. Alice comes back, adds a card and leaves again; Bob's
+  // background check (the phone's notifications) finds it on the blind peer.
+  bob.send({ type: messageTypes.roomLeave })
+  const aliceAgain = new Session(alice.dir)
+  sessions.push(aliceAgain)
+  await aliceAgain.unlock('blind-peer-password')
+  await aliceAgain.openBoard(room.invite)
+  aliceAgain.send({ type: messageTypes.boardCreate, title: 'Added while Bob was away', body: '' })
+  await new Promise((resolve) => setTimeout(resolve, 20000))
+  await aliceAgain.close()
+  sessions.splice(sessions.indexOf(aliceAgain), 1)
+  bob.send({ type: messageTypes.boardsWatch, boards: [{ invite: room.invite, name: 'Blind' }] })
+  await bob.wait(
+    (message) =>
+      message.type === messageTypes.boardAlerts &&
+      message.boards.some((b) =>
+        b.alerts.some((a) => a.kind === 'new-card' && a.cardTitle === 'Added while Bob was away')
+      ),
+    { label: 'alert from the blind peer', timeout: 120000 }
+  )
+  console.log('✓ background check finds new cards on the blind peer')
 } catch (err) {
   console.error(blind.log.slice(-20).join('\n'))
   throw err
