@@ -24,13 +24,13 @@ const copy = {
     ogAlt: 'OpenCollab: private boards for friends, family and your agents',
     nav: ['Privacy', 'For groups', 'Agents', 'How it works', 'Get it', 'FAQ'],
     switchLabel: 'Polski',
-    eyebrow: 'End-to-end encrypted · no server · open source',
-    h1: 'Private boards for friends, family and your agents.',
-    lead: 'Plan a trip or keep a list with the people you pick. Your phone encrypts every card before it leaves. Nobody in between can read it, including us.',
+    h1: 'Boards nobody else can read.',
+    lead: 'Private boards for friends, family and your agents, free and open source. Your phone encrypts every card before it leaves; nobody in between can read it, including us.',
     ctaGet: 'Get OpenCollab',
     ctaPrivacy: 'See how it stays private',
     platformsLabel: 'Available on',
-    heroDeskAlt: 'The same Weekend reading board on a laptop, with the board chat open',
+    heroAlt:
+      'The Weekend reading board: a shared feed with a friend’s podcast link, a Sunday hike plan and the board chat',
     heroPhoneAlt:
       'A shared feed on a phone: a friend’s podcast link and a Sunday hike plan with a forest photo.',
     privacyH2: 'How your boards stay private',
@@ -124,15 +124,19 @@ const copy = {
     agentsMedia: [
       [
         'clip',
-        'agent',
-        'Enricher making key points for a saved podcast while the board shows it working'
+        'slides',
+        'Flipping through the key points an agent made from a podcast, as a story'
       ],
-      ['clip', 'slides', 'Flipping through key points as a story'],
+      [
+        'clip',
+        'agent',
+        'Enricher working on a saved podcast card while the board shows what it is doing'
+      ],
       ['shot', 'chat', 'Board chat where an agent answers a question and updates the bug card']
     ],
     agentsH2: 'Add agents to your boards',
     agentsIntro:
-      'An agent is a member that runs on your computer. It joins with an invite like a friend would, and the board shows what it’s doing: <em class="live">Enricher: Making key points</em>.',
+      'An agent is a member that runs on your computer. It joins with an invite like a friend would, and the board shows what it’s doing: <span class="live">Enricher: Making key points</span>.',
     agents: [
       [
         'i-presentation',
@@ -162,6 +166,7 @@ const copy = {
     agentsNote:
       '<strong>What an agent can see:</strong> only the boards you invite it to. It sends what it reads to the AI model you chose. For an assistant that should only answer, run it with <code>--read-only</code>.',
     howH2: 'How it works',
+    howIntro: 'Three steps, and no account anywhere along the way.',
     steps: [
       [
         'Create your key',
@@ -198,6 +203,7 @@ const copy = {
     getNote:
       'Installing from Pear needs <a href="https://nodejs.org">Node.js</a>, and at least one device online that has the release.',
     faqH2: 'FAQ',
+    faqIntro: 'The questions people ask before they trust a board with no server.',
     faq: [
       [
         'Where is my board stored if there’s no server?',
@@ -247,13 +253,13 @@ const copy = {
     ogAlt: 'OpenCollab: prywatne tablice dla znajomych, rodziny i twoich agentów',
     nav: ['Prywatność', 'Dla grup', 'Agenci', 'Jak to działa', 'Pobierz', 'FAQ'],
     switchLabel: 'English',
-    eyebrow: 'Szyfrowanie end-to-end · bez serwera · open source',
-    h1: 'Prywatne tablice dla znajomych, rodziny i twoich agentów.',
-    lead: 'Zaplanuj wyjazd albo prowadź listę z wybranymi osobami. Telefon szyfruje każdą kartę, zanim ją wyśle. Nikt po drodze jej nie przeczyta, my też nie.',
+    h1: 'Tablice, których nikt nie podejrzy.',
+    lead: 'Prywatne tablice dla znajomych, rodziny i twoich agentów, darmowe i open source. Telefon szyfruje każdą kartę, zanim ją wyśle; nikt po drodze jej nie przeczyta, my też nie.',
     ctaGet: 'Pobierz OpenCollab',
     ctaPrivacy: 'Zobacz, jak chronimy prywatność',
     platformsLabel: 'Dostępne na',
-    heroDeskAlt: 'Ta sama tablica Do poczytania na laptopie, z otwartym czatem tablicy',
+    heroAlt:
+      'Tablica Do poczytania: wspólne aktualności z podcastem od znajomej, planem niedzielnej wycieczki i czatem tablicy',
     heroPhoneAlt:
       'Wspólne aktualności na telefonie: podcast od znajomej i plan niedzielnej wycieczki ze zdjęciem lasu.',
     privacyH2: 'Jak chronimy twoje tablice',
@@ -347,15 +353,19 @@ const copy = {
     agentsMedia: [
       [
         'clip',
-        'agent',
-        'Enricher tworzy najważniejsze punkty z zapisanego podcastu, a tablica pokazuje, że pracuje'
+        'slides',
+        'Przeglądanie najważniejszych punktów z podcastu, które zrobił agent, jako relacji'
       ],
-      ['clip', 'slides', 'Przeglądanie najważniejszych punktów jako relacji'],
+      [
+        'clip',
+        'agent',
+        'Enricher pracuje nad kartą z zapisanym podcastem, a tablica pokazuje, co robi'
+      ],
       ['shot', 'chat', 'Czat tablicy, w którym agent odpowiada na pytanie i uzupełnia kartę błędu']
     ],
     agentsH2: 'Dodaj agentów do tablic',
     agentsIntro:
-      'Agent to członek tablicy, który działa na twoim komputerze. Dołącza z zaproszeniem jak znajomy, a tablica pokazuje, co robi: <em class="live">Enricher: Tworzy najważniejsze punkty</em>.',
+      'Agent to członek tablicy, który działa na twoim komputerze. Dołącza z zaproszeniem jak znajomy, a tablica pokazuje, co robi: <span class="live">Enricher: Tworzy najważniejsze punkty</span>.',
     agents: [
       [
         'i-presentation',
@@ -385,6 +395,7 @@ const copy = {
     agentsNote:
       '<strong>Co widzi agent:</strong> tylko tablice, na które go zaprosisz. To, co przeczyta, wysyła do modelu AI, który wybierzesz. Asystenta, który ma tylko odpowiadać, uruchom z <code>--read-only</code>.',
     howH2: 'Jak to działa',
+    howIntro: 'Trzy kroki i nigdzie po drodze żadnego konta.',
     steps: [
       [
         'Utwórz swój klucz',
@@ -421,6 +432,7 @@ const copy = {
     getNote:
       'Instalacja przez Pear wymaga <a href="https://nodejs.org">Node.js</a> i co najmniej jednego urządzenia online z tym wydaniem.',
     faqH2: 'FAQ',
+    faqIntro: 'Pytania, które padają, zanim ktoś zaufa tablicy bez serwera.',
     faq: [
       [
         'Gdzie jest moja tablica, skoro nie ma serwera?',
@@ -498,7 +510,7 @@ const media = (items, { root, lang, sizes }) =>
   items
     .map(
       ([kind, name, alt]) =>
-        `<figure class="shot">${kind === 'clip' ? clip(name, alt, { root, lang }) : phone(name, alt, { root, lang, sizes })}</figure>`
+        `<figure class="shot reveal scale">${kind === 'clip' ? clip(name, alt, { root, lang }) : phone(name, alt, { root, lang, sizes })}</figure>`
     )
     .join('\n          ')
 
@@ -537,6 +549,7 @@ function page(lang) {
     <link rel="alternate" hreflang="x-default" href="${SITE}" />
     <meta name="theme-color" content="#0a0e14" />
     <meta name="color-scheme" content="dark" />
+    <script>document.documentElement.classList.add('js')</script>
     <link rel="icon" href="${root}assets/icon.svg" type="image/svg+xml" />
     <link rel="icon" href="${root}icon.png" sizes="64x64" />
     <link rel="apple-touch-icon" href="${root}assets/apple-touch-icon.png" />
@@ -557,7 +570,9 @@ function page(lang) {
     <meta name="twitter:description" content="${t.description}" />
     <meta name="twitter:image" content="${ogImage}" />
     <meta name="twitter:image:alt" content="${t.ogAlt}" />
-    <link rel="preload" as="image" href="${root}assets/screens/desktop-${lang}-800.webp" imagesrcset="${root}assets/screens/desktop-${lang}-800.webp 800w, ${root}assets/screens/desktop-${lang}.webp 1600w" imagesizes="(max-width: 900px) 100vw, 560px" fetchpriority="high" />
+    <link rel="preload" as="font" type="font/woff2" crossorigin href="${root}assets/fonts/plex-latin.woff2" />
+    <link rel="preload" as="image" media="(min-width: 641px)" href="${root}assets/screens/desktop-${lang}-800.webp" imagesrcset="${root}assets/screens/desktop-${lang}-800.webp 800w, ${root}assets/screens/desktop-${lang}.webp 1600w" imagesizes="(max-width: 900px) 100vw, 640px" fetchpriority="high" />
+    <link rel="preload" as="image" media="(max-width: 640px)" href="${root}assets/screens/feed-${lang}-390.webp" imagesrcset="${root}assets/screens/feed-${lang}-390.webp 390w, ${root}assets/screens/feed-${lang}.webp 780w" imagesizes="100vw" fetchpriority="high" />
     <link rel="stylesheet" href="${root}styles.css" />
     <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>
   </head>
@@ -565,9 +580,7 @@ function page(lang) {
     ${sprite}
     <a class="skip" href="#top">${lang === 'en' ? 'Skip to content' : 'Przejdź do treści'}</a>
     <header class="nav">
-      <a class="logo" href="${root || './'}" aria-label="OpenCollab">
-        <span class="prompt">&gt;</span> opencollab<span class="cursor">_</span>
-      </a>
+      <a class="logo" href="${root || './'}" aria-label="OpenCollab"><span class="prompt">&gt;</span> opencollab</a>
       <nav aria-label="${lang === 'en' ? 'Sections' : 'Sekcje'}">
         ${sections.map((id, i) => `<a href="#${id}"${id === 'get' ? ' class="nav-get"' : ''}>${t.nav[i]}</a>`).join('\n        ')}
       </nav>
@@ -578,49 +591,50 @@ function page(lang) {
 
     <main id="top">
       <section class="hero">
-        <div class="hero-copy">
-          <p class="eyebrow">${t.eyebrow}</p>
-          <h1>${t.h1}</h1>
-          <p class="lead">${t.lead}</p>
-          <div class="actions">
-            <a class="button primary" href="#get">${t.ctaGet}</a>
-            <a class="button" href="#privacy">${t.ctaPrivacy}</a>
+        <h1>${t.h1}</h1>
+        <div class="hero-row">
+          <div class="hero-copy">
+            <p class="lead">${t.lead}</p>
+            <div class="actions">
+              <a class="button primary" href="#get">${t.ctaGet}</a>
+              <a class="button" href="#privacy">${t.ctaPrivacy}</a>
+            </div>
+            <ul class="platforms" aria-label="${t.platformsLabel}">
+              ${PLATFORMS.map(([id, name]) => `<li>${icon(id, 'brand')}<span>${name}</span></li>`).join('\n              ')}
+            </ul>
           </div>
-          <ul class="platforms" aria-label="${t.platformsLabel}">
-            ${PLATFORMS.map(([id, name]) => `<li>${icon(id, 'brand')}<span>${name}</span></li>`).join('\n            ')}
-          </ul>
-        </div>
 
-        <div class="shots-hero">
-          <img
-            class="desk"
-            src="${root}assets/screens/desktop-${lang}-800.webp"
-            srcset="${root}assets/screens/desktop-${lang}-800.webp 800w, ${root}assets/screens/desktop-${lang}.webp 1600w"
-            sizes="(max-width: 900px) 100vw, 560px"
-            width="1600"
-            height="1000"
-            fetchpriority="high"
-            alt="${t.heroDeskAlt}"
-          />
-          <div class="phone">${phone('feed', t.heroPhoneAlt, { root, lang, sizes: '(max-width: 900px) 27vw, 160px', eager: true })}</div>
+          <div class="hero-shot">
+            <picture>
+              <source
+                media="(max-width: 640px)"
+                srcset="${root}assets/screens/feed-${lang}-390.webp 390w, ${root}assets/screens/feed-${lang}.webp 780w"
+                sizes="100vw"
+                width="780"
+                height="1688"
+              />
+              <img
+                class="desk"
+                src="${root}assets/screens/desktop-${lang}-800.webp"
+                srcset="${root}assets/screens/desktop-${lang}-800.webp 800w, ${root}assets/screens/desktop-${lang}.webp 1600w"
+                sizes="(max-width: 900px) 100vw, 640px"
+                width="1600"
+                height="1000"
+                fetchpriority="high"
+                alt="${t.heroAlt}"
+              />
+            </picture>
+            <div class="phone">${phone('feed', t.heroPhoneAlt, { root, lang, sizes: '(max-width: 900px) 30vw, 190px' })}</div>
+          </div>
         </div>
       </section>
 
       <section id="privacy" class="section">
-        <h2><span class="hash" aria-hidden="true">#</span> ${t.privacyH2}</h2>
-        <p class="intro">${t.privacyIntro}</p>
-        <div class="grid">
-          ${t.privacy
-            .map(
-              ([id, title, text]) => `<article class="tile">
-            ${icon(id, 'tile-icon')}
-            <h3>${title}</h3>
-            <p>${text}</p>
-          </article>`
-            )
-            .join('\n          ')}
+        <div class="head">
+          <h2 class="reveal">${t.privacyH2}</h2>
+          <p class="reveal">${t.privacyIntro}</p>
         </div>
-        <div class="who" role="region" aria-label="${t.whoCaption}" tabindex="0">
+        <div class="who reveal" role="region" aria-label="${t.whoCaption}" tabindex="0">
           <table>
             <caption>${t.whoCaption}</caption>
             <thead>
@@ -636,105 +650,117 @@ function page(lang) {
             </tbody>
           </table>
         </div>
+        <ul class="points">
+          ${t.privacy.map(([, title, text]) => `<li class="reveal"><h3>${title}</h3><p>${text}</p></li>`).join('\n          ')}
+        </ul>
       </section>
 
       <section id="groups" class="section">
-        <h2><span class="hash" aria-hidden="true">#</span> ${t.groupsH2}</h2>
-        <p class="intro">${t.groupsIntro}</p>
-        <ul class="features">
-          ${t.groups
-            .map(
-              ([id, title, text]) =>
-                `<li>${icon(id, 'feature-icon')}<div><strong>${title}</strong> ${text}</div></li>`
-            )
-            .join('\n          ')}
-        </ul>
-        <div class="phones">
-          ${media(t.groupsMedia, { root, lang, sizes: '(max-width: 900px) 45vw, 260px' })}
+        <div class="head">
+          <h2 class="reveal">${t.groupsH2}</h2>
+          <p class="reveal">${t.groupsIntro}</p>
+        </div>
+        <div class="split">
+          <ul class="points one">
+            ${t.groups.map(([, title, text]) => `<li class="reveal"><h3>${title}</h3><p>${text}</p></li>`).join('\n            ')}
+          </ul>
+          <div class="media">
+            ${media(t.groupsMedia, { root, lang, sizes: '(max-width: 640px) 45vw, (max-width: 900px) 42vw, 290px' })}
+          </div>
         </div>
       </section>
 
       <section id="agents" class="section">
-        <h2><span class="hash" aria-hidden="true">#</span> ${t.agentsH2}</h2>
-        <p class="intro">${t.agentsIntro}</p>
-        <div class="grid">
+        <div class="head">
+          <h2 class="reveal">${t.agentsH2}</h2>
+          <p class="reveal">${t.agentsIntro}</p>
+        </div>
+        <div class="roles">
           ${t.agents
-            .map(
-              ([id, title, text, code]) => `<article class="tile">
-            ${icon(id, 'tile-icon')}
-            <h3>${title}</h3>
-            <p>${text}</p>${code ? `\n            <pre><code>${code}</code></pre>` : ''}
-          </article>`
-            )
+            .map(([, title, text], i) => {
+              const [kind, name, alt] = t.agentsMedia[i]
+              const picture =
+                kind === 'clip'
+                  ? clip(name, alt, { root, lang })
+                  : phone(name, alt, {
+                      root,
+                      lang,
+                      sizes: '(max-width: 640px) 100vw, (max-width: 900px) 45vw, 340px'
+                    })
+              return `<figure class="shot reveal scale">
+            ${picture}
+            <figcaption><h3>${title}</h3><p>${text}</p></figcaption>
+          </figure>`
+            })
             .join('\n          ')}
         </div>
-        <div class="build">
+        <div class="build reveal">
           <div>
             <h3>${t.buildH3}</h3>
             <p>${t.buildText}</p>
           </div>
           <pre><code>${t.buildCode.join('\n')}</code></pre>
         </div>
-        <div class="phones three">
-          ${media(t.agentsMedia, { root, lang, sizes: '(max-width: 900px) 45vw, 340px' })}
-        </div>
-        <p class="note">${t.agentsNote}</p>
+        <p class="note reveal">${t.agentsNote}</p>
       </section>
 
       <section id="how" class="section">
-        <h2><span class="hash" aria-hidden="true">#</span> ${t.howH2}</h2>
+        <div class="head">
+          <h2 class="reveal">${t.howH2}</h2>
+          <p class="reveal">${t.howIntro}</p>
+        </div>
         <ol class="steps">
-          ${t.steps
-            .map(
-              ([title, text], i) => `<li>
-            <span class="step">0${i + 1}</span>
-            <h3>${title}</h3>
-            <p>${text}</p>
-          </li>`
-            )
-            .join('\n          ')}
+          ${t.steps.map(([title, text]) => `<li class="reveal"><h3>${title}</h3><p>${text}</p></li>`).join('\n          ')}
         </ol>
-        <p class="note">${t.howNote}</p>
+        <p class="note reveal">${t.howNote}</p>
       </section>
 
-      <section id="get" class="section">
-        <h2><span class="hash" aria-hidden="true">#</span> ${t.getH2}</h2>
-        <div class="grid three">
+      <section id="get" class="section field">
+        <div class="head">
+          <h2 class="reveal">${t.getH2}</h2>
+          <p class="reveal small">${t.getNote}</p>
+        </div>
+        <div class="rows">
           ${t.get
             .map(
-              ([title, text, code]) => `<article class="tile">
+              ([title, text, code]) => `<div class="row reveal">
             <h3>${title}</h3>
-            ${text.startsWith('<p>') ? text : `<p>${text}</p>`}${code ? `\n            <pre><code>${code}</code></pre>` : ''}
-          </article>`
+            <div>${text.startsWith('<p>') ? text : `<p>${text}</p>`}${code ? `\n            <pre><code>${code}</code></pre>` : ''}</div>
+          </div>`
             )
             .join('\n          ')}
         </div>
-        <p class="note">${t.getNote}</p>
       </section>
 
+      <section class="section stack">
+        <div class="head">
+          <h2 class="reveal">${t.stackH2}</h2>
+          <p class="reveal">${t.stack}</p>
+        </div>
+      </section>
       <section id="faq" class="section">
-        <h2><span class="hash" aria-hidden="true">#</span> ${t.faqH2}</h2>
+        <div class="head">
+          <h2 class="reveal">${t.faqH2}</h2>
+          <p class="reveal">${t.faqIntro}</p>
+        </div>
         <div class="faq">
           ${t.faq
             .map(
-              ([question, answer]) => `<details>
+              ([question, answer]) => `<details class="reveal">
             <summary>${question}</summary>
             <p>${answer}</p>
           </details>`
             )
             .join('\n          ')}
         </div>
-        <p class="note">${t.faqMore}</p>
+        <p class="note reveal">${t.faqMore}</p>
+      
       </section>
 
-      <section class="section stack">
-        <h2><span class="hash" aria-hidden="true">#</span> ${t.stackH2}</h2>
-        <p>${t.stack}</p>
-      </section>
     </main>
 
     <footer class="footer">
-      <span class="logo small"><span class="prompt">&gt;</span> opencollab<span class="cursor">_</span></span>
+      <span class="logo"><span class="prompt">&gt;</span> opencollab</span>
       <nav aria-label="Footer">
         <a href="${root}design-system.html">${t.footer[0]}</a>
         <a href="${REPO}/blob/main/PRIVACY.md">${t.footer[1]}</a>
@@ -756,6 +782,18 @@ function page(lang) {
         { rootMargin: '200px' }
       )
       document.querySelectorAll('video[data-src]').forEach((video) => watch.observe(video))
+      // Each section's parts rise as it comes into view, once.
+      const reveal = new IntersectionObserver(
+        (entries) => {
+          for (const { target, isIntersecting } of entries) {
+            if (!isIntersecting) continue
+            target.classList.add('in')
+            reveal.unobserve(target)
+          }
+        },
+        { rootMargin: '0px 0px -8% 0px', threshold: 0.1 }
+      )
+      document.querySelectorAll('.reveal').forEach((el) => reveal.observe(el))
     </script>
   </body>
 </html>
