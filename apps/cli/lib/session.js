@@ -48,7 +48,8 @@ class Session {
     this.pipe.on('data', (data) => this._onData(data))
     this.exited = new Promise((resolve) => this.worker.once('exit', resolve))
     // The worker outlives its parent otherwise and keeps the storage locked.
-    const killWorker = () => this.worker.kill()
+    // bare-sidecar has no kill(), and destroy() is too late in an 'exit' handler.
+    const killWorker = () => this.worker._process.kill()
     process.once('exit', killWorker)
     this.exited.then(() => process.removeListener('exit', killWorker))
   }
@@ -220,7 +221,7 @@ class Session {
       }).catch(() => {})
     }
     this.pipe.destroy()
-    const killer = setTimeout(() => this.worker.kill(), 3000)
+    const killer = setTimeout(() => this.worker.destroy(), 3000)
     await this.exited
     clearTimeout(killer)
   }

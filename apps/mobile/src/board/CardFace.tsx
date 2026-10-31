@@ -18,6 +18,7 @@ import {
 } from '../ui'
 import { plural, t } from '../i18n'
 import { AvatarStack, ProgressBar } from './CardExtras'
+import { BusyChip } from './Sync'
 import {
   BoardData,
   Card,
@@ -39,6 +40,7 @@ export function CardFace({
   requestImage,
   mentioned,
   viewers,
+  busy,
   done,
   context,
   onPress
@@ -50,6 +52,8 @@ export function CardFace({
   requestImage: (ref: ImageRef) => void
   mentioned: boolean
   viewers: number
+  // A bot working on the card, or changes to it arriving (see Sync.tsx).
+  busy?: string
   // Cards in the last column neither age nor read as blocked.
   done: boolean
   // A line above the title, e.g. the column in the agenda.
@@ -119,6 +123,7 @@ export function CardFace({
         </View>
       ) : null}
       {viewers ? <View style={styles.viewerDot} /> : null}
+      {busy ? <BusyChip text={busy} /> : null}
       {context ? (
         <Text style={styles.context} numberOfLines={1}>
           {context}

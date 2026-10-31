@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
+  <url>
+    <loc>https://chmarusso.github.io/p2p-collab-board/</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://chmarusso.github.io/p2p-collab-board/" />
+    <xhtml:link rel="alternate" hreflang="pl" href="https://chmarusso.github.io/p2p-collab-board/pl/" />
+  </url>
+  <url>
+    <loc>https://chmarusso.github.io/p2p-collab-board/pl/</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://chmarusso.github.io/p2p-collab-board/" />
+    <xhtml:link rel="alternate" hreflang="pl" href="https://chmarusso.github.io/p2p-collab-board/pl/" />
+  </url>
+</urlset>

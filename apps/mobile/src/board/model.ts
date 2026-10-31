@@ -139,6 +139,8 @@ export type PresencePeer = {
   name: string | null
   cardId: string | null
   typing: boolean
+  // What a bot is busy with ("Making key points"), shown live.
+  status?: string | null
   at: number
 }
 export type ActivityEntry = {

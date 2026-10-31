@@ -50,6 +50,7 @@ import { Markdown } from './Markdown'
 import { MyWorkSheet } from './MyWork'
 import { BoardTemplatesSheet, RulesSheet } from './Rules'
 import { StatsSheet } from './Stats'
+import { Spinner, busyText, syncLine, usePeerActivity } from './Sync'
 import {
   ColumnSheet,
   FilterSheet,
@@ -254,6 +255,14 @@ export function BoardScreen(props: Props) {
   const templates = templatesOf(data)
   const doneId = doneColumnOf(data)
   const viewersOf = (cardId: string) => peers.filter((peer) => peer.cardId === cardId).length
+  const activity = usePeerActivity(props.subscribe, props.boardKey)
+  const busyOf = (cardId: string) => busyText(cardId, peers, activity) || undefined
+  const syncing = syncLine(
+    peers,
+    activity,
+    props.nameFor,
+    (cardId) => data.objects.find((card) => card.id === cardId)?.title
+  )
   const mineCount = props.alertBoards.reduce((sum, board) => sum + (board.mine?.length || 0), 0)
   const assignedToMe = !!me && filters.assignee === me
   const activeFilters = filterCount(filters)
@@ -382,6 +391,7 @@ export function BoardScreen(props: Props) {
       requestImage={props.requestImage}
       mentioned={unreadMentionCards.has(card.id)}
       viewers={viewersOf(card.id)}
+      busy={busyOf(card.id)}
       done={card.columnId === doneId}
       context={context}
       onPress={() => setOpenCardId(card.id)}
@@ -440,24 +450,32 @@ export function BoardScreen(props: Props) {
         </PressableScale>
       </View>
 
-      {peers.length ? (
+      {peers.length || syncing ? (
         <FadeIn>
-          <View style={styles.online} accessibilityLabel={onlineNow}>
+          <View
+            style={styles.online}
+            accessibilityLabel={syncing || onlineNow}
+            accessibilityLiveRegion='polite'
+          >
             <AvatarStack
-              identities={peers.map((peer) => peer.identity)}
+              identities={
+                peers.length ? peers.map((peer) => peer.identity) : activity?.authors || []
+              }
               data={data}
               size={22}
               max={5}
               cache={props.cache}
               requestImage={props.requestImage}
             />
-            <View style={styles.onlineDot} />
+            {syncing ? <Spinner /> : <View style={styles.onlineDot} />}
             <Text style={styles.onlineText} numberOfLines={1}>
-              {peers.length === 1
-                ? t('{name} is online', {
-                    name: peers[0].name || props.nameFor(peers[0].identity)
-                  })
-                : onlineNow}
+              {syncing
+                ? syncing
+                : peers.length === 1
+                  ? t('{name} is online', {
+                      name: peers[0].name || props.nameFor(peers[0].identity)
+                    })
+                  : onlineNow}
             </Text>
           </View>
         </FadeIn>
@@ -590,6 +608,7 @@ export function BoardScreen(props: Props) {
               nameFor={props.nameFor}
               relativeTime={props.relativeTime}
               onOpen={setOpenCardId}
+              busyOf={busyOf}
               onCompose={() => props.onNewCard(data.columns[0]?.id)}
               boardKey={props.boardKey}
               send={send}

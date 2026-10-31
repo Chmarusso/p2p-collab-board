@@ -28,6 +28,34 @@ export function makeCli({ bin, storage, board }) {
   return (args, input) => run(process.execPath, [bin, ...args, ...extra], input)
 }
 
+// Shows members what the bot is doing ("Making key points" on a card) while it
+// reads and thinks; the apps show it live. Stop it before the next CLI command:
+// it holds the storage.
+export function makeStatus({ bin, storage, board }) {
+  return (text, cardId) => {
+    const child = spawn(
+      process.execPath,
+      [
+        bin,
+        'status',
+        text,
+        ...(cardId ? ['--card', cardId] : []),
+        ...(storage ? ['-s', storage] : []),
+        '--board',
+        board
+      ],
+      { stdio: 'ignore' }
+    )
+    const closed = new Promise((resolve) => child.on('close', resolve))
+    return {
+      async stop() {
+        if (child.exitCode === null) child.kill('SIGINT')
+        await closed
+      }
+    }
+  }
+}
+
 // treg calls with a running total of what they cost.
 export function makeTreg(bin = process.env.TREG_BIN || 'treg') {
   const treg = {

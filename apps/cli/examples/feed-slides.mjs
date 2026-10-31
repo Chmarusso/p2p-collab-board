@@ -24,6 +24,7 @@
 // SLIDES_LANGUAGE  language of the slides (default: the post's own)
 // SLIDES_LABEL     marks cards that have a deck (default: slides)
 // SLIDES_MAX_USD   stop once treg charges pass this (default: 0.25)
+// SLIDES_PICTURES 0 leaves cards without a picture as they are (default: 1)
 // SLIDES_LINGER    seconds to stay online after writing, so members' devices
 //                  can sync the changes (default: 120; 0 skips it)
 import { spawn } from 'node:child_process'
@@ -31,7 +32,14 @@ import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { parseArgs } from 'node:util'
-import { ask as askModel, fetchPost, makeCli, makeTreg, pageImage } from './lib/sources.mjs'
+import {
+  ask as askModel,
+  fetchPost,
+  makeCli,
+  makeStatus,
+  makeTreg,
+  pageImage
+} from './lib/sources.mjs'
 
 const { values: options } = parseArgs({
   options: {
@@ -54,10 +62,12 @@ const label = process.env.SLIDES_LABEL || 'slides'
 const maxUsd = Number(process.env.SLIDES_MAX_USD || 0.25)
 const limit = options.limit ? Number(options.limit) : Infinity
 const linger = Number(process.env.SLIDES_LINGER ?? 120)
+const pictures = process.env.SLIDES_PICTURES !== '0'
 const SOURCE_MAX = 60000 // a long podcast transcript: the start and the end are enough
 
 const treg = makeTreg()
 const cli = makeCli({ bin, storage, board })
+const showStatus = makeStatus({ bin, storage, board })
 
 const linkOf = (card) =>
   card.source?.url || card.body?.match(/https?:\/\/\S+/)?.[0]?.replace(/[)>\]]+$/, '')
@@ -78,15 +88,18 @@ function promptFor(card, post, comments) {
     'TITLE: <what the post is about, a plain name, at most 60 characters, sentence case; no emoji, quotes, hashtags, account or site names>',
     'SUMMARY: <the hook: a bold claim, surprising fact or question that makes people want to swipe, at most 12 words>',
     '',
-    '## <one fitting emoji> <slide headline, at most 7 words>',
+    '### <section label: what kind of point this is, 1 to 3 words, e.g. The problem, Why it matters, How it works, The numbers, In their words, Example, Mistake to avoid, Tip>',
+    '## <slide headline, at most 7 words>',
     '- <one short line that explains it, at most 16 words>',
     '',
-    '## <emoji> <next headline>',
+    '### <section label>',
+    '## <next headline>',
     '- <line>',
     '- <optional second line>',
     '',
-    'Write 5 to 8 slides, one idea each, with 1 or 2 lines. The last slide is the takeaway: what to do or remember, starting with 👉.',
-    'Write every word in that language. Use **bold** for the one phrase per slide that matters most.',
+    'Write 5 to 8 slides, one idea each, with 1 or 2 lines. The last slide is the takeaway (label: Takeaway): what to do or remember.',
+    'No emoji anywhere. Labels repeat only when two slides really are the same kind of point.',
+    'Write every word, labels included, in that language. Use **bold** for the one phrase per slide that matters most.',
     '',
     `--- Card title: ${card.title}`,
     card.body?.trim() ? `--- Card description:\n${card.body.trim()}` : '',
@@ -98,15 +111,27 @@ function promptFor(card, post, comments) {
     .join('\n')
 }
 
-// "TITLE:" and "SUMMARY:" first, then the slides as `## heading` + points.
+// "TITLE:" and "SUMMARY:" first, then the slides as `### label`, `## heading`
+// and points.
 function parseDeck(answer) {
   const title = answer.match(/^\s*TITLE:\s*(.+)$/m)?.[1].trim() || null
   const summary = answer.match(/^\s*SUMMARY:\s*(.+)$/m)?.[1].trim() || ''
-  const slides = answer
-    .split(/^(?=## )/m)
-    .filter((part) => part.startsWith('## '))
-    .map((part) => part.trim())
-  return { title, summary, slides }
+  // A label starts a slide; so does a heading that has no label above it.
+  const slides = []
+  let current = null
+  for (const line of answer.split('\n')) {
+    const label = /^###\s/.test(line)
+    const heading = /^##\s/.test(line)
+    if (label || (heading && !(current && !current.heading))) {
+      current = { lines: [], heading: false }
+      slides.push(current)
+    }
+    if (!current || !line.trim()) continue
+    if (heading) current.heading = true
+    current.lines.push(line.trim())
+  }
+  const parts = slides.filter((slide) => slide.heading).map((slide) => slide.lines.join('\n'))
+  return { title, summary, slides: parts }
 }
 
 // The card's description: the summary, then one section per slide. The app
@@ -124,16 +149,25 @@ const cleanTitle = (title) =>
 async function makeDeck(card, profiles) {
   const url = linkOf(card)
   console.log(`\n▸ ${card.title}\n  ${url}`)
-  const post = await fetchPost(treg, url)
-  if (!post.caption && !post.transcript) {
-    console.warn('  ! nothing to read from the post; skipped (try again later)')
-    return false
+  const busy = options['dry-run'] ? null : showStatus('Making key points', card.id)
+  let post
+  let deck
+  try {
+    post = await fetchPost(treg, url)
+    if (!post.caption && !post.transcript) {
+      console.warn('  ! nothing to read from the post; skipped (try again later)')
+      return false
+    }
+    console.log(
+      `  caption ${post.caption.length} chars · transcript ${post.transcript.length} chars`
+    )
+    const comments = (card.comments || [])
+      .map((comment) => `${profiles[comment.author] || 'A member'}: ${comment.text}`)
+      .join('\n')
+    deck = parseDeck(await askModel(modelCommand, promptFor(card, post, comments)))
+  } finally {
+    await busy?.stop()
   }
-  console.log(`  caption ${post.caption.length} chars · transcript ${post.transcript.length} chars`)
-  const comments = (card.comments || [])
-    .map((comment) => `${profiles[comment.author] || 'A member'}: ${comment.text}`)
-    .join('\n')
-  const deck = parseDeck(await askModel(modelCommand, promptFor(card, post, comments)))
   if (deck.slides.length < 2) throw new Error('the model returned no slides')
   const clean = deck.title ? cleanTitle(deck.title) : ''
   const title = clean && clean !== card.title ? clean : null
@@ -147,7 +181,9 @@ async function makeDeck(card, profiles) {
   await cli(['edit', card.id, '--body', body, ...(title ? ['--title', title] : []), ...source])
   await cli(['label', card.id, 'add', label])
   console.log(`  ✓ ${deck.slides.length} slides${title ? ` · title: ${title}` : ''}`)
-  if (!card.images?.length) await attachPicture(card, post.image || (await pageImage(url)))
+  if (pictures && !card.images?.length) {
+    await attachPicture(card, post.image || (await pageImage(url)))
+  }
   return true
 }
 

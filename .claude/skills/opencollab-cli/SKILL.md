@@ -114,6 +114,10 @@ Only the owner changes the type.
 
 ## Bots
 
+While a bot works on a card (reading a link, asking a model), `opencollab status
+"<what>" --card <id>` keeps it online and shows members what it is doing in the apps,
+live and never saved. It holds the storage: stop it (SIGINT) before the next command.
+
 For an always-on bot that answers `@mentions`, use
 `apps/cli/examples/board-bot.mjs` (polls `posts --json`, pipes each new mention into a
 model command, replies with `comment <id> -`). Setup and systemd units: `docs/server.md`.

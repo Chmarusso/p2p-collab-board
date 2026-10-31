@@ -1,0 +1,113 @@
+<!doctype html>
+<!-- Template for assets/og-{en,pl}.jpg (1200×630), in the page's own look: Plex Sans,
+     flat colour, the phone shot on a surface. build.mjs doesn't render it; render with
+     a 1200×630 screenshot of "src/og.html?lang=pl" (see src/mock/render.mjs for the
+     Playwright setup). -->
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <style>
+      @font-face {
+        font-family: 'IBM Plex Sans';
+        font-weight: 400 700;
+        src: url('../assets/fonts/plex-latin.woff2') format('woff2');
+      }
+      @font-face {
+        font-family: 'IBM Plex Sans';
+        font-weight: 400 700;
+        src: url('../assets/fonts/plex-latin-ext.woff2') format('woff2');
+        unicode-range:
+          U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+          U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113,
+          U+2C60-2C7F, U+A720-A7FF;
+      }
+      html,
+      body {
+        margin: 0;
+        width: 1200px;
+        height: 630px;
+        overflow: hidden;
+      }
+      body {
+        background: #0a0e14;
+        color: #d5deea;
+        font-family: 'IBM Plex Sans', sans-serif;
+        display: grid;
+        grid-template-columns: 1fr 400px;
+        gap: 56px;
+        padding: 56px 0 0 72px;
+        box-sizing: border-box;
+      }
+      .copy {
+        display: flex;
+        flex-direction: column;
+        padding-bottom: 56px;
+      }
+      .logo {
+        font:
+          700 28px ui-monospace,
+          Menlo,
+          monospace;
+        color: #eef3f9;
+      }
+      .logo b {
+        color: #39ff88;
+        font-weight: 700;
+      }
+      h1 {
+        margin: auto 0 0;
+        font-size: 80px;
+        line-height: 1.02;
+        letter-spacing: -0.03em;
+        color: #eef3f9;
+        text-wrap: balance;
+      }
+      p {
+        margin: 24px 0 0;
+        font-size: 26px;
+        line-height: 1.4;
+        max-width: 24em;
+      }
+      /* The phone sits on a surface that runs off the right edge, like the page's field. */
+      .shot {
+        align-self: end;
+        margin-right: 0;
+        padding: 36px 0 0 36px;
+        border-radius: 28px 0 0 0;
+        background: #0f1620;
+        height: 574px;
+        overflow: hidden;
+        box-sizing: border-box;
+      }
+      .shot img {
+        display: block;
+        width: 364px;
+        border-radius: 26px 26px 0 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="copy">
+      <div class="logo"><b>&gt;</b> opencollab</div>
+      <h1 id="h1"></h1>
+      <p id="p"></p>
+    </div>
+    <div class="shot"><img id="shot" alt="" /></div>
+    <script>
+      const lang = new URLSearchParams(location.search).get('lang') || 'en'
+      document.getElementById('shot').src = `../assets/screens/feed-${lang}.webp`
+      const text = {
+        en: [
+          'Boards nobody else can read.',
+          'Private boards for friends, family and your agents. Encrypted on your phone, no server, no account.'
+        ],
+        pl: [
+          'Tablice, których nikt nie podejrzy.',
+          'Dla znajomych, rodziny i twoich agentów. Szyfrowane na telefonie, bez serwera, bez konta.'
+        ]
+      }[lang]
+      document.getElementById('h1').textContent = text[0]
+      document.getElementById('p').textContent = text[1]
+    </script>
+  </body>
+</html>

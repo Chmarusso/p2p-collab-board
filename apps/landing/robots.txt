@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://chmarusso.github.io/p2p-collab-board/sitemap.xml

@@ -3,446 +3,438 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>OpenCollab — team boards that sync peer to peer</title>
-    <meta
-      name="description"
-      content="Private Kanban boards for teams. No server, no account, no cloud database: devices sync directly, encrypted end to end."
-    />
+    <title>OpenCollab: encrypted boards for friends and AI agents</title>
+    <meta name="description" content="Share links, lists and plans with friends and AI agents on boards only you can read. End-to-end encrypted, no account, no server. Free and open source." />
+    <link rel="canonical" href="https://chmarusso.github.io/p2p-collab-board/" />
+    <link rel="alternate" hreflang="en" href="https://chmarusso.github.io/p2p-collab-board/" />
+    <link rel="alternate" hreflang="pl" href="https://chmarusso.github.io/p2p-collab-board/pl/" />
+    <link rel="alternate" hreflang="x-default" href="https://chmarusso.github.io/p2p-collab-board/" />
     <meta name="theme-color" content="#0a0e14" />
+    <meta name="color-scheme" content="dark" />
+    <script>
+      document.documentElement.classList.add('js')
+      if (matchMedia('(max-width: 640px)').matches) document.documentElement.classList.add('phone')
+      // Language: a remembered choice (the switch sets it) wins; otherwise a Polish
+      // browser arriving at the English page is sent to /pl/ once. A direct link
+      // to /pl/ is respected. Without script, hreflang alone does the work.
+      ;(function () {
+        try {
+          var here = 'en', other = 'pl', to = 'pl/'
+          var chosen = localStorage.getItem('opencollab.lang')
+          var go = chosen ? chosen === other : here === 'en' &&
+              ((navigator.languages || [navigator.language])[0] || '').slice(0, 2).toLowerCase() === 'pl'
+          if (go) location.replace(to + location.hash)
+        } catch (e) {}
+      })()
+    </script>
     <link rel="icon" href="assets/icon.svg" type="image/svg+xml" />
     <link rel="icon" href="icon.png" sizes="64x64" />
     <link rel="apple-touch-icon" href="assets/apple-touch-icon.png" />
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="OpenCollab — team boards that sync peer to peer" />
-    <meta
-      property="og:description"
-      content="Private Kanban boards for teams. No server, no account, no cloud database: devices sync directly, encrypted end to end."
-    />
-    <meta
-      property="og:image"
-      content="https://raw.githubusercontent.com/Chmarusso/p2p-collab-board/main/apps/landing/assets/og.jpg"
-    />
+    <meta property="og:site_name" content="OpenCollab" />
+    <meta property="og:url" content="https://chmarusso.github.io/p2p-collab-board/" />
+    <meta property="og:title" content="OpenCollab: encrypted boards for friends and AI agents" />
+    <meta property="og:description" content="Share links, lists and plans with friends and AI agents on boards only you can read. End-to-end encrypted, no account, no server. Free and open source." />
+    <meta property="og:locale" content="en_US" />
+    <meta property="og:locale:alternate" content="pl_PL" />
+    <meta property="og:image" content="https://chmarusso.github.io/p2p-collab-board/assets/og-en.jpg" />
+    <meta property="og:image:type" content="image/jpeg" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="OpenCollab: private boards for friends, family and your agents" />
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="OpenCollab: encrypted boards for friends and AI agents" />
+    <meta name="twitter:description" content="Share links, lists and plans with friends and AI agents on boards only you can read. End-to-end encrypted, no account, no server. Free and open source." />
+    <meta name="twitter:image" content="https://chmarusso.github.io/p2p-collab-board/assets/og-en.jpg" />
+    <meta name="twitter:image:alt" content="OpenCollab: private boards for friends, family and your agents" />
+    <link rel="preload" as="font" type="font/woff2" crossorigin href="assets/fonts/plex-latin.woff2" />
+    <link rel="preload" as="image" media="(min-width: 641px)" href="assets/screens/desktop-en-800.webp" imagesrcset="assets/screens/desktop-en-800.webp 800w, assets/screens/desktop-en.webp 1600w" imagesizes="(max-width: 900px) 100vw, 640px" fetchpriority="high" />
+    <link rel="preload" as="image" media="(max-width: 640px)" href="assets/screens/feed-en-390.webp" imagesrcset="assets/screens/feed-en-390.webp 390w, assets/screens/feed-en.webp 780w" imagesizes="100vw" fetchpriority="high" />
     <link rel="stylesheet" href="styles.css" />
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"OpenCollab","description":"Share links, lists and plans with friends and AI agents on boards only you can read. End-to-end encrypted, no account, no server. Free and open source.","url":"https://chmarusso.github.io/p2p-collab-board/","inLanguage":"en","applicationCategory":"ProductivityApplication","operatingSystem":"Android, iOS, macOS, Windows, Linux","isAccessibleForFree":true,"offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"codeRepository":"https://github.com/Chmarusso/p2p-collab-board","image":"https://chmarusso.github.io/p2p-collab-board/assets/og-en.jpg"}</script>
   </head>
   <body>
+    <!-- Lucide (ISC) and Simple Icons (CC0); the Windows mark is a plain four-pane square. -->
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+<symbol id="i-activity" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-2.48a2 2 0 0 0-1.93 1.46l-2.35 8.36a.25.25 0 0 1-.48 0L9.24 2.18a.25.25 0 0 0-.48 0l-2.35 8.36A2 2 0 0 1 4.49 12H2" /></symbol>
+<symbol id="i-code-xml" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m18 16 4-4-4-4" /> <path d="m6 8-4 4 4 4" /> <path d="m14.5 4-5 16" /></symbol>
+<symbol id="i-fingerprint" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4" /> <path d="M14 13.12c0 2.38 0 6.38-1 8.88" /> <path d="M17.29 21.02c.12-.6.43-2.3.5-3.02" /> <path d="M2 12a10 10 0 0 1 18-6" /> <path d="M2 16h.01" /> <path d="M21.8 16c.2-2 .131-5.354 0-6" /> <path d="M5 19.5C5.5 18 6 15 6 12a6 6 0 0 1 .34-2" /> <path d="M8.65 22c.21-.66.45-1.32.57-2" /> <path d="M9 6.8a6 6 0 0 1 9 5.2v2" /></symbol>
+<symbol id="i-key-round" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M2.586 17.414A2 2 0 0 0 2 18.828V21a1 1 0 0 0 1 1h3a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h1a1 1 0 0 0 1-1v-1a1 1 0 0 1 1-1h.172a2 2 0 0 0 1.414-.586l.814-.814a6.5 6.5 0 1 0-4-4z" /> <circle cx="16.5" cy="7.5" r=".5" fill="currentColor" /></symbol>
+<symbol id="i-languages" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m5 8 6 6" /> <path d="m4 14 6-6 2-3" /> <path d="M2 5h12" /> <path d="M7 2h1" /> <path d="m22 22-5-10-5 10" /> <path d="M14 18h6" /></symbol>
+<symbol id="i-layout-grid" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="7" x="3" y="3" rx="1" /> <rect width="7" height="7" x="14" y="3" rx="1" /> <rect width="7" height="7" x="14" y="14" rx="1" /> <rect width="7" height="7" x="3" y="14" rx="1" /></symbol>
+<symbol id="i-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2" /> <path d="M7 11V7a5 5 0 0 1 10 0v4" /></symbol>
+<symbol id="i-message-circle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" /></symbol>
+<symbol id="i-plug" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22v-5" /> <path d="M9 8V2" /> <path d="M15 8V2" /> <path d="M18 8v5a4 4 0 0 1-4 4h-4a4 4 0 0 1-4-4V8Z" /></symbol>
+<symbol id="i-presentation" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h20" /> <path d="M21 3v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V3" /> <path d="m7 21 5-5 5 5" /></symbol>
+<symbol id="i-qr-code" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect width="5" height="5" x="3" y="3" rx="1" /> <rect width="5" height="5" x="16" y="3" rx="1" /> <rect width="5" height="5" x="3" y="16" rx="1" /> <path d="M21 16h-3a2 2 0 0 0-2 2v3" /> <path d="M21 21v.01" /> <path d="M12 7v3a2 2 0 0 1-2 2H7" /> <path d="M3 12h.01" /> <path d="M12 3h.01" /> <path d="M12 16v.01" /> <path d="M16 12h1" /> <path d="M21 12v.01" /> <path d="M12 21v-1" /></symbol>
+<symbol id="i-radio" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4.9 19.1C1 15.2 1 8.8 4.9 4.9" /> <path d="M7.8 16.2c-2.3-2.3-2.3-6.1 0-8.5" /> <circle cx="12" cy="12" r="2" /> <path d="M16.2 7.8c2.3 2.3 2.3 6.1 0 8.5" /> <path d="M19.1 4.9C23 8.8 23 15.1 19.1 19" /></symbol>
+<symbol id="i-server-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M7 2h13a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-5" /> <path d="M10 10 2.5 2.5C2 2 2 2.5 2 5v3a2 2 0 0 0 2 2h6z" /> <path d="M22 17v-1a2 2 0 0 0-2-2h-1" /> <path d="M4 14a2 2 0 0 0-2 2v4a2 2 0 0 0 2 2h16.5l1-.5.5.5-8-8H4z" /> <path d="M6 18h.01" /> <path d="m2 2 20 20" /></symbol>
+<symbol id="i-share-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3" /> <circle cx="6" cy="12" r="3" /> <circle cx="18" cy="19" r="3" /> <line x1="8.59" x2="15.42" y1="13.51" y2="17.49" /> <line x1="15.41" x2="8.59" y1="6.51" y2="10.49" /></symbol>
+<symbol id="i-signature" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m21 17-2.156-1.868A.5.5 0 0 0 18 15.5v.5a1 1 0 0 1-1 1h-2a1 1 0 0 1-1-1c0-2.545-3.991-3.97-8.5-4a1 1 0 0 0 0 5c4.153 0 4.745-11.295 5.708-13.5a2.5 2.5 0 1 1 3.31 3.284" /> <path d="M3 21h18" /></symbol>
+<symbol id="i-terminal" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5" /> <line x1="12" x2="20" y1="19" y2="19" /></symbol>
+<symbol id="i-wifi-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h.01" /> <path d="M8.5 16.429a5 5 0 0 1 7 0" /> <path d="M5 12.859a10 10 0 0 1 5.17-2.69" /> <path d="M19 12.859a10 10 0 0 0-2.007-1.523" /> <path d="M2 8.82a15 15 0 0 1 4.177-2.643" /> <path d="M22 8.82a15 15 0 0 0-11.288-3.764" /> <path d="m2 2 20 20" /></symbol>
+<symbol id="b-android" viewBox="0 0 24 24" fill="currentColor"><path d="M18.4395 5.5586c-.675 1.1664-1.352 2.3318-2.0274 3.498-.0366-.0155-.0742-.0286-.1113-.043-1.8249-.6957-3.484-.8-4.42-.787-1.8551.0185-3.3544.4643-4.2597.8203-.084-.1494-1.7526-3.021-2.0215-3.4864a1.1451 1.1451 0 0 0-.1406-.1914c-.3312-.364-.9054-.4859-1.379-.203-.475.282-.7136.9361-.3886 1.5019 1.9466 3.3696-.0966-.2158 1.9473 3.3593.0172.031-.4946.2642-1.3926 1.0177C2.8987 12.176.452 14.772 0 18.9902h24c-.119-1.1108-.3686-2.099-.7461-3.0683-.7438-1.9118-1.8435-3.2928-2.7402-4.1836a12.1048 12.1048 0 0 0-2.1309-1.6875c.6594-1.122 1.312-2.2559 1.9649-3.3848.2077-.3615.1886-.7956-.0079-1.1191a1.1001 1.1001 0 0 0-.8515-.5332c-.5225-.0536-.9392.3128-1.0488.5449zm-.0391 8.461c.3944.5926.324 1.3306-.1563 1.6503-.4799.3197-1.188.0985-1.582-.4941-.3944-.5927-.324-1.3307.1563-1.6504.4727-.315 1.1812-.1086 1.582.4941zM7.207 13.5273c.4803.3197.5506 1.0577.1563 1.6504-.394.5926-1.1038.8138-1.584.4941-.48-.3197-.5503-1.0577-.1563-1.6504.4008-.6021 1.1087-.8106 1.584-.4941z"/></symbol>
+<symbol id="b-apple" viewBox="0 0 24 24" fill="currentColor"><path d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701"/></symbol>
+<symbol id="b-linux" viewBox="0 0 24 24" fill="currentColor"><path d="M12.504 0c-.155 0-.315.008-.48.021-4.226.333-3.105 4.807-3.17 6.298-.076 1.092-.3 1.953-1.05 3.02-.885 1.051-2.127 2.75-2.716 4.521-.278.832-.41 1.684-.287 2.489a.424.424 0 00-.11.135c-.26.268-.45.6-.663.839-.199.199-.485.267-.797.4-.313.136-.658.269-.864.68-.09.189-.136.394-.132.602 0 .199.027.4.055.536.058.399.116.728.04.97-.249.68-.28 1.145-.106 1.484.174.334.535.47.94.601.81.2 1.91.135 2.774.6.926.466 1.866.67 2.616.47.526-.116.97-.464 1.208-.946.587-.003 1.23-.269 2.26-.334.699-.058 1.574.267 2.577.2.025.134.063.198.114.333l.003.003c.391.778 1.113 1.132 1.884 1.071.771-.06 1.592-.536 2.257-1.306.631-.765 1.683-1.084 2.378-1.503.348-.199.629-.469.649-.853.023-.4-.2-.811-.714-1.376v-.097l-.003-.003c-.17-.2-.25-.535-.338-.926-.085-.401-.182-.786-.492-1.046h-.003c-.059-.054-.123-.067-.188-.135a.357.357 0 00-.19-.064c.431-1.278.264-2.55-.173-3.694-.533-1.41-1.465-2.638-2.175-3.483-.796-1.005-1.576-1.957-1.56-3.368.026-2.152.236-6.133-3.544-6.139zm.529 3.405h.013c.213 0 .396.062.584.198.19.135.33.332.438.533.105.259.158.459.166.724 0-.02.006-.04.006-.06v.105a.086.086 0 01-.004-.021l-.004-.024a1.807 1.807 0 01-.15.706.953.953 0 01-.213.335.71.71 0 00-.088-.042c-.104-.045-.198-.064-.284-.133a1.312 1.312 0 00-.22-.066c.05-.06.146-.133.183-.198.053-.128.082-.264.088-.402v-.02a1.21 1.21 0 00-.061-.4c-.045-.134-.101-.2-.183-.333-.084-.066-.167-.132-.267-.132h-.016c-.093 0-.176.03-.262.132a.8.8 0 00-.205.334 1.18 1.18 0 00-.09.4v.019c.002.089.008.179.02.267-.193-.067-.438-.135-.607-.202a1.635 1.635 0 01-.018-.2v-.02a1.772 1.772 0 01.15-.768c.082-.22.232-.406.43-.533a.985.985 0 01.594-.2zm-2.962.059h.036c.142 0 .27.048.399.135.146.129.264.288.344.465.09.199.14.4.153.667v.004c.007.134.006.2-.002.266v.08c-.03.007-.056.018-.083.024-.152.055-.274.135-.393.2.012-.09.013-.18.003-.267v-.015c-.012-.133-.04-.2-.082-.333a.613.613 0 00-.166-.267.248.248 0 00-.183-.064h-.021c-.071.006-.13.04-.186.132a.552.552 0 00-.12.27.944.944 0 00-.023.33v.015c.012.135.037.2.08.334.046.134.098.2.166.268.01.009.02.018.034.024-.07.057-.117.07-.176.136a.304.304 0 01-.131.068 2.62 2.62 0 01-.275-.402 1.772 1.772 0 01-.155-.667 1.759 1.759 0 01.08-.668 1.43 1.43 0 01.283-.535c.128-.133.26-.2.418-.2zm1.37 1.706c.332 0 .733.065 1.216.399.293.2.523.269 1.052.468h.003c.255.136.405.266.478.399v-.131a.571.571 0 01.016.47c-.123.31-.516.643-1.063.842v.002c-.268.135-.501.333-.775.465-.276.135-.588.292-1.012.267a1.139 1.139 0 01-.448-.067 3.566 3.566 0 01-.322-.198c-.195-.135-.363-.332-.612-.465v-.005h-.005c-.4-.246-.616-.512-.686-.71-.07-.268-.005-.47.193-.6.224-.135.38-.271.483-.336.104-.074.143-.102.176-.131h.002v-.003c.169-.202.436-.47.839-.601.139-.036.294-.065.466-.065zm2.8 2.142c.358 1.417 1.196 3.475 1.735 4.473.286.534.855 1.659 1.102 3.024.156-.005.33.018.513.064.646-1.671-.546-3.467-1.089-3.966-.22-.2-.232-.335-.123-.335.59.534 1.365 1.572 1.646 2.757.13.535.16 1.104.021 1.67.067.028.135.06.205.067 1.032.534 1.413.938 1.23 1.537v-.043c-.06-.003-.12 0-.18 0h-.016c.151-.467-.182-.825-1.065-1.224-.915-.4-1.646-.336-1.77.465-.008.043-.013.066-.018.135-.068.023-.139.053-.209.064-.43.268-.662.669-.793 1.187-.13.533-.17 1.156-.205 1.869v.003c-.02.334-.17.838-.319 1.35-1.5 1.072-3.58 1.538-5.348.334a2.645 2.645 0 00-.402-.533 1.45 1.45 0 00-.275-.333c.182 0 .338-.03.465-.067a.615.615 0 00.314-.334c.108-.267 0-.697-.345-1.163-.345-.467-.931-.995-1.788-1.521-.63-.4-.986-.87-1.15-1.396-.165-.534-.143-1.085-.015-1.645.245-1.07.873-2.11 1.274-2.763.107-.065.037.135-.408.974-.396.751-1.14 2.497-.122 3.854a8.123 8.123 0 01.647-2.876c.564-1.278 1.743-3.504 1.836-5.268.048.036.217.135.289.202.218.133.38.333.59.465.21.201.477.335.876.335.039.003.075.006.11.006.412 0 .73-.134.997-.268.29-.134.52-.334.74-.4h.005c.467-.135.835-.402 1.044-.7zm2.185 8.958c.037.6.343 1.245.882 1.377.588.134 1.434-.333 1.791-.765l.211-.01c.315-.007.577.01.847.268l.003.003c.208.199.305.53.391.876.085.4.154.78.409 1.066.486.527.645.906.636 1.14l.003-.007v.018l-.003-.012c-.015.262-.185.396-.498.595-.63.401-1.746.712-2.457 1.57-.618.737-1.37 1.14-2.036 1.191-.664.053-1.237-.2-1.574-.898l-.005-.003c-.21-.4-.12-1.025.056-1.69.176-.668.428-1.344.463-1.897.037-.714.076-1.335.195-1.814.12-.465.308-.797.641-.984l.045-.022zm-10.814.049h.01c.053 0 .105.005.157.014.376.055.706.333 1.023.752l.91 1.664.003.003c.243.533.754 1.064 1.189 1.637.434.598.77 1.131.729 1.57v.006c-.057.744-.48 1.148-1.125 1.294-.645.135-1.52.002-2.395-.464-.968-.536-2.118-.469-2.857-.602-.369-.066-.61-.2-.723-.4-.11-.2-.113-.602.123-1.23v-.004l.002-.003c.117-.334.03-.752-.027-1.118-.055-.401-.083-.71.043-.94.16-.334.396-.4.69-.533.294-.135.64-.202.915-.47h.002v-.002c.256-.268.445-.601.668-.838.19-.201.38-.336.663-.336zm7.159-9.074c-.435.201-.945.535-1.488.535-.542 0-.97-.267-1.28-.466-.154-.134-.28-.268-.373-.335-.164-.134-.144-.333-.074-.333.109.016.129.134.199.2.096.066.215.2.36.333.292.2.68.467 1.167.467.485 0 1.053-.267 1.398-.466.195-.135.445-.334.648-.467.156-.136.149-.267.279-.267.128.016.034.134-.147.332a8.097 8.097 0 01-.69.468zm-1.082-1.583V5.64c-.006-.02.013-.042.029-.05.074-.043.18-.027.26.004.063 0 .16.067.15.135-.006.049-.085.066-.135.066-.055 0-.092-.043-.141-.068-.052-.018-.146-.008-.163-.065zm-.551 0c-.02.058-.113.049-.166.066-.047.025-.086.068-.14.068-.05 0-.13-.02-.136-.068-.01-.066.088-.133.15-.133.08-.031.184-.047.259-.005.019.009.036.03.03.05v.02h.003z"/></symbol>
+<symbol id="b-windows" viewBox="0 0 24 24" fill="currentColor"><path d="M3 3h8.5v8.5H3zM12.5 3H21v8.5h-8.5zM3 12.5h8.5V21H3zM12.5 12.5H21V21h-8.5z"/></symbol>
+</svg>
+
+    <a class="skip" href="#top">Skip to content</a>
     <header class="nav">
-      <a class="logo" href="#top" aria-label="OpenCollab home">
-        <span class="prompt">&gt;</span> opencollab<span class="cursor">_</span>
-      </a>
+      <a class="logo" href="./" aria-label="OpenCollab"><span class="prompt">&gt;</span> opencollab</a>
       <nav aria-label="Sections">
-        <a href="#screens">Screenshots</a>
-        <a href="#why">Why P2P</a>
-        <a href="#features">Features</a>
+        <a href="#privacy">Privacy</a>
+        <a href="#groups">For groups</a>
+        <a href="#agents">Agents</a>
         <a href="#how">How it works</a>
-        <a href="#get">Get it</a>
+        <a href="#get" class="nav-get">Get it</a>
         <a href="#faq">FAQ</a>
       </nav>
+      <a class="lang" href="pl/" hreflang="pl" lang="pl">
+        <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-languages"></use></svg><span>Polski</span>
+      </a>
     </header>
 
     <main id="top">
       <section class="hero">
-        <div class="hero-copy">
-          <p class="eyebrow">Peer-to-peer · end-to-end encrypted · open source</p>
-          <h1>Team boards with no server in the middle.</h1>
-          <p class="lead">
-            OpenCollab is a Kanban board your team shares directly between devices. No sign-up, no
-            cloud database, no subscription. Your identity is a key on your device, and a teammate
-            joins with an invite link.
-          </p>
-          <div class="actions">
-            <a class="button primary" href="#get">Get OpenCollab</a>
-            <a class="button" href="https://github.com/Chmarusso/p2p-collab-board">View source</a>
+        <h1>Boards nobody else can read.</h1>
+        <div class="hero-row">
+          <div class="hero-copy">
+            <p class="lead">Private boards for friends, family and your agents, free and open source. Your phone encrypts every card before it leaves; nobody in between can read it, including us.</p>
+            <div class="actions">
+              <a class="button primary" href="#get" data-android="https://github.com/Chmarusso/p2p-collab-board/releases?q=android-v&amp;expanded=true">Get OpenCollab</a>
+              <a class="button" href="#privacy">See how it stays private</a>
+            </div>
+            <ul class="platforms" aria-label="Available on">
+              <li><svg class="brand" aria-hidden="true" focusable="false"><use href="#b-android"></use></svg><span>Android</span></li>
+              <li><svg class="brand" aria-hidden="true" focusable="false"><use href="#b-apple"></use></svg><span>iPhone · Mac</span></li>
+              <li><svg class="brand" aria-hidden="true" focusable="false"><use href="#b-windows"></use></svg><span>Windows</span></li>
+              <li><svg class="brand" aria-hidden="true" focusable="false"><use href="#b-linux"></use></svg><span>Linux</span></li>
+              <li><svg class="brand" aria-hidden="true" focusable="false"><use href="#i-terminal"></use></svg><span>Terminal</span></li>
+            </ul>
+            <p class="platforms-line">Android · iPhone · Mac · Windows · Linux · Terminal</p>
           </div>
-          <p class="platforms">macOS · Windows · Linux · iPhone · Terminal</p>
-        </div>
 
-        <div class="shots-hero">
-          <img
-            class="desk"
-            src="assets/screens/desktop-board.jpg"
-            width="1600"
-            height="1000"
-            alt="The OpenCollab desktop app showing a Kanban board with five columns"
-          />
-          <img
-            class="phone"
-            src="assets/screens/iphone-board.jpg"
-            width="760"
-            height="1651"
-            alt="The same board on an iPhone"
-          />
+          <div class="hero-shot">
+            <picture>
+              <source
+                media="(max-width: 640px)"
+                srcset="assets/screens/feed-en-390.webp 390w, assets/screens/feed-en.webp 780w"
+                sizes="100vw"
+                width="780"
+                height="1688"
+              />
+              <img
+                class="desk"
+                src="assets/screens/desktop-en-800.webp"
+                srcset="assets/screens/desktop-en-800.webp 800w, assets/screens/desktop-en.webp 1600w"
+                sizes="(max-width: 900px) 100vw, 640px"
+                width="1600"
+                height="1000"
+                fetchpriority="high"
+                alt="The Weekend reading board: a shared feed with a friend’s podcast link, a Sunday hike plan and the board chat"
+              />
+            </picture>
+            <div class="phone"><img
+    src="assets/screens/feed-en-390.webp"
+    srcset="assets/screens/feed-en-200.webp 200w, assets/screens/feed-en-390.webp 390w, assets/screens/feed-en.webp 780w"
+    sizes="(max-width: 900px) 30vw, 190px"
+    width="780" height="1688"
+    loading="lazy" decoding="async"
+    alt="A shared feed on a phone: a friend’s podcast link and a Sunday hike plan with a forest photo." /></div>
+          </div>
         </div>
       </section>
 
-      <section id="screens" class="section">
-        <h2><span class="hash">#</span> One board on every device</h2>
-        <div class="gallery">
-          <figure class="shot">
-            <img
-              src="assets/screens/desktop-card.jpg"
-              width="1600"
-              height="1000"
-              loading="lazy"
-              alt="A card with labels, assignees, a planning-poker estimate and a checklist"
-            />
-            <figcaption>
-              <strong>Every detail in one place</strong>Checklists, assignees, estimates, links and
-              reactions on each card.
-            </figcaption>
-          </figure>
-          <figure class="shot">
-            <img
-              src="assets/screens/desktop-calendar.jpg"
-              width="1600"
-              height="1000"
-              loading="lazy"
-              alt="The calendar view with cards placed on their due dates"
-            />
-            <figcaption>
-              <strong>Plan the month at a glance</strong>Drag a card to another day to reschedule
-              it.
-            </figcaption>
-          </figure>
-          <figure class="shot">
-            <img
-              src="assets/screens/desktop-table.jpg"
-              width="1600"
-              height="1000"
-              loading="lazy"
-              alt="The table view listing every card with its column, due date and points"
-            />
-            <figcaption>
-              <strong>Scan everything at once</strong>Sort by column, due date or points.
-            </figcaption>
-          </figure>
-          <figure class="shot">
-            <img
-              src="assets/screens/desktop-mywork.jpg"
-              width="1600"
-              height="1000"
-              loading="lazy"
-              alt="My work: the open cards assigned to you across boards"
-            />
-            <figcaption>
-              <strong>Know what's yours</strong>Open cards assigned to you on every board, soonest
-              due first.
-            </figcaption>
-          </figure>
+      <section id="privacy" class="section">
+        <div class="head">
+          <h2 class="reveal">How your boards stay private</h2>
+          <p class="reveal">OpenCollab has no server and no database. Your device encrypts each board with a key that only you and the people you invite hold.</p>
         </div>
-        <div class="phones">
-          <figure class="shot">
-            <img
-              src="assets/screens/iphone-board.jpg"
-              width="760"
-              height="1651"
-              loading="lazy"
-              alt="The board on iPhone"
-            />
-          </figure>
-          <figure class="shot">
-            <img
-              src="assets/screens/iphone-card.jpg"
-              width="760"
-              height="1651"
-              loading="lazy"
-              alt="A card on iPhone"
-            />
-          </figure>
-          <figure class="shot">
-            <img
-              src="assets/screens/iphone-agenda.jpg"
-              width="760"
-              height="1651"
-              loading="lazy"
-              alt="The agenda view on iPhone"
-            />
-          </figure>
-          <figure class="shot">
-            <img
-              src="assets/screens/iphone-mywork.jpg"
-              width="760"
-              height="1651"
-              loading="lazy"
-              alt="My work on iPhone"
-            />
-          </figure>
+        <div class="fold reveal">
+          <button type="button" class="fold-toggle" aria-expanded="true">Who can see what? Only the people you invite.</button>
+        <div class="who" role="region" aria-label="Who can see what" tabindex="0">
+          <table>
+            <caption>Who can see what</caption>
+            <thead>
+              <tr><td></td><th scope="col">Can read your boards</th><th scope="col">Sees your IP address</th></tr>
+            </thead>
+            <tbody>
+              <tr><th scope="row">People you invite</th><td class="" data-label="Can read your boards">Yes</td><td class="" data-label="Sees your IP address">When connected to you</td></tr>
+              <tr><th scope="row">Agents you invite</th><td class="" data-label="Can read your boards">Yes, like any member</td><td class="" data-label="Sees your IP address">When connected to you</td></tr>
+              <tr><th scope="row">A relay you run (optional)</th><td class="no" data-label="Can read your boards">No, it holds an encrypted copy</td><td class="" data-label="Sees your IP address">Yes</td></tr>
+              <tr><th scope="row">The network that introduces devices</th><td class="no" data-label="Can read your boards">No</td><td class="" data-label="Sees your IP address">Yes</td></tr>
+              <tr><th scope="row">OpenCollab developers</th><td class="no" data-label="Can read your boards">No</td><td class="no" data-label="Sees your IP address">No</td></tr>
+            </tbody>
+          </table>
         </div>
-      </section>
-
-      <section id="why" class="section">
-        <h2><span class="hash">#</span> Why peer to peer</h2>
-        <div class="grid">
-          <article class="tile">
-            <h3>No backend to run or pay for</h3>
-            <p>
-              Devices sync with each other, so costs don't grow with your team. The only optional
-              infrastructure is one always-on peer.
-            </p>
-          </article>
-          <article class="tile">
-            <h3>Your data stays with you</h3>
-            <p>
-              Boards live on members' devices, encrypted with the invite secret. No vendor holds a
-              copy, and a peer that stores the data can't read it.
-            </p>
-          </article>
-          <article class="tile">
-            <h3>No accounts</h3>
-            <p>
-              Your identity is a key on your device, backed up as a recovery phrase. Joining a board
-              takes one invite link.
-            </p>
-          </article>
-          <article class="tile">
-            <h3>Works offline</h3>
-            <p>
-              Keep working without a connection. Changes merge the next time two members are online
-              together, and every device ends up with the same board.
-            </p>
-          </article>
-          <article class="tile">
-            <h3>Updates from peers</h3>
-            <p>
-              The desktop app and the CLI update themselves from other peers, with no release
-              server. The iPhone app gets its JavaScript updates the same way.
-            </p>
-          </article>
-          <article class="tile">
-            <h3>Every change is signed</h3>
-            <p>
-              Each edit is a signed operation in its member's own log. Nobody can rewrite someone
-              else's work, and moderators can shut out a removed member.
-            </p>
-          </article>
         </div>
-      </section>
-
-      <section id="features" class="section">
-        <h2><span class="hash">#</span> Everything a team board needs</h2>
-        <ul class="features">
-          <li>
-            <strong>Board, table and calendar</strong> Columns you can rename and reorder, a
-            sortable table, and a calendar you can drag cards across.
-          </li>
-          <li>
-            <strong>Rich cards</strong> Markdown descriptions, code highlighting, images and video.
-          </li>
-          <li>
-            <strong>Checklists</strong> Break a card into steps and watch its progress bar fill.
-          </li>
-          <li>
-            <strong>Assignees and My work</strong> Assign cards, and see everything that's yours
-            across boards.
-          </li>
-          <li>
-            <strong>Comments, reactions and @mentions</strong> Discuss a card, react with an emoji
-            and pull a teammate in.
-          </li>
-          <li>
-            <strong>Live presence</strong> See who's on the board and which card they're looking at.
-          </li>
-          <li>
-            <strong>Linked cards</strong> Mark what blocks what; blocked cards stand out until the
-            blocker is done.
-          </li>
-          <li>
-            <strong>Planning poker and stats</strong> Vote on estimates, reveal together, and track
-            throughput and cycle time.
-          </li>
-          <li><strong>WIP limits</strong> Cap a column and see at a glance when it's over.</li>
-          <li>
-            <strong>Rules and recurring cards</strong> Auto-assign or label cards as they move, and
-            create a weekly planning card on schedule.
-          </li>
-          <li>
-            <strong>Labels, due dates and filters</strong> Color labels, due-soon alerts and filters
-            by label, member or date.
-          </li>
-          <li>
-            <strong>Notifications, roles and export</strong> One bell across every board, owner and
-            admin roles, and a full export any time.
-          </li>
+        <ul class="points">
+          <li class="reveal"><h3>Encrypted on your device</h3><p>Cards, comments, chat and photos are encrypted on your phone before they leave it. What travels and what gets stored is unreadable without the key.</p></li>
+          <li class="reveal more"><h3>The invite holds the key</h3><p>The key travels inside the invite link. Whoever has the invite can read the board. The network that connects devices never sees the key.</p></li>
+          <li class="reveal"><h3>No server to hack</h3><p>Boards live on members’ devices. You can run a relay that keeps an encrypted copy online for when everyone is away. It can’t open it.</p></li>
+          <li class="reveal"><h3>No account</h3><p>Your device makes your identity, a key pair you back up as 24 words. We never ask for your email or phone number.</p></li>
+          <li class="reveal more"><h3>Signed edits</h3><p>Your device signs each change with your key. Nobody can forge or rewrite your edits. A removed member’s new ones are ignored.</p></li>
+          <li class="reveal"><h3>Open source</h3><p>The code is <a href="https://github.com/Chmarusso/p2p-collab-board">on GitHub</a>. Read how the encryption works, or build the apps yourself.</p></li>
         </ul>
       </section>
 
+      <section id="groups" class="section">
+        <div class="head">
+          <h2 class="reveal">Trips, chores, a card game, an&nbsp;app</h2>
+          <p class="reveal">Make a board, send the invite. Your friends tap the link and they’re in.</p>
+        </div>
+        <div class="split">
+          <ul class="points one">
+            <li class="reveal"><h3>Share from any app</h3><p>Send a link from TikTok, Spotify or your browser straight to a board.</p></li>
+            <li class="reveal"><h3>Invite with a link or QR code</h3><p>Friends scan the code at the table or tap the link in your group chat.</p></li>
+            <li class="reveal"><h3>A board for each thing</h3><p>A feed for links. A list for errands. Kanban for a project.</p></li>
+            <li class="reveal more"><h3>Chat and @mentions</h3><p>Each board has its own chat, and every post has a comment thread.</p></li>
+            <li class="reveal more"><h3>See who’s around</h3><p>The board shows who’s online and whose changes are arriving.</p></li>
+            <li class="reveal"><h3>Works offline</h3><p>Add things on the train. They sync the next time you and a friend are online.</p></li>
+          </ul>
+          <div class="media">
+            <figure class="shot reveal scale"><video muted loop playsinline preload="none" width="540" height="1168"
+    poster="assets/clips/chores-en.webp" data-src="assets/clips/chores-en.mp4" aria-label="Ticking off a chore on a shared flat list"></video></figure>
+          <figure class="shot reveal scale"><video muted loop playsinline preload="none" width="540" height="1168"
+    poster="assets/clips/game-en.webp" data-src="assets/clips/game-en.mp4" aria-label="Dragging a card to Done on a board for designing a card game"></video></figure>
+          <figure class="shot reveal scale"><img
+    src="assets/screens/app-en-390.webp"
+    srcset="assets/screens/app-en-200.webp 200w, assets/screens/app-en-390.webp 390w, assets/screens/app-en.webp 780w"
+    sizes="(max-width: 640px) 45vw, (max-width: 900px) 42vw, 290px"
+    width="780" height="1688"
+    loading="lazy" decoding="async"
+    alt="A board for building an app, with labels, progress and an agent as a member" /></figure>
+          <figure class="shot reveal scale"><img
+    src="assets/screens/feed-en-390.webp"
+    srcset="assets/screens/feed-en-200.webp 200w, assets/screens/feed-en-390.webp 390w, assets/screens/feed-en.webp 780w"
+    sizes="(max-width: 640px) 45vw, (max-width: 900px) 42vw, 290px"
+    width="780" height="1688"
+    loading="lazy" decoding="async"
+    alt="A shared feed of links and weekend plans with photos" /></figure>
+          </div>
+        </div>
+      </section>
+
+      <section id="agents" class="section">
+        <div class="head">
+          <h2 class="reveal">Add agents to your boards</h2>
+          <p class="reveal">An agent is a member that runs on your computer. It joins with an invite like a friend would, and the board shows what it’s doing: <span class="live">Enricher: Making key points</span>.</p>
+        </div>
+        <div class="roles">
+          <figure class="shot reveal scale">
+            <video muted loop playsinline preload="none" width="540" height="1168"
+    poster="assets/clips/slides-en.webp" data-src="assets/clips/slides-en.mp4" aria-label="Flipping through the key points an agent made from a podcast, as a story"></video>
+            <figcaption><h3>Enrich what you collect</h3><p>Share a podcast. An agent reads the transcript and posts the key points. Share a cooking video and you get the recipe.</p></figcaption>
+          </figure>
+          <figure class="shot reveal scale">
+            <video muted loop playsinline preload="none" width="540" height="1168"
+    poster="assets/clips/agent-en.webp" data-src="assets/clips/agent-en.mp4" aria-label="Enricher working on a saved podcast card while the board shows what it is doing"></video>
+            <figcaption><h3>Build with tools and AI</h3><p>Put a task on a card. The agent uses the tools and AI models you gave it, then posts the result back to the card.</p></figcaption>
+          </figure>
+          <figure class="shot reveal scale">
+            <img
+    src="assets/screens/chat-en-390.webp"
+    srcset="assets/screens/chat-en-200.webp 200w, assets/screens/chat-en-390.webp 390w, assets/screens/chat-en.webp 780w"
+    sizes="(max-width: 640px) 100vw, (max-width: 900px) 45vw, 340px"
+    width="780" height="1688"
+    loading="lazy" decoding="async"
+    alt="Board chat where an agent answers a question and updates the bug card" />
+            <figcaption><h3>Check facts and help out</h3><p>It answers questions in the comments and checks claims against their sources.</p></figcaption>
+          </figure>
+        </div>
+        <div class="fold dev reveal">
+          <button type="button" class="fold-toggle" aria-expanded="true">Build your own agent</button>
+          <div class="build">
+            <div>
+              <h3>Or build your own</h3>
+              <p>Those are starting points. Maybe your group wants a price tracker. Connect any MCP client, like Claude or Cursor, or run a small worker on your machine with the <code>opencollab</code> command line. <a href="https://github.com/Chmarusso/p2p-collab-board/tree/main/apps/cli/examples">The example agents</a> are a few dozen lines each.</p>
+            </div>
+            <div class="fold">
+              <button type="button" class="fold-toggle" aria-expanded="true">Show the commands</button>
+              <pre><code># connect an AI client
+claude mcp add opencollab -e OPENCOLLAB_PASSWORD=… -- opencollab mcp -s ~/.opencollab-ai
+
+# or run a worker: this one turns shared links into key points
+SLIDES_BOARD="Weekend reading" node apps/cli/examples/feed-slides.mjs</code></pre>
+            </div>
+          </div>
+          <p class="note"><strong>What an agent can see:</strong> only the boards you invite it to. It sends what it reads to the AI model you chose. For an assistant that should only answer, run it with <code>--read-only</code>.</p>
+        </div>
+      </section>
+
       <section id="how" class="section">
-        <h2><span class="hash">#</span> How it works</h2>
+        <div class="head">
+          <h2 class="reveal">How it works</h2>
+          <p class="reveal">Three steps, and no account anywhere along the way.</p>
+        </div>
         <ol class="steps">
-          <li>
-            <span class="step">01</span>
-            <h3>Create your key</h3>
-            <p>
-              The app makes an identity on your device and shows a recovery phrase. Write it down:
-              it's the only way back in.
-            </p>
-          </li>
-          <li>
-            <span class="step">02</span>
-            <h3>Start a board, share the invite</h3>
-            <p>
-              Send the invite link to your team. Whoever holds it can find the board and read it;
-              nobody else can.
-            </p>
-          </li>
-          <li>
-            <span class="step">03</span>
-            <h3>Devices sync directly</h3>
-            <p>
-              Members find each other over a distributed network and connect with encrypted,
-              hole-punched links. No relay server reads the traffic.
-            </p>
-          </li>
+          <li class="reveal"><h3>Create your key</h3><p>The app makes your identity on your device and shows 24 recovery words. Write them down.</p></li>
+          <li class="reveal"><h3>Start a board and share the invite</h3><p>Send the link or show the QR code. Anyone with the invite can open the&nbsp;board.</p></li>
+          <li class="reveal"><h3>Devices connect directly</h3><p>Members find each other through a shared network and connect over encrypted links. Nobody relays the traffic.</p></li>
         </ol>
-        <p class="note">
-          <strong>The trade-off:</strong> with no server holding a copy, two members have to be
-          online at the same time to sync. To cover the gaps, keep one peer always on, such as
-          <code>opencollab watch</code> on a small server.
-        </p>
+        <p class="note reveal"><strong>The trade-off:</strong> with no server, two members need to be online at the same time to sync. To fill the gaps, keep one device always on: an old laptop running <code>opencollab watch</code>, or a relay that holds only an encrypted copy.</p>
       </section>
 
-      <section id="get" class="section">
-        <h2><span class="hash">#</span> Get OpenCollab</h2>
-        <div class="grid three">
-          <article class="tile">
-            <h3>Desktop</h3>
-            <p>
-              macOS, Windows and Linux. Installs from peers through Pear and keeps itself updated.
-            </p>
-            <pre><code>npx pear install pear://nzi3suuxyzwj6oosortonj5pxd9s7ckgd8cr87szddaamxi77kny</code></pre>
-          </article>
-          <article class="tile">
+      <section id="get" class="section field">
+        <div class="head">
+          <h2 class="reveal">Get OpenCollab</h2>
+          <p class="reveal small">Installing from Pear needs <a href="https://nodejs.org">Node.js</a>, and at least one device online that has the release.</p>
+        </div>
+        <div class="rows">
+          <div class="row reveal">
             <h3>Phone</h3>
-            <p>
-              The full board in your pocket, with biometric unlock and notifications.
-              <strong>Android:</strong>
-              <a
-                href="https://github.com/Chmarusso/p2p-collab-board/releases?q=android-v&amp;expanded=true"
-                >download the APK</a
-              >
-              (Android 10 or newer). <strong>iPhone:</strong> build it from
-              <a href="https://github.com/Chmarusso/p2p-collab-board/tree/main/apps/mobile"
-                >apps/mobile</a
-              >; after that it updates over Pear.
-            </p>
-          </article>
-          <article class="tile">
-            <h3>Command line</h3>
-            <p>Read and edit boards from a terminal, or run an always-on peer for your team.</p>
+            <div><p>In English and Polish.</p><ul class="plain"><li><strong>Android:</strong> <a href="https://github.com/Chmarusso/p2p-collab-board/releases?q=android-v&amp;expanded=true">download the APK</a> (Android 10 or newer)</li><li><strong>iPhone:</strong> not in the App Store yet. <a href="https://github.com/Chmarusso/p2p-collab-board/tree/main/apps/mobile">Build it from source</a> or <a href="https://github.com/Chmarusso/p2p-collab-board">follow progress</a></li><li>Both update over Pear afterwards</li></ul></div>
+          </div>
+          <div class="row reveal">
+            <h3>Desktop</h3>
+            <div><p>macOS, Windows and Linux. Installs from peers through Pear and updates itself.</p>
+            <pre><code>npx pear install pear://nzi3suuxyzwj6oosortonj5pxd9s7ckgd8cr87szddaamxi77kny</code></pre>
+            <p class="on-computer">Install from this page on your computer; the command is shown there.</p></div>
+          </div>
+          <div class="row reveal">
+            <h3>Command line and agents</h3>
+            <div><p>Read and edit boards from a terminal, keep a device online, or connect an AI client with <code>opencollab mcp</code>.</p>
             <pre><code>npx pear install --to ~/.local/share pear://q1huw5ozxk8j36pcb8sicfr4dtgf9154r5aj3yzqa14ngxxq1kmy</code></pre>
-          </article>
+            <p class="on-computer">Install from this page on your computer; the command is shown there.</p></div>
+          </div>
         </div>
-        <p class="note">
-          Installing needs at least one peer online that has the release. You need
-          <a href="https://nodejs.org">Node.js</a> for <code>npx pear</code>.
-        </p>
       </section>
 
+      <section class="section stack" id="stack">
+        <div class="head">
+          <h2 class="reveal">Built on Holepunch</h2>
+          <p class="reveal">OpenCollab runs on <a href="https://holepunch.to">Holepunch</a>’s peer-to-peer building blocks: <a href="https://docs.pears.com">Pear</a> for delivery and updates, <a href="https://github.com/holepunchto/bare">Bare</a> for the shared backend, <a href="https://github.com/holepunchto/hyperswarm">Hyperswarm</a> for finding peers, <a href="https://github.com/holepunchto/hypercore">Hypercore</a> and <a href="https://github.com/holepunchto/autobee">Autobee</a> for the signed, multi-writer board, and <a href="https://github.com/holepunchto/hyperblobs">Hyperblobs</a> for encrypted photos. Every app runs the same backend.</p>
+        </div>
+      </section>
       <section id="faq" class="section">
-        <h2><span class="hash">#</span> FAQ: how does it work without servers?</h2>
+        <div class="head">
+          <h2 class="reveal">FAQ</h2>
+          <p class="reveal">The questions people ask before they trust a board with no server.</p>
+        </div>
         <div class="faq">
-          <details>
-            <summary>Where is my board stored if there&#39;s no server?</summary>
-            <p>
-              On every member&#39;s device. Each keeps a full copy as signed, append-only logs, one
-              per member, merged into one board. Opening a board reads your local copy, so it works
-              offline; syncing only exchanges the entries the other side is missing.
-            </p>
+          <details class="reveal">
+            <summary>Where is my board stored if there’s no server?</summary>
+            <p>On every member’s device. Each keeps a full copy as a signed log per member, merged into one board. Your device opens its own copy, so the board works offline. Syncing sends only what the other side is missing.</p>
           </details>
-          <details>
-            <summary>How do devices find each other without a server?</summary>
-            <p>
-              Through a distributed hash table that every running Holepunch app helps run. Each
-              board has a topic derived from its key; members announce themselves under it and look
-              each other up. The only fixed addresses are three bootstrap nodes used once to join
-              the network, and DHT nodes only ever see a hash of the board&#39;s key.
-            </p>
+          <details class="reveal">
+            <summary>How do devices find each other?</summary>
+            <p>Through a shared lookup network (a DHT) that every running Holepunch app helps run. Members announce themselves under a code derived from the board’s key. The network sees that code, never the key.</p>
           </details>
-          <details>
-            <summary>How do they connect if both are behind home routers?</summary>
-            <p>
-              With UDP hole punching: both devices learn their public address from the DHT and send
-              packets to each other at the same moment, so both routers open a path. Every
-              connection is end-to-end encrypted. A few strict networks block this; a peer with a
-              public IP, like a blind peer on a VPS, bridges the gap.
-            </p>
+          <details class="reveal">
+            <summary>What if both of us are behind home routers?</summary>
+            <p>Both devices learn their public address and send packets to each other at the same moment, so both routers open a path (hole punching). A few strict networks block this. A relay with a public address bridges the gap.</p>
           </details>
-          <details>
-            <summary>What happens when nobody else is online?</summary>
-            <p>
-              You keep working. Changes go into your own log and sync the next time you and another
-              member are online together. If your team is rarely online at the same time, run a
-              blind peer: it keeps an encrypted copy of your boards available around the clock,
-              without being able to read them.
-            </p>
-          </details>
-          <details>
+          <details class="reveal">
             <summary>Who can read my board?</summary>
-            <p>
-              Only people holding the invite link. The link carries the board secret: cards,
-              comments, the board name and attachments are encrypted with keys derived from it.
-              Every change is signed by its author, so nobody can forge or rewrite someone
-              else&#39;s edits.
-            </p>
+            <p>People and agents who hold the invite. The invite carries the board’s key. Everything on the board is encrypted with keys derived from it (XSalsa20-Poly1305, via libsodium).</p>
           </details>
-          <details>
+          <details class="reveal">
+            <summary>Can an AI agent read my boards?</summary>
+            <p>Only the boards you invite it to, exactly like a person. It appears in Members and loses access when you remove it. Anyone on a board can write text the agent reads, so OpenCollab tells the model to treat cards and comments as content, never as instructions.</p>
+          </details>
+          <details class="reveal">
+            <summary>What does Enricher, the key points agent, send outside?</summary>
+            <p>It runs on your machine. To read a post, it sends the link to a transcript service, then the text and the card’s comments to the AI model you configure. Your other boards never leave your devices. Leave it off any board you’d rather keep to yourselves.</p>
+          </details>
+          <details class="reveal">
             <summary>Two people edited the same card offline. Who wins?</summary>
-            <p>
-              For each field the newest change wins, with ties broken the same way everywhere.
-              Comments, votes and images only add, so nothing is lost. Every device applies the same
-              rules to the same signed changes and ends up with the same board.
-            </p>
+            <p>For each field the newest change wins, with ties broken the same way on every device. Comments, votes and photos only add, so nothing gets lost.</p>
           </details>
-          <details>
+          <details class="reveal">
             <summary>What if I lose my phone?</summary>
-            <p>
-              There is no account to recover. Your identity is a key backed up as a recovery phrase;
-              enter it on a new device and you&#39;re back as the same member. Without the phrase,
-              nobody can restore it.
-            </p>
-          </details>
-          <details>
-            <summary>So there&#39;s really zero infrastructure?</summary>
-            <p>
-              Close to it: DHT bootstrap nodes to join the network, optionally a blind peer or an
-              always-on CLI peer for availability and bots, and the App Store for the iPhone binary.
-              None of them sees your board&#39;s content.
-            </p>
+            <p>Enter your 24 recovery words on a new device and you’re back as the same member. Without them nobody can restore your identity.</p>
           </details>
         </div>
-        <p class="note">
-          More detail in the
-          <a href="https://github.com/Chmarusso/p2p-collab-board/blob/main/docs/faq.md">full FAQ</a
-          >.
-        </p>
+        <p class="note reveal">More detail in the <a href="https://github.com/Chmarusso/p2p-collab-board/blob/main/docs/faq.md">full FAQ</a>.</p>
+      
       </section>
 
-      <section class="section stack">
-        <h2><span class="hash">#</span> Built on Holepunch</h2>
-        <p>
-          OpenCollab runs on <a href="https://holepunch.to">Holepunch</a>'s peer-to-peer building
-          blocks: <a href="https://docs.pears.com">Pear</a> for delivery and updates,
-          <a href="https://github.com/holepunchto/bare">Bare</a> for the shared backend,
-          <a href="https://github.com/holepunchto/hyperswarm">Hyperswarm</a> for finding peers,
-          <a href="https://github.com/holepunchto/hypercore">Hypercore</a> and
-          <a href="https://github.com/holepunchto/autobee">Autobee</a> for the signed, multi-writer
-          board, and <a href="https://github.com/holepunchto/hyperblobs">Hyperblobs</a> for
-          encrypted attachments. Desktop, iPhone and terminal all run the same backend.
-        </p>
-      </section>
     </main>
 
+    <a class="sticky-get" href="#get" data-android="https://github.com/Chmarusso/p2p-collab-board/releases?q=android-v&amp;expanded=true" tabindex="-1" aria-hidden="true">Get OpenCollab</a>
     <footer class="footer">
-      <span class="logo small"
-        ><span class="prompt">&gt;</span> opencollab<span class="cursor">_</span></span
-      >
+      <span class="logo"><span class="prompt">&gt;</span> opencollab</span>
       <nav aria-label="Footer">
-        <a href="design-system.html">Design system</a>
-        <a href="https://github.com/Chmarusso/p2p-collab-board/blob/main/PRIVACY.md">Privacy</a>
+        <a class="lang" href="pl/" hreflang="pl" lang="pl">Polski</a>
+        <a class="desk" href="design-system.html">Design system</a>
+        <a class="phone" href="https://holepunch.to">Built on Holepunch</a>
+        <a href="https://github.com/Chmarusso/p2p-collab-board/blob/main/PRIVACY.md">Privacy policy</a>
         <a href="https://github.com/Chmarusso/p2p-collab-board">GitHub</a>
       </nav>
     </footer>
+    <script>
+      // On phones the folds start closed (html.phone, set before paint); a tap opens one.
+      document.querySelectorAll('.fold-toggle').forEach((button) => {
+        const fold = button.parentElement
+        const sync = () => button.setAttribute('aria-expanded', String(!document.documentElement.classList.contains('phone') || fold.classList.contains('open')))
+        sync()
+        button.addEventListener('click', () => {
+          fold.classList.toggle('open')
+          sync()
+        })
+      })
+      // Clips load and play only while on screen; with reduced motion they stay still.
+      const still = matchMedia('(prefers-reduced-motion: reduce)').matches
+      const watch = new IntersectionObserver(
+        (entries) => {
+          for (const { target, isIntersecting } of entries) {
+            if (isIntersecting && !still) {
+              if (!target.src) target.src = target.dataset.src
+              target.play().catch(() => {})
+            } else target.pause()
+          }
+        },
+        { rootMargin: '200px' }
+      )
+      document.querySelectorAll('video[data-src]').forEach((video) => watch.observe(video))
+      // The language switch keeps the section you are reading and remembers the choice.
+      document.querySelectorAll('a.lang').forEach((link) => {
+        link.addEventListener('click', () => {
+          try {
+            localStorage.setItem('opencollab.lang', link.getAttribute('hreflang'))
+          } catch (e) {}
+          link.href = link.getAttribute('href') + location.hash
+        })
+      })
+      // Android gets the APK straight from the first button.
+      if (/Android/i.test(navigator.userAgent)) {
+        document.querySelectorAll('a[data-android]').forEach((a) => {
+          a.href = a.dataset.android
+          a.textContent = 'Get it for Android'
+        })
+      }
+      // On phones one Get button stays within reach once the hero's has scrolled away,
+      // and steps aside at the Get section and the footer.
+      const sticky = document.querySelector('.sticky-get')
+      if (sticky) {
+        let heroGone = false
+        let nearGet = false
+        const show = () => sticky.classList.toggle('show', heroGone && !nearGet)
+        new IntersectionObserver(([e]) => {
+          heroGone = !e.isIntersecting && e.boundingClientRect.top < 0
+          show()
+        }).observe(document.querySelector('.hero .actions'))
+        const near = new IntersectionObserver((entries) => {
+          for (const e of entries) e.target.dataset.near = e.isIntersecting ? '1' : ''
+          nearGet = [...document.querySelectorAll('#get, .footer')].some((el) => el.dataset.near)
+          show()
+        })
+        near.observe(document.querySelector('#get'))
+        near.observe(document.querySelector('.footer'))
+      }
+      // Each section's parts rise as it comes into view, once.
+      const reveal = new IntersectionObserver(
+        (entries) => {
+          for (const { target, isIntersecting } of entries) {
+            if (!isIntersecting) continue
+            target.classList.add('in')
+            reveal.unobserve(target)
+          }
+        },
+        { rootMargin: '0px 0px -8% 0px', threshold: 0.1 }
+      )
+      document.querySelectorAll('.reveal').forEach((el) => reveal.observe(el))
+    </script>
   </body>
 </html>

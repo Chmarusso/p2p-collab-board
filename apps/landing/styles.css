@@ -1,17 +1,44 @@
-/* Same palette as the apps (apps/mobile/src/ui.tsx). */
+/* IBM Plex Sans (OFL), self-hosted as one variable file per subset: Latin, and
+   Latin Extended for Polish. Nothing is fetched from Google. */
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('assets/fonts/plex-latin-ext.woff2') format('woff2');
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329,
+    U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F,
+    U+A720-A7FF;
+}
+
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('assets/fonts/plex-latin.woff2') format('woff2');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* Same palette as the apps (apps/mobile/src/ui.tsx). One ground, one ink, one accent:
+   the accent sits on the actions, the table's "No" cells and the wordmark's prompt. */
 :root {
   --bg: #0a0e14;
   --surface: #0f1620;
-  --raised: #141d29;
-  --border: #1c2633;
-  --text: #c9d4e3;
-  --muted: #6b7a90;
+  --raised: #172130;
+  --text: #d5deea;
+  --ink: #eef3f9;
+  --muted: #94a3b8;
   --accent: #39ff88;
   --on-accent: #04110a;
-  --info: #22d3ee;
-  --magenta: #ff4fd8;
-  --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
-  --sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  --mono:
+    ui-monospace, 'SF Mono', Menlo, Consolas, monospace; /* code and the wordmark: taste-skill-ignore */
+  --sans: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --measure: 36em;
 }
 
 * {
@@ -20,6 +47,20 @@
 
 html {
   scroll-behavior: smooth;
+  interpolate-size: allow-keywords;
+}
+
+p,
+li,
+figcaption,
+summary {
+  text-wrap: pretty;
+}
+
+h1,
+h2,
+h3 {
+  text-wrap: balance;
 }
 
 body {
@@ -30,30 +71,64 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Browser surfaces carry the palette too. */
+::selection {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
 a {
-  color: var(--accent);
-  text-decoration: none;
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+  text-decoration-color: var(--muted);
 }
 
 a:hover {
-  text-decoration: underline;
+  text-decoration-color: var(--accent);
 }
 
 code,
 pre {
   font-family: var(--mono);
-  font-size: 0.85em;
+  font-size: 14px;
 }
 
 h1,
 h2,
 h3 {
-  color: #e6edf6;
-  line-height: 1.2;
+  color: var(--ink);
   margin: 0;
 }
 
-/* Nav */
+h1 {
+  font-size: clamp(40px, 6.4vw, 88px);
+  line-height: 1.02;
+  letter-spacing: -0.03em;
+  font-weight: 700;
+}
+
+h2 {
+  font-size: clamp(32px, 3.6vw, 48px);
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+  font-weight: 700;
+}
+
+h3 {
+  font-size: 22px;
+  line-height: 1.25;
+  font-weight: 600;
+}
+
+/* Nav: a plain bar. Wordmark, four links, one action, the other language. */
 .nav {
   position: sticky;
   top: 0;
@@ -62,90 +137,125 @@ h3 {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 14px max(16px, calc((100% - 1120px) / 2));
-  background: rgba(10, 14, 20, 0.85);
-  backdrop-filter: blur(10px);
-  border-bottom: 1px solid var(--border);
+  padding: 16px max(16px, calc((100% - 1120px) / 2));
+  background: var(--bg);
 }
 
 .nav nav {
   display: flex;
-  gap: 22px;
+  gap: 24px;
+  margin-left: auto;
 }
 
-.nav nav a {
-  color: var(--muted);
+.nav nav a,
+.footer nav a,
+.nav .lang {
+  text-decoration: none;
   font-size: 14px;
 }
 
-.nav nav a:hover {
-  color: var(--text);
+.nav nav a:hover,
+.footer nav a:hover {
+  text-decoration: underline;
+}
+
+.nav nav a.nav-get {
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+
+.nav nav a.nav-get:hover {
   text-decoration: none;
 }
 
+/* The wordmark is the one place the terminal voice stays (brand). */
 .logo {
-  font-family: var(--mono);
+  font-family: var(--mono); /* taste-skill-ignore */
   font-weight: 700;
-  font-size: 18px;
-  color: #e6edf6;
-}
-
-.logo:hover {
+  font-size: 20px;
+  color: var(--ink);
   text-decoration: none;
 }
 
-.logo.small {
-  font-size: 15px;
-}
-
-.prompt,
-.cursor {
+.prompt {
   color: var(--accent);
 }
 
-.cursor {
-  animation: blink 1.1s steps(1) infinite;
+.nav .lang {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--raised);
+  transition: transform 160ms var(--ease-out);
 }
 
-@keyframes blink {
-  50% {
-    opacity: 0;
-  }
+.button:active,
+.lang:active,
+.nav-get:active {
+  transform: scale(0.97);
 }
 
-/* Hero */
+/* Icons from src/icons.svg */
+.icon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+
+.brand {
+  width: 22px;
+  height: 22px;
+}
+
+/* Keyboard users skip the navigation */
+.skip {
+  position: absolute;
+  left: 16px;
+  top: -48px;
+  z-index: 20;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.skip:focus {
+  top: 12px;
+}
+
 main {
   overflow-x: clip;
   max-width: 1120px;
   margin: 0 auto;
-  padding: 0 16px;
+  padding: 0 16px 120px;
 }
 
+/* Hero: the title across the width, then the words in the left third and the
+   product in the right two-thirds. */
 .hero {
+  padding: 64px 0 0;
+}
+
+.hero-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr);
   gap: 48px;
-  align-items: center;
-  padding: 88px 0 72px;
-}
-
-.eyebrow {
-  font-family: var(--mono);
-  font-size: 13px;
-  color: var(--accent);
-  margin: 0 0 18px;
-}
-
-h1 {
-  font-size: clamp(36px, 5vw, 56px);
-  letter-spacing: -0.02em;
+  align-items: start;
+  margin-top: 36px;
 }
 
 .lead {
-  font-size: 18px;
+  font-size: 20px;
+  line-height: 1.5;
+  margin: 0 0 28px;
   color: var(--text);
-  margin: 20px 0 28px;
-  max-width: 34em;
 }
 
 .actions {
@@ -156,17 +266,13 @@ h1 {
 
 .button {
   display: inline-block;
-  padding: 12px 22px;
-  border-radius: 10px;
-  border: 1px solid var(--accent);
-  color: var(--accent);
-  font-weight: 700;
-  transition: transform 0.15s ease;
-}
-
-.button:hover {
+  padding: 13px 24px;
+  border-radius: 999px;
+  background: var(--raised);
+  color: var(--ink);
+  font-weight: 600;
   text-decoration: none;
-  transform: translateY(-1px);
+  transition: transform 160ms var(--ease-out);
 }
 
 .button.primary {
@@ -174,56 +280,181 @@ h1 {
   color: var(--on-accent);
 }
 
+@media (hover: hover) and (pointer: fine) {
+  .button:hover {
+    transform: translateY(-1px);
+  }
+}
+
 .platforms {
-  font-family: var(--mono);
-  font-size: 13px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 20px;
+  list-style: none;
+  padding: 0;
+  margin: 32px 0 0;
+  font-size: 14px;
   color: var(--muted);
-  margin: 22px 0 0;
 }
 
-/* Hero visual: real screenshots on the brand art */
-.shots-hero {
+.platforms li {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 44px;
+}
+
+.hero-shot {
   position: relative;
-  isolation: isolate;
   min-width: 0;
-  padding: 0 0 48px 32px;
+  padding: 0 0 40px 40px;
 }
 
-.shots-hero::before {
-  content: '';
-  position: absolute;
-  inset: -18% -24% -6% -12%;
-  z-index: -1;
-  background: url('assets/hero-art.jpg') center / cover;
-  opacity: 0.45;
-  -webkit-mask-image: radial-gradient(closest-side, #000 45%, transparent);
-  mask-image: radial-gradient(closest-side, #000 45%, transparent);
-}
-
-.shots-hero img {
+.hero-shot img,
+.hero-shot video {
   display: block;
-  height: auto;
-  border: 1px solid var(--border);
-}
-
-.shots-hero .desk {
   width: 100%;
-  border-radius: 12px;
-  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.55);
+  height: auto;
+  border-radius: 20px;
 }
 
-.shots-hero .phone {
+/* The phone settles onto the desktop shot: the same board, in your pocket. */
+.hero-shot .phone {
   position: absolute;
   left: 0;
   bottom: 0;
-  width: 27%;
-  border-radius: 22px;
-  border-width: 2px;
-  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+  width: 30%;
+  animation: phone-in 700ms var(--ease-out) 200ms both;
 }
 
-/* Screenshots */
-.gallery {
+@keyframes phone-in {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* Sections: 120px apart, each composed differently from its neighbours. */
+.section {
+  padding-top: 120px;
+}
+
+/* The heading in the left column, its intro in the right: the row is full. */
+.head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);
+  gap: 24px 48px;
+  align-items: start;
+  margin-bottom: 40px;
+}
+
+.head p {
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.5;
+}
+
+.head p.small {
+  font-size: 16px;
+}
+
+/* Points: a list set large, no icons, no boxes. */
+.points {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 28px 48px;
+}
+
+.points li {
+  min-width: 0;
+}
+
+.points h3 {
+  margin-bottom: 6px;
+}
+
+.points p {
+  margin: 0;
+  max-width: 32em;
+}
+
+.points.one {
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  gap: 24px;
+}
+
+/* Who can see what: a real table, which keeps its lines. */
+.who {
+  margin: 0 0 56px;
+  overflow-x: auto;
+  padding: 8px 12px 12px;
+  border-radius: 16px;
+  background: var(--surface);
+}
+
+.who table {
+  width: 100%;
+  min-width: 520px;
+  border-collapse: collapse;
+}
+
+.who caption {
+  text-align: left;
+  padding: 10px 8px 6px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.who th,
+.who td {
+  text-align: left;
+  padding: 12px 8px;
+  border-top: 1px solid var(--raised);
+}
+
+.who thead th {
+  border-top: 0;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 400;
+}
+
+.who tbody th {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.who .no {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* Folds: on desktop the table and the commands are simply there; on phones they
+   open on tap (the script closes them), so the page stays short. */
+.fold-toggle {
+  display: none;
+}
+
+/* Groups: the list beside a two-by-two of the phones. */
+.split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: 48px;
+  align-items: start;
+}
+
+.media {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
@@ -232,177 +463,218 @@ h1 {
 .shot {
   margin: 0;
   min-width: 0;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: 20px;
   overflow: hidden;
+  background: var(--surface);
 }
 
-.shot img {
+.shot img,
+.shot video {
   display: block;
   width: 100%;
   height: auto;
 }
 
-.shot figcaption {
-  padding: 14px 18px 16px;
-  color: var(--muted);
-  font-size: 15px;
-}
-
-.shot figcaption strong {
-  display: block;
-  color: #e6edf6;
-}
-
-.phones {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 16px;
-  margin-top: 16px;
-}
-
-.phones .shot {
-  border-radius: 24px;
-}
-
-/* Sections */
-.section {
-  padding: 64px 0;
-  border-top: 1px solid var(--border);
-}
-
-h2 {
-  font-size: clamp(26px, 3.2vw, 34px);
-  margin-bottom: 28px;
-}
-
-.hash {
-  color: var(--accent);
-  font-family: var(--mono);
-}
-
-.grid {
+/* Agents: three roles, each a figure with its caption set large. */
+.roles {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
+  gap: 32px 24px;
 }
 
-.tile {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 22px;
+.roles figure {
+  margin: 0;
   min-width: 0;
+  background: none;
 }
 
-.tile h3 {
-  font-size: 17px;
+.roles img,
+.roles video {
+  border-radius: 20px;
+}
+
+.roles figcaption {
+  padding-top: 18px;
+}
+
+.roles figcaption h3 {
+  margin-bottom: 6px;
+}
+
+.roles figcaption p {
+  margin: 0;
+}
+
+/* "Or build your own": the words and the commands side by side on one surface. */
+.build {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: 24px 40px;
+  align-items: center;
+  margin-top: 56px;
+  padding: 32px;
+  border-radius: 20px;
+  background: var(--surface);
+}
+
+.build h3 {
   margin-bottom: 8px;
 }
 
-.tile p {
+.build p {
   margin: 0;
-  color: var(--muted);
 }
 
-.tile pre {
-  margin: 14px 0 0;
-  padding: 12px;
+pre {
+  margin: 0;
+  padding: 16px 18px;
+  border-radius: 12px;
   background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  color: var(--text);
   white-space: pre-wrap;
-  word-break: break-all;
-  color: var(--accent);
+  word-break: break-word;
+  line-height: 1.55;
 }
 
-.features {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px 32px;
+.note {
+  max-width: var(--measure);
+  margin: 40px 0 0;
 }
 
-.features li {
-  padding: 14px 0 14px 18px;
-  border-left: 2px solid var(--border);
-  color: var(--muted);
+.dev .build {
+  margin-top: 56px;
 }
 
-.features strong {
-  display: block;
-  color: #e6edf6;
+.dev .note {
+  margin-top: 40px;
+  padding: 18px 22px;
+  border-radius: 16px;
+  background: var(--surface);
+  color: var(--text);
 }
 
+.note strong {
+  color: var(--ink);
+}
+
+.live {
+  font-style: normal;
+}
+
+.live::before {
+  content: '';
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 6px;
+  vertical-align: -1px;
+  border: 2px solid var(--raised);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 800ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* How it works: three columns, the order told by position and the words. */
 .steps {
   list-style: none;
   padding: 0;
   margin: 0;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
+  gap: 32px 40px;
 }
 
 .steps li {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  padding: 22px;
-}
-
-.step {
-  display: block;
-  font-family: var(--mono);
-  color: var(--accent);
-  font-size: 13px;
-  margin-bottom: 10px;
+  min-width: 0;
 }
 
 .steps h3 {
-  font-size: 17px;
   margin-bottom: 8px;
 }
 
 .steps p {
   margin: 0;
-  color: var(--muted);
 }
 
-.note {
-  margin: 24px 0 0;
-  padding: 16px 18px;
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--info);
-  border-radius: 10px;
+/* Get it: the page changes ground, and each platform is a row. */
+.field {
+  position: relative;
+  isolation: isolate;
+  margin-top: 120px;
+  padding: 96px 0;
+}
+
+/* The ground changes across the whole width; the content keeps the page's frame. */
+.field::before {
+  content: '';
+  position: absolute;
+  inset: 0 calc(50% - 50vw);
+  z-index: -1;
   background: var(--surface);
-  color: var(--muted);
 }
 
-.note strong {
-  color: var(--text);
+.field .head {
+  margin-bottom: 8px;
 }
 
+.rows {
+  display: grid;
+  gap: 8px;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  gap: 12px 48px;
+  padding: 28px 0;
+  align-items: start;
+}
+
+.row p,
+.row ul {
+  margin: 0;
+}
+
+.row .plain {
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px;
+}
+
+.row pre {
+  margin-top: 14px;
+}
+
+.field .note {
+  background: var(--raised);
+  margin-top: 16px;
+}
+
+/* FAQ: filled rows that open in place. */
 .faq {
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
 .faq details {
   background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 0 20px;
+  border-radius: 14px;
+  padding: 0 22px;
 }
 
 .faq summary {
   cursor: pointer;
   list-style: none;
-  padding: 16px 0;
-  font-weight: 700;
-  color: #e6edf6;
+  padding: 18px 0;
+  font-weight: 600;
+  color: var(--ink);
   display: flex;
   justify-content: space-between;
   gap: 16px;
@@ -414,54 +686,151 @@ h2 {
 
 .faq summary::after {
   content: '+';
-  font-family: var(--mono);
-  color: var(--accent);
+  flex: none;
+  font-size: 22px;
+  line-height: 1;
+  color: var(--muted);
+  transition: transform 200ms var(--ease-out);
 }
 
 .faq details[open] summary::after {
-  content: '−';
+  transform: rotate(45deg);
+}
+
+/* Answers slide open where ::details-content is supported; elsewhere they snap. */
+.faq details::details-content {
+  block-size: 0;
+  opacity: 0;
+  overflow: clip;
+  transition:
+    block-size 250ms var(--ease-out),
+    opacity 200ms ease-out,
+    content-visibility 250ms allow-discrete;
+}
+
+.faq details[open]::details-content {
+  block-size: auto;
+  opacity: 1;
 }
 
 .faq details p {
-  margin: 0 0 18px;
-  color: var(--muted);
-  max-width: 52em;
+  margin: 0 0 20px;
+  max-width: 68ch;
 }
 
-.stack p {
-  max-width: 48em;
-  color: var(--muted);
-  margin: 0;
+.stack .head p {
+  font-size: 16px;
 }
 
+/* The close: the name returns, large. */
 .footer {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: end;
+  gap: 24px;
   width: min(1088px, 100% - 32px);
   margin: 0 auto;
-  padding: 28px 0 40px;
-  border-top: 1px solid var(--border);
-  font-size: 14px;
+  padding: 24px 0 48px;
+}
+
+.footer .logo {
+  font-size: clamp(32px, 3.6vw, 48px);
 }
 
 .footer nav {
   display: flex;
+  flex-wrap: wrap;
   gap: 20px;
+}
+
+/* Phone-only furniture, hidden elsewhere. */
+.platforms-line,
+.on-computer,
+.footer .phone,
+.sticky-get {
+  display: none;
+}
+
+/* Entrances: each section's parts rise in turn as it comes into view. Without
+   script nothing is hidden; with reduced motion nothing moves. */
+.js .reveal {
+  opacity: 0;
+  transform: translateY(22px);
+  transition:
+    opacity 600ms var(--ease-out),
+    transform 700ms var(--ease-out);
+}
+
+.js .reveal.from-right {
+  transform: translateX(28px);
+}
+
+.js .reveal.scale {
+  transform: translateY(16px) scale(0.98);
+}
+
+.js .reveal.in {
+  opacity: 1;
+  transform: none;
+}
+
+.js .reveal:nth-child(2) {
+  transition-delay: 80ms;
+}
+
+.js .reveal:nth-child(3) {
+  transition-delay: 160ms;
+}
+
+.js .reveal:nth-child(4) {
+  transition-delay: 240ms;
+}
+
+.js .reveal:nth-child(5) {
+  transition-delay: 320ms;
+}
+
+.js .reveal:nth-child(6) {
+  transition-delay: 400ms;
+}
+
+.js .hero h1,
+.js .hero-copy {
+  animation: rise 700ms var(--ease-out) both;
+}
+
+.js .hero-copy {
+  animation-delay: 120ms;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
 }
 
 /* Narrow screens */
 @media (max-width: 900px) {
-  .hero {
+  .hero-row,
+  .split,
+  .build,
+  .head {
     grid-template-columns: minmax(0, 1fr);
-    padding-top: 56px;
   }
-  .grid,
-  .steps,
-  .phones {
+  .head {
+    align-items: start;
+    gap: 16px;
+  }
+  .roles,
+  .steps {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .shots-hero {
+  .row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+  .hero-shot {
     padding-left: 0;
   }
 }
@@ -470,16 +839,239 @@ h2 {
   .nav nav {
     display: none;
   }
-  .grid,
-  .steps,
-  .features {
-    grid-template-columns: minmax(0, 1fr);
+  h2 {
+    font-size: 34px;
   }
-  .gallery {
-    grid-template-columns: minmax(0, 1fr);
+  /* The hero shows the top of the board, not the whole phone. */
+  .hero-shot picture {
+    display: block;
+    max-height: 400px;
+    overflow: hidden;
+    border-radius: 20px;
+  }
+  /* Privacy: the table folds into one line under the intro; the points follow. */
+  #privacy .fold {
+    margin-bottom: 36px;
+  }
+  .fold {
+    border-radius: 16px;
+    background: var(--surface);
+  }
+  .phone .fold-toggle {
+    display: flex;
+    width: 100%;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    padding: 18px 22px;
+    border: 0;
+    background: none;
+    text-align: left;
+    cursor: pointer;
+    font: inherit;
+    font-weight: 600;
+    color: var(--ink);
+  }
+  .phone .fold-toggle::after {
+    content: '+';
+    flex: none;
+    font-size: 22px;
+    line-height: 1;
+    color: var(--muted);
+  }
+  .phone .fold.open > .fold-toggle::after {
+    content: '−';
+  }
+  /* Closed: only the button shows. Open, or no script: everything shows. */
+  .phone .fold:not(.open) > :not(.fold-toggle) {
+    display: none;
+  }
+  .fold.dev {
+    margin-bottom: 24px;
+  }
+  .fold .who {
+    margin: 0;
+    padding: 0 12px 12px;
+    border-radius: 0 0 16px 16px;
+  }
+  .fold .who caption {
+    display: none;
+  }
+  .fold pre {
+    margin: 0 12px 12px;
+  }
+  /* The first screen: one line of platforms, not seven targets. */
+  .platforms {
+    display: none;
+  }
+  .platforms-line {
+    display: block;
+    margin: 24px 0 0;
+    font-size: 14px;
+    color: var(--muted);
+  }
+  /* Fewer points: the ones that carry the claim. */
+  .points li.more {
+    display: none;
+  }
+  /* Two clips you can read, not four thumbnails. */
+  .media figure:nth-child(n + 3) {
+    display: none;
+  }
+  /* Developer detail and the stack step aside. */
+  .dev .build {
+    margin: 0;
+    background: none;
+    padding: 0 22px 8px;
+  }
+  .dev .note {
+    margin: 0 12px 12px;
+    background: var(--raised);
+  }
+  .stack {
+    display: none;
+  }
+  .footer .desk {
+    display: none;
+  }
+  .footer .phone {
+    display: inline;
+  }
+  /* Install commands are for a computer. */
+  .row pre {
+    display: none;
+  }
+  .on-computer {
+    display: block;
+    color: var(--muted);
+    font-size: 14px;
+  }
+  /* One Get button within reach of the thumb. */
+  .js .sticky-get {
+    display: block;
+    position: fixed;
+    left: 16px;
+    right: 16px;
+    bottom: calc(12px + env(safe-area-inset-bottom));
+    z-index: 9;
+    padding: 14px 24px;
+    border-radius: 999px;
+    background: var(--accent);
+    color: var(--on-accent);
+    font-weight: 600;
+    text-align: center;
+    text-decoration: none;
+    transform: translateY(140%);
+    transition: transform 300ms var(--ease-out);
+  }
+  .js .sticky-get.show {
+    transform: none;
+  }
+  /* Agents: one clip on phones; the other two roles are words. */
+  .roles figure:nth-child(n + 2) img,
+  .roles figure:nth-child(n + 2) video {
+    display: none;
+  }
+  .roles figure:first-child img,
+  .roles figure:first-child video {
+    max-height: 470px;
+    object-fit: cover;
+    object-position: top;
+  }
+  .roles figcaption {
+    padding-top: 12px;
+  }
+  .roles figure:nth-child(n + 2) figcaption {
+    padding-top: 0;
+  }
+  .roles {
+    gap: 24px;
+  }
+  main {
+    padding-bottom: 72px;
+  }
+  .section {
+    padding-top: 72px;
+  }
+  .field {
+    margin-top: 72px;
+    padding-top: 64px;
+    padding-bottom: 64px;
+  }
+  .hero {
+    padding-top: 40px;
+  }
+  .hero-row {
+    gap: 36px;
+  }
+  .hero-shot {
+    padding-bottom: 0;
+  }
+  .hero-shot .phone {
+    display: none;
   }
   .lead {
-    font-size: 17px;
+    font-size: 18px;
+  }
+  .points,
+  .roles,
+  .steps {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .points {
+    gap: 22px;
+  }
+  .media {
+    gap: 12px;
+  }
+  .build {
+    padding: 22px;
+  }
+  .platforms {
+    justify-content: space-between;
+    gap: 8px 4px;
+  }
+  /* The table becomes a list of small cards, two labelled lines each. */
+  .who table {
+    min-width: 0;
+  }
+  .who thead {
+    display: none;
+  }
+  .who caption {
+    padding: 8px 6px 4px;
+  }
+  .who tr {
+    display: block;
+    padding: 12px 6px;
+    border-top: 1px solid var(--raised);
+  }
+  .who th,
+  .who td {
+    display: block;
+    padding: 0;
+    border: 0;
+  }
+  .who tbody th {
+    margin-bottom: 6px;
+  }
+  .who td {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    text-align: right;
+  }
+  .who td::before {
+    content: attr(data-label);
+    flex: none;
+    text-align: left;
+    color: var(--muted);
+    font-weight: 400;
+  }
+  .footer {
+    flex-direction: column;
+    align-items: start;
+    padding-top: 48px;
   }
 }
 
@@ -487,7 +1079,28 @@ h2 {
   html {
     scroll-behavior: auto;
   }
-  .cursor {
+  .hero-shot .phone {
+    animation-name: fade-in;
+  }
+  .js .hero h1,
+  .js .hero-copy {
     animation: none;
+  }
+  .js .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .js .sticky-get {
+    transition: none;
+  }
+  .live::before {
+    animation: none;
+    border-color: var(--accent);
+  }
+  .faq details::details-content,
+  .button,
+  .lang {
+    transition-duration: 0ms;
   }
 }
