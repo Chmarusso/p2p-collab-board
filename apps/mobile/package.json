@@ -19,12 +19,14 @@
     "bare-type": "1.1.1",
     "expo": "^55.0.8",
     "expo-audio": "~55.0.18",
+    "expo-background-task": "~55.0.22",
     "expo-camera": "~55.0.23",
     "expo-clipboard": "^55.0.17",
     "expo-image-manipulator": "~55.0.21",
     "expo-image-picker": "~55.0.24",
     "expo-secure-store": "^15.0.0",
     "expo-splash-screen": "~55.0.25",
+    "expo-task-manager": "~55.0.20",
     "expo-video": "~55.0.21",
     "framed-stream": "^1.0.1",
     "marked": "^15.0.12",
@@ -40,5 +42,15 @@
     "@types/react": "~19.2.10",
     "bare-pack": "latest",
     "typescript": "^5.8.0"
+  },
+  "expo": {
+    "autolinking": {
+      "ios": {
+        "exclude": [
+          "expo-background-task",
+          "expo-task-manager"
+        ]
+      }
+    }
   }
 }

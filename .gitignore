@@ -15,6 +15,7 @@ apps/blind-peer/storage/
 # agent worktrees
 .claude/worktrees/
 apps/mobile/android/
+apps/mobile/modules/*/android/build/
 apps/mobile/dist/
 # Android release signing: keystore and passwords, never committed
 apps/mobile/keys/

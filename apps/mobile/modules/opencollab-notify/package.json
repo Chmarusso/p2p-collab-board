@@ -1,0 +1,7 @@
+{
+  "name": "opencollab-notify",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Local Android notifications for board alerts, without Google services",
+  "main": "index.ts"
+}
