@@ -946,19 +946,38 @@ async function peekBoard(key, board) {
     peekStore ??= new Corestore(path.join(updaterConfig.dir, 'peek-store'))
   }
   const swarm = legacy ? peekSwarm : replicationSwarm
-  const db = new Autobee(legacy ? peekStore.namespace(key) : space.store, board.key, {
+  const peekStoreFor = legacy ? peekStore.namespace(key) : space.store
+  // Its own wakeup, shared with the blind peers, like the open board's.
+  const peekWakeup = new Wakeup()
+  const db = new Autobee(peekStoreFor, board.key, {
     apply: applyBoardNodes,
-    optimistic: true
+    optimistic: true,
+    wakeup: peekWakeup
   })
   let discovery = null
+  let mirror = null
   try {
     await db.ready()
     discovery = swarm.join(db.discoveryKey, { client: true, server: true })
+    // The blind peers hold what members wrote while everyone else was offline.
+    if (blindPeerKeys.length) {
+      try {
+        mirror = new BlindPeering(swarm.dht, peekStoreFor, {
+          blindPeers: blindPeerKeys.map((key) => ({ key })),
+          wakeup: peekWakeup,
+          client: { name: 'opencollab', version: updaterConfig.version }
+        })
+        mirror.addAutobaseBackground(db)
+      } catch (err) {
+        console.error('Board check blind peer failed', err)
+      }
+    }
     const started = Date.now()
     while (Date.now() - started < PEEK_WINDOW) {
       await db.update().catch(() => {})
       await new Promise((resolve) => setTimeout(resolve, 1500))
-      if (!swarm.connections.size && Date.now() - started > PEEK_NO_PEERS) break
+      // Blind peers connect outside the swarm, so with one there is no early exit.
+      if (!mirror && !swarm.connections.size && Date.now() - started > PEEK_NO_PEERS) break
     }
     const { ops, name, owner } = await readBoardLog(db, board.secret)
     const messages = [...ops.values()]
@@ -968,6 +987,7 @@ async function peekBoard(key, board) {
     if (name) board.name = name
     board.checkedAt = Date.now()
   } finally {
+    if (mirror) await mirror.close().catch(() => {})
     if (discovery) await discovery.destroy().catch(() => {})
     await db.close().catch(() => {})
   }
