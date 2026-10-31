@@ -5,3 +5,4 @@ apps/mobile/ios/build
 apps/mobile/ios/Pods
 apps/mobile/ios/**/*.xcassets
 apps/mobile/android
+apps/mobile/modules/*/android/build

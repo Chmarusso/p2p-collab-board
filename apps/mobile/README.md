@@ -73,6 +73,34 @@ export ANDROID_KEYSTORE_PATH=/path/to/opencollab-release.jks \
 - Android does not receive P2P OTA updates yet (`scripts/ota.js` builds iOS only); each
   release is a new APK.
 
+## Phone notifications (Android)
+
+New cards, mentions, assignments and comments on your cards can show as phone
+notifications, without Firebase or any Google service. The phone works out what is
+new from boards it synced, so no server ever reads a board.
+
+- Every ~15 minutes Android's WorkManager wakes the app (`expo-background-task`).
+  `src/backgroundCheck.ts` starts the worker (or uses the running app's), logs in with
+  the saved recovery words, syncs each joined board for a few seconds, the blind peers
+  included, and stops again. Without saved words, checks run only while the app runs.
+- `src/notify.ts` remembers which alerts were already shown, keeps the kinds the user
+  chose (Settings → Phone notifications) and posts the new ones, at most four plus a
+  summary. A board seen for the first time is only a baseline.
+- `modules/opencollab-notify` is a small local Expo module (Kotlin) that posts the
+  notifications. Lock screens show "New activity on your boards" when the user hides
+  sensitive content. Tapping one opens `opencollab://alert?board=…&card=…`, which opens the card.
+- The app asks once after login. Saying no is remembered; Settings turns it back on.
+- iOS is not covered yet: Apple only wakes apps reliably through its push service,
+  which needs a relay (planned).
+
+Testing on an emulator without waiting 15 minutes:
+
+```sh
+adb shell dumpsys jobscheduler | grep "JOB #.*com.opencollab.mobile"   # note the job number
+adb shell am kill com.opencollab.mobile                               # app in the background first
+adb shell cmd jobscheduler run -f com.opencollab.mobile <job number>
+```
+
 ## Sharing links into boards
 
 Links and posts shared from other apps (Share → OpenCollab) open the "Add to board"

@@ -7,7 +7,16 @@ import card from './card'
 import panels from './panels'
 import chat from './chat'
 import shorts from './shorts'
+import notify from './notify'
 
-const pl: Record<string, string> = { ...app, ...board, ...card, ...panels, ...shorts, ...chat }
+const pl: Record<string, string> = {
+  ...app,
+  ...board,
+  ...card,
+  ...panels,
+  ...shorts,
+  ...chat,
+  ...notify
+}
 
 export default pl

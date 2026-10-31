@@ -3,6 +3,7 @@ import {
   AccessibilityInfo,
   Alert,
   Animated,
+  AppState,
   BackHandler,
   FlatList,
   Image,
@@ -29,6 +30,15 @@ import { Worklet } from 'react-native-bare-kit'
 import FramedStream from 'framed-stream'
 import workerBundle from './worker.bundle.js'
 import { BootSplash } from './BootSplash'
+import { scheduleBoardCheck, setLiveWorker, stopHeadlessCheck } from './backgroundCheck'
+import { parseAlertLink, notifyAlerts, notifyChoice, notifySupported, setNotify } from './notify'
+import {
+  blockedKey,
+  identityPhraseKey,
+  keychainChoiceKey,
+  recentBoardsKey,
+  sessionKey
+} from './storageKeys'
 import { THEME_MODES, boardKind, messageTypes, themeTemplate } from '@opencollab/board-protocol'
 import type { BoardKindId, ThemeMode } from '@opencollab/board-protocol'
 import {
@@ -150,16 +160,7 @@ type RecentBoard = { invite: string; name: string; joinedAt: number }
 // Invites are tied to the identity that joined, so remembered boards are kept
 // per identity public key. The unscoped key predates that and is migrated once.
 const legacyRecentBoardsKey = 'opencollab.recent-boards'
-const recentBoardsKey = (identity: string) => `opencollab.recent-boards.${identity}`
 
-// The recovery phrase is kept in the Keychain only if the user agreed to it;
-// the choice is remembered. A phrase saved before the choice existed counts as
-// 'saved'.
-const identityPhraseKey = 'opencollab.identity'
-const keychainChoiceKey = 'opencollab.identity-keychain'
-// Logged in with saved recovery words: the next launch logs in by itself, until
-// "Log out".
-const sessionKey = 'opencollab.session'
 // The board open when the app was left, reopened on the next launch.
 const lastBoardKey = (identity: string) => `opencollab.last-board.${identity}`
 
@@ -339,175 +340,198 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
     // Started here rather than through pear-mobile's PearRuntime.run (which does
     // the same) so the cleanup can stop it: Android Back destroys the activity
     // while the process lives on, and a second worker can't lock the stores.
-    const worklet = new Worklet()
-    worklet.start('/worker.bundle', workerBundle, [
-      String(!(globalThis as { __DEV__?: boolean }).__DEV__),
-      version,
-      upgrade,
-      productName
-    ])
-    const framed = new FramedStream(worklet.IPC)
-    framed.on('data', (data: Uint8Array) => {
-      onBoot()
-      const text = new TextDecoder().decode(data)
-      if (text === 'updating') return setUpdateStatus('downloading')
-      if (text === 'updated') {
-        // pear-mobile writes the update's package.json into the downloaded folder
-        // right after 'updated'; applying swaps that folder in, so give it a moment.
-        setTimeout(() => framed.write('pear:applyUpdate'), 3000)
-        return
-      }
-      if (text === 'pear:updateApplied') return setUpdateStatus('installed')
-      let message: WorkerMessage
-      try {
-        message = JSON.parse(text)
-      } catch {
-        return
-      }
-      if (message.type === messageTypes.identityStatus) {
-        if (message.status === 'unlocked') {
-          identityKeyRef.current = message.publicKey || ''
-          if (message.publicKey) {
-            SecureStore.getItemAsync(`opencollab.alerts-read-until.${message.publicKey}`).then(
-              (value) => setReadUntil(Number(value) || 0)
+    // For the same reason a background board check stops its worker first.
+    let stopWorker = () => {}
+    let cancelled = false
+    void stopHeadlessCheck().then(() => {
+      if (cancelled) return
+      const worklet = new Worklet()
+      worklet.start('/worker.bundle', workerBundle, [
+        String(!(globalThis as { __DEV__?: boolean }).__DEV__),
+        version,
+        upgrade,
+        productName
+      ])
+      const framed = new FramedStream(worklet.IPC)
+      framed.on('data', (data: Uint8Array) => {
+        onBoot()
+        const text = new TextDecoder().decode(data)
+        if (text === 'updating') return setUpdateStatus('downloading')
+        if (text === 'updated') {
+          // pear-mobile writes the update's package.json into the downloaded folder
+          // right after 'updated'; applying swaps that folder in, so give it a moment.
+          setTimeout(() => framed.write('pear:applyUpdate'), 3000)
+          return
+        }
+        if (text === 'pear:updateApplied') return setUpdateStatus('installed')
+        let message: WorkerMessage
+        try {
+          message = JSON.parse(text)
+        } catch {
+          return
+        }
+        if (message.type === messageTypes.identityStatus) {
+          if (message.status === 'unlocked') {
+            identityKeyRef.current = message.publicKey || ''
+            if (message.publicKey) {
+              SecureStore.getItemAsync(`opencollab.alerts-read-until.${message.publicKey}`).then(
+                (value) => setReadUntil(Number(value) || 0)
+              )
+              SecureStore.getItemAsync(blockedKey(message.publicKey)).then((value) => {
+                const list = value ? (JSON.parse(value) as string[]) : []
+                blockedRef.current = list
+                setBlocked(list)
+              })
+            }
+            setIdentityKey(message.publicKey || '')
+            if (message.publicKey) void loadRecentBoards(message.publicKey)
+            setIdentityReady(true)
+            if (keychainRef.current === 'saved' || keychainRef.current === 'protected') {
+              void SecureStore.setItemAsync(sessionKey, '1')
+            }
+            if (message.mnemonic) {
+              // Created: the Keychain question comes once the words are backed up.
+              phraseRef.current = message.mnemonic
+              setIdentityPhrase(message.mnemonic)
+              setBackupPhrase(message.mnemonic)
+            } else if (loadingPhraseRef.current) {
+              phraseRef.current = loadingPhraseRef.current
+              offerKeychain(loadingPhraseRef.current)
+            }
+            loadingPhraseRef.current = ''
+          } else if (message.error) Alert.alert(t('Identity error'), message.error)
+        }
+        if (message.type === messageTypes.roomStatus && message.status === 'ready') {
+          setRoomReady(true)
+          // Writers already hold the board; a joiner waits for its first sync
+          // (board-synced) before it can post — its earlier writes would be lost.
+          setSynced(!!message.writable)
+          setEntryError('')
+          setBoardName(message.boardName || 'OpenCollab')
+          setInvitationLink(message.invite || '')
+          setBoardKey(message.boardKey || '')
+          currentBoardKey.current = message.boardKey || ''
+          currentInvite.current = message.invite ? normalizeInvite(message.invite) : ''
+          if (message.invite) rememberBoard(message.invite, message.boardName || t('Unnamed board'))
+          if (message.invite && identityKeyRef.current) {
+            void SecureStore.setItemAsync(
+              lastBoardKey(identityKeyRef.current),
+              normalizeInvite(message.invite)
             )
-            SecureStore.getItemAsync(`opencollab.blocked.${message.publicKey}`).then((value) => {
-              const list = value ? (JSON.parse(value) as string[]) : []
-              blockedRef.current = list
-              setBlocked(list)
+          }
+          openPendingShare(boardColumns.current)
+          if (message.displayName) {
+            setDisplayName(message.displayName)
+            setDisplayNameDraft(message.displayName)
+          }
+        }
+        if (message.type === messageTypes.roomStatus && message.status === 'none') {
+          currentInvite.current = ''
+          setRoomReady(false)
+          setSynced(false)
+          setBoardData(emptyBoard)
+          setBoardKey('')
+          setBoardName('')
+          setInvitationLink('')
+          setDisplayName('')
+          setDisplayNameDraft('')
+          setImageCache({})
+          imageRequests.current.clear()
+          setEntryMode('choose')
+        }
+        if (message.type === 'board-action-error' && message.error) {
+          if (message.requestId && message.requestId === exportRequest.current) {
+            exportRequest.current = ''
+            setExporting(false)
+          }
+          Alert.alert(t('Not done'), message.error)
+        }
+        if (message.type === 'board-export' && message.requestId === exportRequest.current) {
+          exportRequest.current = ''
+          setExporting(false)
+          if (message.path) {
+            Share.share({ url: `file://${encodeURI(message.path)}` }).catch((err) =>
+              Alert.alert(t('Export'), err?.message || t('Could not share the file.'))
+            )
+          }
+        }
+        if (message.type === 'board-image') {
+          imageRequests.current.delete(message.key)
+          setImageCache((current) => ({
+            ...current,
+            [message.key]: message.data
+              ? { uri: `data:${message.mime};base64,${message.data}` }
+              : { error: message.error || 'unavailable' }
+          }))
+        }
+        if (message.type === messageTypes.boardState) {
+          // Only a change in where cards sit animates; reactions, checklists and
+          // the like would otherwise re-lay out an open card sheet while typing.
+          const layout = placementKey(message.objects || [], message.columns || [])
+          const moved = layout !== lastPlacement.current
+          lastPlacement.current = layout
+          if (moved && !reduceMotion && Date.now() - localMoveAt.current > 1500) {
+            LayoutAnimation.configureNext({
+              duration: 220,
+              update: { type: LayoutAnimation.Types.easeInEaseOut }
             })
           }
-          setIdentityKey(message.publicKey || '')
-          if (message.publicKey) void loadRecentBoards(message.publicKey)
-          setIdentityReady(true)
-          if (keychainRef.current === 'saved' || keychainRef.current === 'protected') {
-            void SecureStore.setItemAsync(sessionKey, '1')
-          }
-          if (message.mnemonic) {
-            // Created: the Keychain question comes once the words are backed up.
-            phraseRef.current = message.mnemonic
-            setIdentityPhrase(message.mnemonic)
-            setBackupPhrase(message.mnemonic)
-          } else if (loadingPhraseRef.current) {
-            phraseRef.current = loadingPhraseRef.current
-            offerKeychain(loadingPhraseRef.current)
-          }
-          loadingPhraseRef.current = ''
-        } else if (message.error) Alert.alert(t('Identity error'), message.error)
-      }
-      if (message.type === messageTypes.roomStatus && message.status === 'ready') {
-        setRoomReady(true)
-        // Writers already hold the board; a joiner waits for its first sync
-        // (board-synced) before it can post — its earlier writes would be lost.
-        setSynced(!!message.writable)
-        setEntryError('')
-        setBoardName(message.boardName || 'OpenCollab')
-        setInvitationLink(message.invite || '')
-        setBoardKey(message.boardKey || '')
-        currentBoardKey.current = message.boardKey || ''
-        currentInvite.current = message.invite ? normalizeInvite(message.invite) : ''
-        if (message.invite) rememberBoard(message.invite, message.boardName || t('Unnamed board'))
-        if (message.invite && identityKeyRef.current) {
-          void SecureStore.setItemAsync(
-            lastBoardKey(identityKeyRef.current),
-            normalizeInvite(message.invite)
-          )
+          setBoardData({
+            objects: message.objects || [],
+            chat: message.chat || [],
+            columns: message.columns || [],
+            labels: message.labels || [],
+            theme: message.theme || { background: null, accent: null, template: null },
+            info: message.info || { description: '' },
+            profiles: message.profiles || {},
+            owner: message.owner || null,
+            members: message.members || [],
+            rules: message.rules || []
+          })
+          openPendingCard(message.objects || [])
+          boardColumns.current = message.columns || []
+          boardKindRef.current = message.info?.kind || 'kanban'
         }
-        openPendingShare(boardColumns.current)
-        if (message.displayName) {
+        if (message.type === 'board-name' && message.name) {
+          setBoardName(message.name)
+        }
+        if (message.type === messageTypes.profileStatus) {
           setDisplayName(message.displayName)
           setDisplayNameDraft(message.displayName)
         }
-      }
-      if (message.type === messageTypes.roomStatus && message.status === 'none') {
-        currentInvite.current = ''
-        setRoomReady(false)
-        setSynced(false)
-        setBoardData(emptyBoard)
-        setBoardKey('')
-        setBoardName('')
-        setInvitationLink('')
-        setDisplayName('')
-        setDisplayNameDraft('')
-        setImageCache({})
-        imageRequests.current.clear()
-        setEntryMode('choose')
-      }
-      if (message.type === 'board-action-error' && message.error) {
-        if (message.requestId && message.requestId === exportRequest.current) {
-          exportRequest.current = ''
-          setExporting(false)
+        if (message.type === messageTypes.boardSynced) setSynced(true)
+        if (message.type === 'room-status' && message.status === 'error') {
+          pendingShare.current = null
+          setEntryError(message.error || t('Something went wrong'))
         }
-        Alert.alert(t('Not done'), message.error)
-      }
-      if (message.type === 'board-export' && message.requestId === exportRequest.current) {
-        exportRequest.current = ''
-        setExporting(false)
-        if (message.path) {
-          Share.share({ url: `file://${encodeURI(message.path)}` }).catch((err) =>
-            Alert.alert(t('Export'), err?.message || t('Could not share the file.'))
-          )
-        }
-      }
-      if (message.type === 'board-image') {
-        imageRequests.current.delete(message.key)
-        setImageCache((current) => ({
-          ...current,
-          [message.key]: message.data
-            ? { uri: `data:${message.mime};base64,${message.data}` }
-            : { error: message.error || 'unavailable' }
-        }))
-      }
-      if (message.type === messageTypes.boardState) {
-        // Only a change in where cards sit animates; reactions, checklists and
-        // the like would otherwise re-lay out an open card sheet while typing.
-        const layout = placementKey(message.objects || [], message.columns || [])
-        const moved = layout !== lastPlacement.current
-        lastPlacement.current = layout
-        if (moved && !reduceMotion && Date.now() - localMoveAt.current > 1500) {
-          LayoutAnimation.configureNext({
-            duration: 220,
-            update: { type: LayoutAnimation.Types.easeInEaseOut }
+        if (message.type === 'room-debug') setNetworkStatus(message.status || '')
+        if (message.type === messageTypes.boardAlerts) {
+          setAlertBoards(message.boards || [])
+          chimeForNewAlerts(message.boards || [])
+          // Shown on the phone unless the app is in front (the bell has them).
+          void notifyAlerts(identityKeyRef.current, message.boards || [], {
+            post: AppState.currentState !== 'active',
+            blocked: blockedRef.current
           })
         }
-        setBoardData({
-          objects: message.objects || [],
-          chat: message.chat || [],
-          columns: message.columns || [],
-          labels: message.labels || [],
-          theme: message.theme || { background: null, accent: null, template: null },
-          info: message.info || { description: '' },
-          profiles: message.profiles || {},
-          owner: message.owner || null,
-          members: message.members || [],
-          rules: message.rules || []
-        })
-        openPendingCard(message.objects || [])
-        boardColumns.current = message.columns || []
-        boardKindRef.current = message.info?.kind || 'kanban'
+        for (const listener of workerListeners.current) listener(message)
+        if (message.type === 'peer-count') setPeerCount(message.count || 0)
+      })
+      pipeRef.current = framed
+      setPipe(framed)
+      setLiveWorker({
+        refresh: () => refreshWatchRef.current(),
+        subscribe: (listener) => {
+          workerListeners.current.add(listener)
+          return () => workerListeners.current.delete(listener)
+        }
+      })
+      stopWorker = () => {
+        setLiveWorker(null)
+        framed.destroy()
+        worklet.terminate()
       }
-      if (message.type === 'board-name' && message.name) {
-        setBoardName(message.name)
-      }
-      if (message.type === messageTypes.profileStatus) {
-        setDisplayName(message.displayName)
-        setDisplayNameDraft(message.displayName)
-      }
-      if (message.type === messageTypes.boardSynced) setSynced(true)
-      if (message.type === 'room-status' && message.status === 'error') {
-        pendingShare.current = null
-        setEntryError(message.error || t('Something went wrong'))
-      }
-      if (message.type === 'room-debug') setNetworkStatus(message.status || '')
-      if (message.type === messageTypes.boardAlerts) {
-        setAlertBoards(message.boards || [])
-        chimeForNewAlerts(message.boards || [])
-      }
-      for (const listener of workerListeners.current) listener(message)
-      if (message.type === 'peer-count') setPeerCount(message.count || 0)
     })
-    pipeRef.current = framed
-    setPipe(framed)
     void loadSavedIdentity()
     SecureStore.getItemAsync(soundPrefKey).then((value) => {
       if (!isSoundName(value)) return
@@ -528,9 +552,9 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
       setLanguageChoice(value)
     })
     return () => {
+      cancelled = true
       motion.remove()
-      framed.destroy()
-      worklet.terminate()
+      stopWorker()
     }
   }, [])
 
@@ -549,6 +573,12 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
   // opencollab://share links; the board picker shows once an identity is open.
   useEffect(() => {
     const receive = (url: string | null) => {
+      const alertLink = parseAlertLink(url)
+      if (alertLink) {
+        pendingAlertLink.current = alertLink
+        setAlertLinkNonce((nonce) => nonce + 1)
+        return
+      }
       const item = parseShare(url)
       if (!item) return
       shareArrived.current = true
@@ -562,6 +592,47 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
     const subscription = Linking.addEventListener('url', ({ url }) => receive(url))
     return () => subscription.remove()
   }, [])
+
+  // A tapped notification: open its card once the board list is known.
+  const pendingAlertLink = useRef<{ board: string; card: string } | null>(null)
+  const [alertLinkNonce, setAlertLinkNonce] = useState(0)
+  useEffect(() => {
+    const link = pendingAlertLink.current
+    if (!link || !identityReady) return
+    if (!link.board) return void (pendingAlertLink.current = null)
+    const board = alertBoards.find((item) => item.key === link.board)
+    if (!board) return
+    pendingAlertLink.current = null
+    const alert = board.alerts.find((item) => (item.cardId || '') === link.card)
+    if (alert) openAlert(board, alert)
+    else openBoardCard(board, link.card || null)
+  }, [alertLinkNonce, identityReady, alertBoards])
+
+  // Phone notifications are offered once, after the recovery-words question.
+  useEffect(() => {
+    if (!identityReady || !notifySupported || keychain === null) return
+    let active = true
+    notifyChoice().then((choice) => {
+      if (!active || choice === 'off') return
+      if (choice === 'on') return void scheduleBoardCheck(true)
+      Alert.alert(
+        t('Get notified about your boards?'),
+        t(
+          'OpenCollab tells you when someone mentions you, assigns you a card or adds one. Your phone checks your boards about every 15 minutes; nothing about them leaves the phone.'
+        ),
+        [
+          { text: t('Not now'), style: 'cancel', onPress: () => void setNotify(false) },
+          {
+            text: t('Turn on'),
+            onPress: () => void setNotify(true).then((on) => scheduleBoardCheck(on))
+          }
+        ]
+      )
+    })
+    return () => {
+      active = false
+    }
+  }, [identityReady, keychain])
 
   // Android Back steps out of a board or a create/join form before leaving the
   // app. Open sheets and modals handle Back themselves (onRequestClose).
@@ -587,12 +658,17 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
   }, [pipe, roomReady, identityReady, entryMode, createStep])
 
   // The worker checks every joined board in the background for notifications.
+  // A background board check (backgroundCheck.ts) asks for a check right away.
+  const refreshWatchRef = useRef(() => {})
   useEffect(() => {
     if (!pipe || !identityReady) return
-    send({
-      type: messageTypes.boardsWatch,
-      boards: recentBoards.map(({ invite, name }) => ({ invite, name }))
-    })
+    const watch = () =>
+      send({
+        type: messageTypes.boardsWatch,
+        boards: recentBoards.map(({ invite, name }) => ({ invite, name }))
+      })
+    refreshWatchRef.current = watch
+    watch()
   }, [pipe, identityReady, recentBoards])
 
   // Debug builds only: lets scripted checks (Hermes inspector via Metro) drive
@@ -978,10 +1054,7 @@ function AppContent({ onBoot }: { onBoot: () => void }) {
       : [...blockedRef.current, identity]
     blockedRef.current = next
     setBlocked(next)
-    void SecureStore.setItemAsync(
-      `opencollab.blocked.${identityKeyRef.current}`,
-      JSON.stringify(next)
-    )
+    void SecureStore.setItemAsync(blockedKey(identityKeyRef.current), JSON.stringify(next))
   }
 
   function chooseSound(next: SoundName) {

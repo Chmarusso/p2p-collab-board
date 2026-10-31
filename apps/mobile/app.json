@@ -69,7 +69,8 @@
         }
       ],
       "./plugins/android-release",
-      "./plugins/share-target"
+      "./plugins/share-target",
+      "expo-background-task"
     ]
   }
 }

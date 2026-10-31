@@ -1,6 +1,6 @@
 // App settings that belong to this device, not to a board: where the recovery
-// words are kept, the notification sound and the appearance.
-import React from 'react'
+// words are kept, phone notifications, the notification sound and the appearance.
+import React, { useEffect, useState } from 'react'
 import { Alert, Platform, Text, View } from 'react-native'
 import { Button, colors, mono, themed } from './ui'
 import { Sheet } from './board/Panels'
@@ -9,6 +9,15 @@ import { SOUND_OPTIONS, SoundName } from './sounds'
 import { THEME_TEMPLATES } from '@opencollab/board-protocol'
 import type { ThemeMode } from '@opencollab/board-protocol'
 import { LanguageChoice, t } from './i18n'
+import {
+  NotifyKind,
+  notifyChoice,
+  notifyKinds,
+  notifySupported,
+  saveNotifyKinds,
+  setNotify
+} from './notify'
+import { scheduleBoardCheck } from './backgroundCheck'
 
 const MODE_OPTIONS: Array<{ id: ThemeMode; label: () => string }> = [
   { id: 'system', label: () => t('System') },
@@ -166,6 +175,8 @@ export function SettingsSheet({
         ))}
       </View>
 
+      {notifySupported ? <PhoneNotifications wordsSaved={saved} /> : null}
+
       <Text style={styles.sectionLabel}>{t('Notification sound')}</Text>
       <Text style={styles.muted}>
         {t('Plays when new notifications arrive while the app is open.')}
@@ -181,6 +192,67 @@ export function SettingsSheet({
         ))}
       </View>
     </Sheet>
+  )
+}
+
+const KIND_OPTIONS: Array<{ id: NotifyKind; label: () => string }> = [
+  { id: 'mention', label: () => t('Mentions') },
+  { id: 'new-card', label: () => t('New cards') },
+  { id: 'assigned', label: () => t('Assigned to me') },
+  { id: 'comment', label: () => t('Comments on my cards') }
+]
+
+// Phone notifications (Android): on or off, and which kinds.
+function PhoneNotifications({ wordsSaved }: { wordsSaved: boolean }) {
+  const [on, setOn] = useState(false)
+  const [kinds, setKinds] = useState<NotifyKind[]>([])
+  useEffect(() => {
+    notifyChoice().then((choice) => setOn(choice === 'on'))
+    notifyKinds().then(setKinds)
+  }, [])
+  const turn = async (next: boolean) => {
+    const result = await setNotify(next)
+    setOn(result)
+    await scheduleBoardCheck(result)
+    if (next && !result) {
+      Alert.alert(
+        t('Notifications are off'),
+        t('Allow notifications for OpenCollab in your phone’s settings, then try again.')
+      )
+    }
+  }
+  const toggleKind = (kind: NotifyKind) => {
+    const next = kinds.includes(kind) ? kinds.filter((item) => item !== kind) : [...kinds, kind]
+    setKinds(next)
+    void saveNotifyKinds(next)
+  }
+  return (
+    <>
+      <Text style={styles.sectionLabel}>{t('Phone notifications')}</Text>
+      <Text style={styles.muted}>
+        {wordsSaved
+          ? t(
+              'Your phone checks your boards about every 15 minutes. Nothing about them leaves the phone.'
+            )
+          : t('With the app closed, checks need your recovery words saved on this device.')}
+      </Text>
+      <View style={styles.chips}>
+        <Chip label={t('On')} selected={on} onPress={() => void turn(true)} />
+        <Chip label={t('Off')} selected={!on} onPress={() => void turn(false)} />
+      </View>
+      {on ? (
+        <View style={styles.chips}>
+          {KIND_OPTIONS.map((option) => (
+            <Chip
+              key={option.id}
+              label={option.label()}
+              selected={kinds.includes(option.id)}
+              onPress={() => toggleKind(option.id)}
+            />
+          ))}
+        </View>
+      ) : null}
+    </>
   )
 }
 
