@@ -155,6 +155,7 @@ const copy = {
       ]
     ],
     buildH3: 'Or build your own',
+    showCode: 'Show the commands',
     buildText: `Those are starting points. Maybe your group wants a price tracker. Connect any MCP client, like Claude or Cursor, or run a small worker on your machine with the <code>opencollab</code> command line. <a href="${REPO}/tree/main/apps/cli/examples">The example agents</a> are a few dozen lines each.`,
     buildCode: [
       '# connect an AI client',
@@ -384,6 +385,7 @@ const copy = {
       ]
     ],
     buildH3: 'Albo zbuduj własnego',
+    showCode: 'Pokaż polecenia',
     buildText: `To tylko punkty wyjścia. Może twoja grupa chce śledzić ceny. Podłącz dowolnego klienta MCP, na przykład Claude’a albo Cursora, albo uruchom na komputerze mały worker z wierszem poleceń <code>opencollab</code>. <a href="${REPO}/tree/main/apps/cli/examples">Przykładowi agenci</a> mają po kilkadziesiąt linijek.`,
     buildCode: [
       '# podłącz klienta AI',
@@ -634,7 +636,9 @@ function page(lang) {
           <h2 class="reveal">${t.privacyH2}</h2>
           <p class="reveal">${t.privacyIntro}</p>
         </div>
-        <div class="who reveal" role="region" aria-label="${t.whoCaption}" tabindex="0">
+        <details class="fold reveal" open>
+          <summary>${t.whoCaption}</summary>
+        <div class="who" role="region" aria-label="${t.whoCaption}" tabindex="0">
           <table>
             <caption>${t.whoCaption}</caption>
             <thead>
@@ -650,6 +654,7 @@ function page(lang) {
             </tbody>
           </table>
         </div>
+        </details>
         <ul class="points">
           ${t.privacy.map(([, title, text]) => `<li class="reveal"><h3>${title}</h3><p>${text}</p></li>`).join('\n          ')}
         </ul>
@@ -699,7 +704,10 @@ function page(lang) {
             <h3>${t.buildH3}</h3>
             <p>${t.buildText}</p>
           </div>
-          <pre><code>${t.buildCode.join('\n')}</code></pre>
+          <details class="fold" open>
+            <summary>${t.showCode}</summary>
+            <pre><code>${t.buildCode.join('\n')}</code></pre>
+          </details>
         </div>
         <p class="note reveal">${t.agentsNote}</p>
       </section>
@@ -768,6 +776,10 @@ function page(lang) {
       </nav>
     </footer>
     <script>
+      // On phones the table and the commands start folded; without script they stay open.
+      if (matchMedia('(max-width: 640px)').matches) {
+        document.querySelectorAll('details.fold').forEach((d) => d.removeAttribute('open'))
+      }
       // Clips load and play only while on screen; with reduced motion they stay still.
       const still = matchMedia('(prefers-reduced-motion: reduce)').matches
       const watch = new IntersectionObserver(

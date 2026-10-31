@@ -135,7 +135,9 @@
           <h2 class="reveal">Jak chronimy twoje tablice</h2>
           <p class="reveal">OpenCollab nie ma serwera ani bazy danych. Twoje urządzenie szyfruje każdą tablicę kluczem, który masz tylko ty i osoby, które zaprosisz.</p>
         </div>
-        <div class="who reveal" role="region" aria-label="Kto co widzi" tabindex="0">
+        <details class="fold reveal" open>
+          <summary>Kto co widzi</summary>
+        <div class="who" role="region" aria-label="Kto co widzi" tabindex="0">
           <table>
             <caption>Kto co widzi</caption>
             <thead>
@@ -150,6 +152,7 @@
             </tbody>
           </table>
         </div>
+        </details>
         <ul class="points">
           <li class="reveal"><h3>Szyfrowane na twoim urządzeniu</h3><p>Karty, komentarze, czat i zdjęcia są szyfrowane na telefonie, zanim go opuszczą. Bez klucza nie da się odczytać ani tego, co wędruje, ani tego, co jest zapisane.</p></li>
           <li class="reveal"><h3>Klucz jest w zaproszeniu</h3><p>Klucz wędruje w linku z zaproszeniem. Kto ma zaproszenie, ten przeczyta tablicę. Sieć, która łączy urządzenia, nigdy nie widzi klucza.</p></li>
@@ -229,11 +232,14 @@
             <h3>Albo zbuduj własnego</h3>
             <p>To tylko punkty wyjścia. Może twoja grupa chce śledzić ceny. Podłącz dowolnego klienta MCP, na przykład Claude’a albo Cursora, albo uruchom na komputerze mały worker z wierszem poleceń <code>opencollab</code>. <a href="https://github.com/Chmarusso/p2p-collab-board/tree/main/apps/cli/examples">Przykładowi agenci</a> mają po kilkadziesiąt linijek.</p>
           </div>
-          <pre><code># podłącz klienta AI
+          <details class="fold" open>
+            <summary>Pokaż polecenia</summary>
+            <pre><code># podłącz klienta AI
 claude mcp add opencollab -e OPENCOLLAB_PASSWORD=… -- opencollab mcp -s ~/.opencollab-ai
 
 # albo uruchom workera: ten zamienia udostępnione linki w najważniejsze punkty
 SLIDES_BOARD="Weekend reading" node apps/cli/examples/feed-slides.mjs</code></pre>
+          </details>
         </div>
         <p class="note reveal"><strong>Co widzi agent:</strong> tylko tablice, na które go zaprosisz. To, co przeczyta, wysyła do modelu AI, który wybierzesz. Asystenta, który ma tylko odpowiadać, uruchom z <code>--read-only</code>.</p>
       </section>
@@ -334,6 +340,10 @@ SLIDES_BOARD="Weekend reading" node apps/cli/examples/feed-slides.mjs</code></pr
       </nav>
     </footer>
     <script>
+      // On phones the table and the commands start folded; without script they stay open.
+      if (matchMedia('(max-width: 640px)').matches) {
+        document.querySelectorAll('details.fold').forEach((d) => d.removeAttribute('open'))
+      }
       // Clips load and play only while on screen; with reduced motion they stay still.
       const still = matchMedia('(prefers-reduced-motion: reduce)').matches
       const watch = new IntersectionObserver(

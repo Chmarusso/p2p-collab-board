@@ -135,7 +135,9 @@
           <h2 class="reveal">How your boards stay private</h2>
           <p class="reveal">OpenCollab has no server and no database. Your device encrypts each board with a key that only you and the people you invite hold.</p>
         </div>
-        <div class="who reveal" role="region" aria-label="Who can see what" tabindex="0">
+        <details class="fold reveal" open>
+          <summary>Who can see what</summary>
+        <div class="who" role="region" aria-label="Who can see what" tabindex="0">
           <table>
             <caption>Who can see what</caption>
             <thead>
@@ -150,6 +152,7 @@
             </tbody>
           </table>
         </div>
+        </details>
         <ul class="points">
           <li class="reveal"><h3>Encrypted on your device</h3><p>Cards, comments, chat and photos are encrypted on your phone before they leave it. What travels and what gets stored is unreadable without the key.</p></li>
           <li class="reveal"><h3>The invite holds the key</h3><p>The key travels inside the invite link. Whoever has the invite can read the board. The network that connects devices never sees the key.</p></li>
@@ -229,11 +232,14 @@
             <h3>Or build your own</h3>
             <p>Those are starting points. Maybe your group wants a price tracker. Connect any MCP client, like Claude or Cursor, or run a small worker on your machine with the <code>opencollab</code> command line. <a href="https://github.com/Chmarusso/p2p-collab-board/tree/main/apps/cli/examples">The example agents</a> are a few dozen lines each.</p>
           </div>
-          <pre><code># connect an AI client
+          <details class="fold" open>
+            <summary>Show the commands</summary>
+            <pre><code># connect an AI client
 claude mcp add opencollab -e OPENCOLLAB_PASSWORD=… -- opencollab mcp -s ~/.opencollab-ai
 
 # or run a worker: this one turns shared links into key points
 SLIDES_BOARD="Weekend reading" node apps/cli/examples/feed-slides.mjs</code></pre>
+          </details>
         </div>
         <p class="note reveal"><strong>What an agent can see:</strong> only the boards you invite it to. It sends what it reads to the AI model you chose. For an assistant that should only answer, run it with <code>--read-only</code>.</p>
       </section>
@@ -334,6 +340,10 @@ SLIDES_BOARD="Weekend reading" node apps/cli/examples/feed-slides.mjs</code></pr
       </nav>
     </footer>
     <script>
+      // On phones the table and the commands start folded; without script they stay open.
+      if (matchMedia('(max-width: 640px)').matches) {
+        document.querySelectorAll('details.fold').forEach((d) => d.removeAttribute('open'))
+      }
       // Clips load and play only while on screen; with reduced motion they stay still.
       const still = matchMedia('(prefers-reduced-motion: reduce)').matches
       const watch = new IntersectionObserver(

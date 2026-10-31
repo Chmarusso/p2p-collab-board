@@ -440,6 +440,16 @@ main {
   font-weight: 600;
 }
 
+/* Folds: on desktop the table and the commands are simply there; on phones they
+   open on tap (the script closes them), so the page stays short. */
+.fold > summary {
+  display: none;
+}
+
+.fold > summary::-webkit-details-marker {
+  display: none;
+}
+
 /* Groups: the list beside a two-by-two of the phones. */
 .split {
   display: grid;
@@ -817,6 +827,75 @@ pre {
   .nav nav {
     display: none;
   }
+  h2 {
+    font-size: 34px;
+  }
+  /* The hero shows the top of the board, not the whole phone. */
+  .hero-shot picture {
+    display: block;
+    max-height: 400px;
+    overflow: hidden;
+    border-radius: 20px;
+  }
+  /* Privacy: the table folds into one line under the intro; the points follow. */
+  #privacy .fold {
+    margin-bottom: 36px;
+  }
+  .fold {
+    border-radius: 16px;
+    background: var(--surface);
+  }
+  .fold > summary {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 18px 22px;
+    list-style: none;
+    cursor: pointer;
+    font-weight: 600;
+    color: var(--ink);
+  }
+  .fold > summary::after {
+    content: '+';
+    flex: none;
+    font-size: 22px;
+    line-height: 1;
+    color: var(--muted);
+  }
+  .fold[open] > summary::after {
+    content: '−';
+  }
+  .fold .who {
+    margin: 0;
+    padding: 0 12px 12px;
+    border-radius: 0 0 16px 16px;
+  }
+  .fold .who caption {
+    display: none;
+  }
+  .fold pre {
+    margin: 0 12px 12px;
+  }
+  /* Agents: one clip on phones; the other two roles are words. */
+  .roles figure:nth-child(n + 2) img,
+  .roles figure:nth-child(n + 2) video {
+    display: none;
+  }
+  .roles figure:first-child img,
+  .roles figure:first-child video {
+    max-height: 470px;
+    object-fit: cover;
+    object-position: top;
+  }
+  .roles figcaption {
+    padding-top: 12px;
+  }
+  .roles figure:nth-child(n + 2) figcaption {
+    padding-top: 0;
+  }
+  .roles {
+    gap: 24px;
+  }
   main {
     padding-bottom: 72px;
   }
@@ -862,9 +941,6 @@ pre {
     gap: 8px 4px;
   }
   /* The table becomes a list of small cards, two labelled lines each. */
-  .who {
-    padding: 8px 12px 12px;
-  }
   .who table {
     min-width: 0;
   }
