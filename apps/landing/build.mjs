@@ -29,6 +29,12 @@ const copy = {
     ctaGet: 'Get OpenCollab',
     ctaPrivacy: 'See how it stays private',
     platformsLabel: 'Available on',
+    platformsLine: 'Android · iPhone · Mac · Windows · Linux · Terminal',
+    ctaAndroid: 'Get it for Android',
+    whoFold: 'Who can see what? Only the people you invite.',
+    buildFold: 'Build your own agent',
+    onComputer: 'Install from this page on your computer; the command is shown there.',
+    stackLink: 'Built on Holepunch',
     heroAlt:
       'The Weekend reading board: a shared feed with a friend’s podcast link, a Sunday hike plan and the board chat',
     heroPhoneAlt:
@@ -188,7 +194,7 @@ const copy = {
     get: [
       [
         'Phone',
-        `<p>In English and Polish.</p><ul class="plain"><li><strong>Android:</strong> <a href="${REPO}/releases?q=android-v&amp;expanded=true">download the APK</a> (Android 10 or newer)</li><li><strong>iPhone:</strong> build it from <a href="${REPO}/tree/main/apps/mobile">apps/mobile</a></li><li>Both update over Pear afterwards</li></ul>`
+        `<p>In English and Polish.</p><ul class="plain"><li><strong>Android:</strong> <a href="${REPO}/releases?q=android-v&amp;expanded=true">download the APK</a> (Android 10 or newer)</li><li><strong>iPhone:</strong> not in the App Store yet. <a href="${REPO}/tree/main/apps/mobile">Build it from source</a> or <a href="${REPO}">follow progress</a></li><li>Both update over Pear afterwards</li></ul>`
       ],
       [
         'Desktop',
@@ -259,6 +265,12 @@ const copy = {
     ctaGet: 'Pobierz OpenCollab',
     ctaPrivacy: 'Zobacz, jak chronimy prywatność',
     platformsLabel: 'Dostępne na',
+    platformsLine: 'Android · iPhone · Mac · Windows · Linux · Terminal',
+    ctaAndroid: 'Pobierz na Androida',
+    whoFold: 'Kto co widzi? Tylko te osoby, które zaprosisz.',
+    buildFold: 'Zbuduj własnego agenta',
+    onComputer: 'Zainstaluj z tej strony na komputerze; tam widać polecenie.',
+    stackLink: 'Zbudowane na Holepunch',
     heroAlt:
       'Tablica Do poczytania: wspólne aktualności z podcastem od znajomej, planem niedzielnej wycieczki i czatem tablicy',
     heroPhoneAlt:
@@ -418,7 +430,7 @@ const copy = {
     get: [
       [
         'Telefon',
-        `<p>Po polsku i angielsku.</p><ul class="plain"><li><strong>Android:</strong> <a href="${REPO}/releases?q=android-v&amp;expanded=true">pobierz APK</a> (Android 10 lub nowszy)</li><li><strong>iPhone:</strong> zbuduj z <a href="${REPO}/tree/main/apps/mobile">apps/mobile</a></li><li>Potem oba aktualizują się przez Pear</li></ul>`
+        `<p>Po polsku i angielsku.</p><ul class="plain"><li><strong>Android:</strong> <a href="${REPO}/releases?q=android-v&amp;expanded=true">pobierz APK</a> (Android 10 lub nowszy)</li><li><strong>iPhone:</strong> jeszcze nie w App Store. <a href="${REPO}/tree/main/apps/mobile">Zbuduj ze źródeł</a> albo <a href="${REPO}">śledź postępy</a></li><li>Potem oba aktualizują się przez Pear</li></ul>`
       ],
       [
         'Komputer',
@@ -553,6 +565,7 @@ function page(lang) {
     <meta name="color-scheme" content="dark" />
     <script>
       document.documentElement.classList.add('js')
+      if (matchMedia('(max-width: 640px)').matches) document.documentElement.classList.add('phone')
       // Language: a remembered choice (the switch sets it) wins; otherwise a Polish
       // browser arriving at the English page is sent to /pl/ once. A direct link
       // to /pl/ is respected. Without script, hreflang alone does the work.
@@ -612,12 +625,13 @@ function page(lang) {
           <div class="hero-copy">
             <p class="lead">${t.lead}</p>
             <div class="actions">
-              <a class="button primary" href="#get">${t.ctaGet}</a>
+              <a class="button primary" href="#get" data-android="${REPO}/releases?q=android-v&amp;expanded=true">${t.ctaGet}</a>
               <a class="button" href="#privacy">${t.ctaPrivacy}</a>
             </div>
             <ul class="platforms" aria-label="${t.platformsLabel}">
               ${PLATFORMS.map(([id, name]) => `<li>${icon(id, 'brand')}<span>${name}</span></li>`).join('\n              ')}
             </ul>
+            <p class="platforms-line">${t.platformsLine}</p>
           </div>
 
           <div class="hero-shot">
@@ -650,8 +664,8 @@ function page(lang) {
           <h2 class="reveal">${t.privacyH2}</h2>
           <p class="reveal">${t.privacyIntro}</p>
         </div>
-        <details class="fold reveal" open>
-          <summary>${t.whoCaption}</summary>
+        <div class="fold reveal">
+          <button type="button" class="fold-toggle" aria-expanded="true">${t.whoFold}</button>
         <div class="who" role="region" aria-label="${t.whoCaption}" tabindex="0">
           <table>
             <caption>${t.whoCaption}</caption>
@@ -668,9 +682,9 @@ function page(lang) {
             </tbody>
           </table>
         </div>
-        </details>
+        </div>
         <ul class="points">
-          ${t.privacy.map(([, title, text]) => `<li class="reveal"><h3>${title}</h3><p>${text}</p></li>`).join('\n          ')}
+          ${t.privacy.map(([, title, text], i) => `<li class="reveal${[1, 4].includes(i) ? ' more' : ''}"><h3>${title}</h3><p>${text}</p></li>`).join('\n          ')}
         </ul>
       </section>
 
@@ -681,7 +695,7 @@ function page(lang) {
         </div>
         <div class="split">
           <ul class="points one">
-            ${t.groups.map(([, title, text]) => `<li class="reveal"><h3>${title}</h3><p>${text}</p></li>`).join('\n            ')}
+            ${t.groups.map(([, title, text], i) => `<li class="reveal${[3, 4].includes(i) ? ' more' : ''}"><h3>${title}</h3><p>${text}</p></li>`).join('\n            ')}
           </ul>
           <div class="media">
             ${media(t.groupsMedia, { root, lang, sizes: '(max-width: 640px) 45vw, (max-width: 900px) 42vw, 290px' })}
@@ -713,17 +727,20 @@ function page(lang) {
             })
             .join('\n          ')}
         </div>
-        <div class="build reveal">
-          <div>
-            <h3>${t.buildH3}</h3>
-            <p>${t.buildText}</p>
+        <div class="fold dev reveal">
+          <button type="button" class="fold-toggle" aria-expanded="true">${t.buildFold}</button>
+          <div class="build">
+            <div>
+              <h3>${t.buildH3}</h3>
+              <p>${t.buildText}</p>
+            </div>
+            <div class="fold">
+              <button type="button" class="fold-toggle" aria-expanded="true">${t.showCode}</button>
+              <pre><code>${t.buildCode.join('\n')}</code></pre>
+            </div>
           </div>
-          <details class="fold" open>
-            <summary>${t.showCode}</summary>
-            <pre><code>${t.buildCode.join('\n')}</code></pre>
-          </details>
+          <p class="note">${t.agentsNote}</p>
         </div>
-        <p class="note reveal">${t.agentsNote}</p>
       </section>
 
       <section id="how" class="section">
@@ -747,14 +764,14 @@ function page(lang) {
             .map(
               ([title, text, code]) => `<div class="row reveal">
             <h3>${title}</h3>
-            <div>${text.startsWith('<p>') ? text : `<p>${text}</p>`}${code ? `\n            <pre><code>${code}</code></pre>` : ''}</div>
+            <div>${text.startsWith('<p>') ? text : `<p>${text}</p>`}${code ? `\n            <pre><code>${code}</code></pre>\n            <p class="on-computer">${t.onComputer}</p>` : ''}</div>
           </div>`
             )
             .join('\n          ')}
         </div>
       </section>
 
-      <section class="section stack">
+      <section class="section stack" id="stack">
         <div class="head">
           <h2 class="reveal">${t.stackH2}</h2>
           <p class="reveal">${t.stack}</p>
@@ -781,20 +798,28 @@ function page(lang) {
 
     </main>
 
+    <a class="sticky-get" href="#get" data-android="${REPO}/releases?q=android-v&amp;expanded=true" tabindex="-1" aria-hidden="true">${t.ctaGet}</a>
     <footer class="footer">
       <span class="logo"><span class="prompt">&gt;</span> opencollab</span>
       <nav aria-label="Footer">
         <a class="lang" href="${otherHref}" hreflang="${other}" lang="${other}">${t.switchLabel}</a>
-        <a href="${root}design-system.html">${t.footer[0]}</a>
+        <a class="desk" href="${root}design-system.html">${t.footer[0]}</a>
+        <a class="phone" href="https://holepunch.to">${t.stackLink}</a>
         <a href="${REPO}/blob/main/PRIVACY.md">${t.footer[1]}</a>
         <a href="${REPO}">${t.footer[2]}</a>
       </nav>
     </footer>
     <script>
-      // On phones the table and the commands start folded; without script they stay open.
-      if (matchMedia('(max-width: 640px)').matches) {
-        document.querySelectorAll('details.fold').forEach((d) => d.removeAttribute('open'))
-      }
+      // On phones the folds start closed (html.phone, set before paint); a tap opens one.
+      document.querySelectorAll('.fold-toggle').forEach((button) => {
+        const fold = button.parentElement
+        const sync = () => button.setAttribute('aria-expanded', String(!document.documentElement.classList.contains('phone') || fold.classList.contains('open')))
+        sync()
+        button.addEventListener('click', () => {
+          fold.classList.toggle('open')
+          sync()
+        })
+      })
       // Clips load and play only while on screen; with reduced motion they stay still.
       const still = matchMedia('(prefers-reduced-motion: reduce)').matches
       const watch = new IntersectionObserver(
@@ -818,6 +843,32 @@ function page(lang) {
           link.href = link.getAttribute('href') + location.hash
         })
       })
+      // Android gets the APK straight from the first button.
+      if (/Android/i.test(navigator.userAgent)) {
+        document.querySelectorAll('a[data-android]').forEach((a) => {
+          a.href = a.dataset.android
+          a.textContent = '${t.ctaAndroid}'
+        })
+      }
+      // On phones one Get button stays within reach once the hero's has scrolled away,
+      // and steps aside at the Get section and the footer.
+      const sticky = document.querySelector('.sticky-get')
+      if (sticky) {
+        let heroGone = false
+        let nearGet = false
+        const show = () => sticky.classList.toggle('show', heroGone && !nearGet)
+        new IntersectionObserver(([e]) => {
+          heroGone = !e.isIntersecting && e.boundingClientRect.top < 0
+          show()
+        }).observe(document.querySelector('.hero .actions'))
+        const near = new IntersectionObserver((entries) => {
+          for (const e of entries) e.target.dataset.near = e.isIntersecting ? '1' : ''
+          nearGet = [...document.querySelectorAll('#get, .footer')].some((el) => el.dataset.near)
+          show()
+        })
+        near.observe(document.querySelector('#get'))
+        near.observe(document.querySelector('.footer'))
+      }
       // Each section's parts rise as it comes into view, once.
       const reveal = new IntersectionObserver(
         (entries) => {

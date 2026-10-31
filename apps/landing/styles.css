@@ -442,11 +442,7 @@ main {
 
 /* Folds: on desktop the table and the commands are simply there; on phones they
    open on tap (the script closes them), so the page stays short. */
-.fold > summary {
-  display: none;
-}
-
-.fold > summary::-webkit-details-marker {
+.fold-toggle {
   display: none;
 }
 
@@ -543,6 +539,14 @@ pre {
 .note {
   max-width: var(--measure);
   margin: 40px 0 0;
+}
+
+.dev .build {
+  margin-top: 56px;
+}
+
+.dev .note {
+  margin-top: 40px;
   padding: 18px 22px;
   border-radius: 16px;
   background: var(--surface);
@@ -739,6 +743,14 @@ pre {
   gap: 20px;
 }
 
+/* Phone-only furniture, hidden elsewhere. */
+.platforms-line,
+.on-computer,
+.footer .phone,
+.sticky-get {
+  display: none;
+}
+
 /* Entrances: each section's parts rise in turn as it comes into view. Without
    script nothing is hidden; with reduced motion nothing moves. */
 .js .reveal {
@@ -845,25 +857,37 @@ pre {
     border-radius: 16px;
     background: var(--surface);
   }
-  .fold > summary {
+  .phone .fold-toggle {
     display: flex;
+    width: 100%;
     justify-content: space-between;
+    align-items: center;
     gap: 16px;
     padding: 18px 22px;
-    list-style: none;
+    border: 0;
+    background: none;
+    text-align: left;
     cursor: pointer;
+    font: inherit;
     font-weight: 600;
     color: var(--ink);
   }
-  .fold > summary::after {
+  .phone .fold-toggle::after {
     content: '+';
     flex: none;
     font-size: 22px;
     line-height: 1;
     color: var(--muted);
   }
-  .fold[open] > summary::after {
+  .phone .fold.open > .fold-toggle::after {
     content: '−';
+  }
+  /* Closed: only the button shows. Open, or no script: everything shows. */
+  .phone .fold:not(.open) > :not(.fold-toggle) {
+    display: none;
+  }
+  .fold.dev {
+    margin-bottom: 24px;
   }
   .fold .who {
     margin: 0;
@@ -875,6 +899,73 @@ pre {
   }
   .fold pre {
     margin: 0 12px 12px;
+  }
+  /* The first screen: one line of platforms, not seven targets. */
+  .platforms {
+    display: none;
+  }
+  .platforms-line {
+    display: block;
+    margin: 24px 0 0;
+    font-size: 14px;
+    color: var(--muted);
+  }
+  /* Fewer points: the ones that carry the claim. */
+  .points li.more {
+    display: none;
+  }
+  /* Two clips you can read, not four thumbnails. */
+  .media figure:nth-child(n + 3) {
+    display: none;
+  }
+  /* Developer detail and the stack step aside. */
+  .dev .build {
+    margin: 0;
+    background: none;
+    padding: 0 22px 8px;
+  }
+  .dev .note {
+    margin: 0 12px 12px;
+    background: var(--raised);
+  }
+  .stack {
+    display: none;
+  }
+  .footer .desk {
+    display: none;
+  }
+  .footer .phone {
+    display: inline;
+  }
+  /* Install commands are for a computer. */
+  .row pre {
+    display: none;
+  }
+  .on-computer {
+    display: block;
+    color: var(--muted);
+    font-size: 14px;
+  }
+  /* One Get button within reach of the thumb. */
+  .js .sticky-get {
+    display: block;
+    position: fixed;
+    left: 16px;
+    right: 16px;
+    bottom: calc(12px + env(safe-area-inset-bottom));
+    z-index: 9;
+    padding: 14px 24px;
+    border-radius: 999px;
+    background: var(--accent);
+    color: var(--on-accent);
+    font-weight: 600;
+    text-align: center;
+    text-decoration: none;
+    transform: translateY(140%);
+    transition: transform 300ms var(--ease-out);
+  }
+  .js .sticky-get.show {
+    transform: none;
   }
   /* Agents: one clip on phones; the other two roles are words. */
   .roles figure:nth-child(n + 2) img,
@@ -998,6 +1089,9 @@ pre {
   .js .reveal {
     opacity: 1;
     transform: none;
+    transition: none;
+  }
+  .js .sticky-get {
     transition: none;
   }
   .live::before {

@@ -13,6 +13,7 @@
     <meta name="color-scheme" content="dark" />
     <script>
       document.documentElement.classList.add('js')
+      if (matchMedia('(max-width: 640px)').matches) document.documentElement.classList.add('phone')
       // Language: a remembered choice (the switch sets it) wins; otherwise a Polish
       // browser arriving at the English page is sent to /pl/ once. A direct link
       // to /pl/ is respected. Without script, hreflang alone does the work.
@@ -101,7 +102,7 @@
           <div class="hero-copy">
             <p class="lead">Private boards for friends, family and your agents, free and open source. Your phone encrypts every card before it leaves; nobody in between can read it, including us.</p>
             <div class="actions">
-              <a class="button primary" href="#get">Get OpenCollab</a>
+              <a class="button primary" href="#get" data-android="https://github.com/Chmarusso/p2p-collab-board/releases?q=android-v&amp;expanded=true">Get OpenCollab</a>
               <a class="button" href="#privacy">See how it stays private</a>
             </div>
             <ul class="platforms" aria-label="Available on">
@@ -111,6 +112,7 @@
               <li><svg class="brand" aria-hidden="true" focusable="false"><use href="#b-linux"></use></svg><span>Linux</span></li>
               <li><svg class="brand" aria-hidden="true" focusable="false"><use href="#i-terminal"></use></svg><span>Terminal</span></li>
             </ul>
+            <p class="platforms-line">Android · iPhone · Mac · Windows · Linux · Terminal</p>
           </div>
 
           <div class="hero-shot">
@@ -149,8 +151,8 @@
           <h2 class="reveal">How your boards stay private</h2>
           <p class="reveal">OpenCollab has no server and no database. Your device encrypts each board with a key that only you and the people you invite hold.</p>
         </div>
-        <details class="fold reveal" open>
-          <summary>Who can see what</summary>
+        <div class="fold reveal">
+          <button type="button" class="fold-toggle" aria-expanded="true">Who can see what? Only the people you invite.</button>
         <div class="who" role="region" aria-label="Who can see what" tabindex="0">
           <table>
             <caption>Who can see what</caption>
@@ -166,13 +168,13 @@
             </tbody>
           </table>
         </div>
-        </details>
+        </div>
         <ul class="points">
           <li class="reveal"><h3>Encrypted on your device</h3><p>Cards, comments, chat and photos are encrypted on your phone before they leave it. What travels and what gets stored is unreadable without the key.</p></li>
-          <li class="reveal"><h3>The invite holds the key</h3><p>The key travels inside the invite link. Whoever has the invite can read the board. The network that connects devices never sees the key.</p></li>
+          <li class="reveal more"><h3>The invite holds the key</h3><p>The key travels inside the invite link. Whoever has the invite can read the board. The network that connects devices never sees the key.</p></li>
           <li class="reveal"><h3>No server to hack</h3><p>Boards live on members’ devices. You can run a relay that keeps an encrypted copy online for when everyone is away. It can’t open it.</p></li>
           <li class="reveal"><h3>No account</h3><p>Your device makes your identity, a key pair you back up as 24 words. We never ask for your email or phone number.</p></li>
-          <li class="reveal"><h3>Signed edits</h3><p>Your device signs each change with your key. Nobody can forge or rewrite your edits. A removed member’s new ones are ignored.</p></li>
+          <li class="reveal more"><h3>Signed edits</h3><p>Your device signs each change with your key. Nobody can forge or rewrite your edits. A removed member’s new ones are ignored.</p></li>
           <li class="reveal"><h3>Open source</h3><p>The code is <a href="https://github.com/Chmarusso/p2p-collab-board">on GitHub</a>. Read how the encryption works, or build the apps yourself.</p></li>
         </ul>
       </section>
@@ -187,8 +189,8 @@
             <li class="reveal"><h3>Share from any app</h3><p>Send a link from TikTok, Spotify or your browser straight to a board.</p></li>
             <li class="reveal"><h3>Invite with a link or QR code</h3><p>Friends scan the code at the table or tap the link in your group chat.</p></li>
             <li class="reveal"><h3>A board for each thing</h3><p>A feed for links. A list for errands. Kanban for a project.</p></li>
-            <li class="reveal"><h3>Chat and @mentions</h3><p>Each board has its own chat, and every post has a comment thread.</p></li>
-            <li class="reveal"><h3>See who’s around</h3><p>The board shows who’s online and whose changes are arriving.</p></li>
+            <li class="reveal more"><h3>Chat and @mentions</h3><p>Each board has its own chat, and every post has a comment thread.</p></li>
+            <li class="reveal more"><h3>See who’s around</h3><p>The board shows who’s online and whose changes are arriving.</p></li>
             <li class="reveal"><h3>Works offline</h3><p>Add things on the train. They sync the next time you and a friend are online.</p></li>
           </ul>
           <div class="media">
@@ -241,21 +243,24 @@
             <figcaption><h3>Check facts and help out</h3><p>It answers questions in the comments and checks claims against their sources.</p></figcaption>
           </figure>
         </div>
-        <div class="build reveal">
-          <div>
-            <h3>Or build your own</h3>
-            <p>Those are starting points. Maybe your group wants a price tracker. Connect any MCP client, like Claude or Cursor, or run a small worker on your machine with the <code>opencollab</code> command line. <a href="https://github.com/Chmarusso/p2p-collab-board/tree/main/apps/cli/examples">The example agents</a> are a few dozen lines each.</p>
-          </div>
-          <details class="fold" open>
-            <summary>Show the commands</summary>
-            <pre><code># connect an AI client
+        <div class="fold dev reveal">
+          <button type="button" class="fold-toggle" aria-expanded="true">Build your own agent</button>
+          <div class="build">
+            <div>
+              <h3>Or build your own</h3>
+              <p>Those are starting points. Maybe your group wants a price tracker. Connect any MCP client, like Claude or Cursor, or run a small worker on your machine with the <code>opencollab</code> command line. <a href="https://github.com/Chmarusso/p2p-collab-board/tree/main/apps/cli/examples">The example agents</a> are a few dozen lines each.</p>
+            </div>
+            <div class="fold">
+              <button type="button" class="fold-toggle" aria-expanded="true">Show the commands</button>
+              <pre><code># connect an AI client
 claude mcp add opencollab -e OPENCOLLAB_PASSWORD=… -- opencollab mcp -s ~/.opencollab-ai
 
 # or run a worker: this one turns shared links into key points
 SLIDES_BOARD="Weekend reading" node apps/cli/examples/feed-slides.mjs</code></pre>
-          </details>
+            </div>
+          </div>
+          <p class="note"><strong>What an agent can see:</strong> only the boards you invite it to. It sends what it reads to the AI model you chose. For an assistant that should only answer, run it with <code>--read-only</code>.</p>
         </div>
-        <p class="note reveal"><strong>What an agent can see:</strong> only the boards you invite it to. It sends what it reads to the AI model you chose. For an assistant that should only answer, run it with <code>--read-only</code>.</p>
       </section>
 
       <section id="how" class="section">
@@ -279,22 +284,24 @@ SLIDES_BOARD="Weekend reading" node apps/cli/examples/feed-slides.mjs</code></pr
         <div class="rows">
           <div class="row reveal">
             <h3>Phone</h3>
-            <div><p>In English and Polish.</p><ul class="plain"><li><strong>Android:</strong> <a href="https://github.com/Chmarusso/p2p-collab-board/releases?q=android-v&amp;expanded=true">download the APK</a> (Android 10 or newer)</li><li><strong>iPhone:</strong> build it from <a href="https://github.com/Chmarusso/p2p-collab-board/tree/main/apps/mobile">apps/mobile</a></li><li>Both update over Pear afterwards</li></ul></div>
+            <div><p>In English and Polish.</p><ul class="plain"><li><strong>Android:</strong> <a href="https://github.com/Chmarusso/p2p-collab-board/releases?q=android-v&amp;expanded=true">download the APK</a> (Android 10 or newer)</li><li><strong>iPhone:</strong> not in the App Store yet. <a href="https://github.com/Chmarusso/p2p-collab-board/tree/main/apps/mobile">Build it from source</a> or <a href="https://github.com/Chmarusso/p2p-collab-board">follow progress</a></li><li>Both update over Pear afterwards</li></ul></div>
           </div>
           <div class="row reveal">
             <h3>Desktop</h3>
             <div><p>macOS, Windows and Linux. Installs from peers through Pear and updates itself.</p>
-            <pre><code>npx pear install pear://nzi3suuxyzwj6oosortonj5pxd9s7ckgd8cr87szddaamxi77kny</code></pre></div>
+            <pre><code>npx pear install pear://nzi3suuxyzwj6oosortonj5pxd9s7ckgd8cr87szddaamxi77kny</code></pre>
+            <p class="on-computer">Install from this page on your computer; the command is shown there.</p></div>
           </div>
           <div class="row reveal">
             <h3>Command line and agents</h3>
             <div><p>Read and edit boards from a terminal, keep a device online, or connect an AI client with <code>opencollab mcp</code>.</p>
-            <pre><code>npx pear install --to ~/.local/share pear://q1huw5ozxk8j36pcb8sicfr4dtgf9154r5aj3yzqa14ngxxq1kmy</code></pre></div>
+            <pre><code>npx pear install --to ~/.local/share pear://q1huw5ozxk8j36pcb8sicfr4dtgf9154r5aj3yzqa14ngxxq1kmy</code></pre>
+            <p class="on-computer">Install from this page on your computer; the command is shown there.</p></div>
           </div>
         </div>
       </section>
 
-      <section class="section stack">
+      <section class="section stack" id="stack">
         <div class="head">
           <h2 class="reveal">Built on Holepunch</h2>
           <p class="reveal">OpenCollab runs on <a href="https://holepunch.to">Holepunch</a>’s peer-to-peer building blocks: <a href="https://docs.pears.com">Pear</a> for delivery and updates, <a href="https://github.com/holepunchto/bare">Bare</a> for the shared backend, <a href="https://github.com/holepunchto/hyperswarm">Hyperswarm</a> for finding peers, <a href="https://github.com/holepunchto/hypercore">Hypercore</a> and <a href="https://github.com/holepunchto/autobee">Autobee</a> for the signed, multi-writer board, and <a href="https://github.com/holepunchto/hyperblobs">Hyperblobs</a> for encrypted photos. Every app runs the same backend.</p>
@@ -345,20 +352,28 @@ SLIDES_BOARD="Weekend reading" node apps/cli/examples/feed-slides.mjs</code></pr
 
     </main>
 
+    <a class="sticky-get" href="#get" data-android="https://github.com/Chmarusso/p2p-collab-board/releases?q=android-v&amp;expanded=true" tabindex="-1" aria-hidden="true">Get OpenCollab</a>
     <footer class="footer">
       <span class="logo"><span class="prompt">&gt;</span> opencollab</span>
       <nav aria-label="Footer">
         <a class="lang" href="pl/" hreflang="pl" lang="pl">Polski</a>
-        <a href="design-system.html">Design system</a>
+        <a class="desk" href="design-system.html">Design system</a>
+        <a class="phone" href="https://holepunch.to">Built on Holepunch</a>
         <a href="https://github.com/Chmarusso/p2p-collab-board/blob/main/PRIVACY.md">Privacy policy</a>
         <a href="https://github.com/Chmarusso/p2p-collab-board">GitHub</a>
       </nav>
     </footer>
     <script>
-      // On phones the table and the commands start folded; without script they stay open.
-      if (matchMedia('(max-width: 640px)').matches) {
-        document.querySelectorAll('details.fold').forEach((d) => d.removeAttribute('open'))
-      }
+      // On phones the folds start closed (html.phone, set before paint); a tap opens one.
+      document.querySelectorAll('.fold-toggle').forEach((button) => {
+        const fold = button.parentElement
+        const sync = () => button.setAttribute('aria-expanded', String(!document.documentElement.classList.contains('phone') || fold.classList.contains('open')))
+        sync()
+        button.addEventListener('click', () => {
+          fold.classList.toggle('open')
+          sync()
+        })
+      })
       // Clips load and play only while on screen; with reduced motion they stay still.
       const still = matchMedia('(prefers-reduced-motion: reduce)').matches
       const watch = new IntersectionObserver(
@@ -382,6 +397,32 @@ SLIDES_BOARD="Weekend reading" node apps/cli/examples/feed-slides.mjs</code></pr
           link.href = link.getAttribute('href') + location.hash
         })
       })
+      // Android gets the APK straight from the first button.
+      if (/Android/i.test(navigator.userAgent)) {
+        document.querySelectorAll('a[data-android]').forEach((a) => {
+          a.href = a.dataset.android
+          a.textContent = 'Get it for Android'
+        })
+      }
+      // On phones one Get button stays within reach once the hero's has scrolled away,
+      // and steps aside at the Get section and the footer.
+      const sticky = document.querySelector('.sticky-get')
+      if (sticky) {
+        let heroGone = false
+        let nearGet = false
+        const show = () => sticky.classList.toggle('show', heroGone && !nearGet)
+        new IntersectionObserver(([e]) => {
+          heroGone = !e.isIntersecting && e.boundingClientRect.top < 0
+          show()
+        }).observe(document.querySelector('.hero .actions'))
+        const near = new IntersectionObserver((entries) => {
+          for (const e of entries) e.target.dataset.near = e.isIntersecting ? '1' : ''
+          nearGet = [...document.querySelectorAll('#get, .footer')].some((el) => el.dataset.near)
+          show()
+        })
+        near.observe(document.querySelector('#get'))
+        near.observe(document.querySelector('.footer'))
+      }
       // Each section's parts rise as it comes into view, once.
       const reveal = new IntersectionObserver(
         (entries) => {
