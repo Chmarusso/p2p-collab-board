@@ -229,6 +229,14 @@ otherwise from the same episode on YouTube (about $0.003; it must come from the 
 have the same length, so clips and recaps are skipped). Treg's Spotify scraper is the last resort, only for show notes nothing else had.
 An episode with no transcript anywhere gets its slides from the show notes.
 
+An X post is read with its article and the post it quotes. The transcript providers
+handle video clips of up to two minutes; a video of up to ten minutes is then transcribed
+by ScrapeCreators' paid mode (about $0.02 per minute), and a longer one, such as a
+recorded talk, is read from a copy of it on YouTube (under a cent): the bot's model turns
+the post into a few searches and picks the recording of the same length among the
+results, or none. A long video with no copy on YouTube gets its slides from the post's
+text.
+
 A card without a picture gets the post's own: for a Spotify episode its video thumbnail
 or the show's cover, otherwise the page's link-preview image (`opencollab attach <card>
 <image>` does the same by hand).

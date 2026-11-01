@@ -96,8 +96,9 @@ export function platformOf(url) {
   return 'web'
 }
 
-// Caption/description and transcript of the post behind `url`.
-export async function fetchPost(treg, url) {
+// Caption/description and transcript of the post behind `url`. `ask(prompt)`, a
+// bot's model, is used to find a long X video's copy on YouTube.
+export async function fetchPost(treg, url, { ask } = {}) {
   switch (platformOf(url)) {
     case 'tiktok': {
       const detail = await treg.call('treg.tiktok.video.detail', { body: { url } })
@@ -119,33 +120,26 @@ export async function fetchPost(treg, url) {
     }
     case 'youtube': {
       const detail = await treg.call('treg.youtube.video.detail', { body: { url } })
-      const transcript = await treg.call('anyapi.youtube.video_transcript', { body: { url } })
       const title = longestAt(detail, ['title'])
       const description = longestAt(detail, ['description'])
       return {
         caption: [title, description].filter(Boolean).join('\n\n'),
-        transcript: transcriptOf(transcript)
+        transcript: await youtubeTranscript(treg, url)
       }
     }
     case 'x': {
-      // This reader also returns X Articles in full, not just the post's teaser.
+      // This reader also returns X Articles in full, not just the post's teaser,
+      // and the quoted post with its article ("read the article below").
       const detail = await treg.call('scrapecreators.x.v1-twitter-tweet', { query: { url } })
-      const article = detail?.article?.article_results?.result
-      const text =
-        detail?.note_tweet?.note_tweet_results?.result?.text || detail?.legacy?.full_text || ''
-      const media = detail?.legacy?.extended_entities?.media || []
-      const transcript = media.some((item) => item.type === 'video')
-        ? await treg.call('anyapi.twitter.tweet_transcript', { body: { url } })
-        : null
+      const text = postText(detail).join('\n\n')
+      const quoted = postText(detail?.quoted_status_result?.result).join('\n\n')
+      const video = (detail?.legacy?.extended_entities?.media || []).find(
+        (item) => item.type === 'video'
+      )
+      const seconds = (video?.video_info?.duration_millis || 0) / 1000
       return {
-        caption: [
-          text,
-          article?.title,
-          ...(article?.content_state?.blocks || []).map((block) => block.text)
-        ]
-          .filter(Boolean)
-          .join('\n\n'),
-        transcript: transcriptOf(transcript)
+        caption: [text, quoted && `Quoted post:\n\n${quoted}`].filter(Boolean).join('\n\n'),
+        transcript: video ? await xTranscript(treg, url, { seconds, text, ask }) : ''
       }
     }
     case 'spotify':
@@ -160,6 +154,99 @@ export async function fetchPost(treg, url) {
       }
     }
   }
+}
+
+// An X post's text and, when it is an X Article, the article's title and paragraphs.
+function postText(post) {
+  const article = post?.article?.article_results?.result
+  return [
+    post?.note_tweet?.note_tweet_results?.result?.text || post?.legacy?.full_text || '',
+    article?.title,
+    ...(article?.content_state?.blocks || []).map((block) => block.text)
+  ].filter(Boolean)
+}
+
+// The X transcript providers' AI transcription covers clips up to two minutes.
+const X_FREE_MAX_SECONDS = 120
+// Beyond that ScrapeCreators charges 10 credits (~$0.019) per started minute, so it
+// is asked only up to this length (~$0.19, most of a bot's run budget).
+const X_PAID_MAX_SECONDS = 10 * 60
+
+// The spoken words of a video post: AnyAPI first (a fraction of a cent, clips up
+// to about two minutes), then ScrapeCreators' paid mode for mid-length videos, and
+// for talks longer than that a copy of the same video on YouTube, where a
+// transcript costs a fraction of a cent (long videos get re-uploaded there).
+async function xTranscript(treg, url, { seconds, text, ask }) {
+  let transcript = transcriptOf(
+    await treg.call('anyapi.twitter.tweet_transcript', { body: { url } })
+  )
+  // A length the post didn't report (0) counts as a clip: the paid mode's price
+  // would be unknown, and a copy can't be told apart from clips of it.
+  if (transcript || seconds <= X_FREE_MAX_SECONDS) return transcript
+  if (seconds <= X_PAID_MAX_SECONDS) {
+    transcript = transcriptOf(
+      await treg.call('scrapecreators.x.v1-twitter-tweet-transcript', {
+        query: { url, allow_long_transcription: 'true' }
+      })
+    )
+    if (transcript) return transcript
+  }
+  const copy = await youtubeCopy(treg, text, seconds, ask)
+  if (!copy) {
+    console.warn('  · X video too long for the transcript providers; no copy found on YouTube')
+    return ''
+  }
+  console.log(`  same video on YouTube: ${copy}`)
+  return youtubeTranscript(treg, copy)
+}
+
+const clock = (seconds) =>
+  `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`
+
+// The same recording on YouTube. The post's own words make a poor search (a
+// teaser, not a title) and unrelated videos come in every length, so the bot's
+// model writes a few searches from the post's facts and then picks the recording
+// among the results of about the same length, or none (~$0.002 per search).
+// Answers are read from labelled lines: model CLIs may wrap them in their own output.
+async function youtubeCopy(treg, text, seconds, ask) {
+  if (!ask || !text.trim()) return null
+  const answer = String(
+    (await ask(
+      [
+        `Someone shared the X post below. Its video is ${clock(seconds)} long, so the full recording is probably on YouTube too, under the title its uploader gave it.`,
+        "Write three different YouTube searches that could find that recording: who speaks (name, role or company), where (event, show) and what it is about. Use the post's facts, not its opinions or quotes; at most 7 words each.",
+        'Answer with three lines, each `SEARCH: <words>`, and nothing else; or one line `SEARCH: NONE` if the post names nothing to search for.',
+        '',
+        text
+      ].join('\n')
+    )) ?? ''
+  )
+  const searches = [...answer.matchAll(/^\s*SEARCH:\s*(.+)$/gm)]
+    .map((match) => match[1].replace(/["#*`]/g, '').trim())
+    .filter((search) => search && search.toUpperCase() !== 'NONE')
+    .slice(0, 3)
+  if (!searches.length) return null
+  const found = await Promise.all(searches.map((search) => youtubeVideos(treg, search, seconds)))
+  const near = found.flat().filter((video) => sameLength(video, seconds))
+  const videos = [...new Map(near.map((video) => [urlOf(video), video])).values()].slice(0, 12)
+  if (!videos.length) return null
+  const pick = String(
+    (await ask(
+      [
+        `Which of the YouTube videos below is the same recording as the ${clock(seconds)} video in this X post? The post describes it; the videos carry their uploaders' titles.`,
+        'Answer with one line, `VIDEO: <number>`, or `VIDEO: NONE` if none clearly is.',
+        '',
+        `--- Post:\n${text}`,
+        '',
+        '--- Videos:',
+        ...videos.map(
+          (video, i) => `${i + 1}. ${clock(lengthOf(video))} · ${channelOf(video)} · ${video.title}`
+        )
+      ].join('\n')
+    )) ?? ''
+  )
+  const chosen = videos[Number(pick.match(/VIDEO:\s*(\d+)/i)?.[1]) - 1]
+  return chosen ? urlOf(chosen) : null
 }
 
 // The picture a page shows in link previews (og:image), or ''.
@@ -247,9 +334,7 @@ async function spotifyEpisode(treg, url) {
     const video = await youtubeMatch(treg, title, show, seconds)
     if (video) {
       console.log(`  same episode on YouTube: ${video}`)
-      transcript = transcriptOf(
-        await treg.call('anyapi.youtube.video_transcript', { body: { url: video } })
-      )
+      transcript = await youtubeTranscript(treg, video)
     }
   }
   if (!notes) {
@@ -331,38 +416,50 @@ async function feedTranscript(feedUrl, title) {
   return ''
 }
 
-// The full episode on YouTube: a similar title (channels often retitle an
-// episode), the same show and about the same length, so not a clip. A video
-// listed without its length or channel is looked up (~$0.001, at most two).
-async function youtubeMatch(treg, title, show, seconds) {
-  // This provider, called directly, ranks by relevance and returns each video's
-  // length and channel; the routed search sometimes fell to one that didn't.
+// YouTube videos for `keyword`, by relevance. This provider, called directly,
+// returns each video's length and channel; the routed search sometimes fell to
+// one that didn't.
+async function youtubeVideos(treg, keyword, seconds) {
   const found = await treg.call('tikhub.youtube.search.videos', {
     query: {
-      keyword: [show, title].filter(Boolean).join(' ').slice(0, 200),
+      keyword: keyword.slice(0, 200),
       type: 'video',
       ...(seconds > 20 * 60 ? { duration: 'long' } : {})
     }
   })
-  const lengthOf = (video) => {
-    if (Number(video.duration_seconds || video.lengthSeconds)) {
-      return Number(video.duration_seconds || video.lengthSeconds)
-    }
-    return String(video.duration || video.video_length || '')
-      .split(':')
-      .reduce((total, part) => total * 60 + Number(part), 0)
+  return found?.data?.videos || found?.output?.videos || []
+}
+// A search result's length in seconds (0 when not listed), channel and URL.
+const lengthOf = (video) => {
+  if (Number(video.duration_seconds || video.lengthSeconds)) {
+    return Number(video.duration_seconds || video.lengthSeconds)
   }
-  const channelOf = (video) => video.author || video.channel || video.channel_name || ''
+  return String(video.duration || video.video_length || '')
+    .split(':')
+    .reduce((total, part) => total * 60 + Number(part), 0)
+}
+const channelOf = (video) => video.author || video.channel || video.channel_name || ''
+const urlOf = (video) => video.url || `https://www.youtube.com/watch?v=${video.video_id}`
+// About as long as the recording we are looking for: re-uploads keep the length.
+const sameLength = (video, seconds) => Math.abs(lengthOf(video) - seconds) <= seconds * 0.15
+
+const youtubeTranscript = (treg, url) =>
+  treg.call('anyapi.youtube.video_transcript', { body: { url } }).then(transcriptOf)
+
+// The full episode on YouTube: a similar title (channels often retitle an
+// episode), the same show and about the same length, so not a clip. A video
+// listed without its length or channel is looked up (~$0.001, at most two).
+async function youtubeMatch(treg, title, show, seconds) {
+  const videos = await youtubeVideos(treg, [show, title].filter(Boolean).join(' '), seconds)
   const sameShow = (video) => !show || overlap(show, `${video.title} ${channelOf(video)}`) >= 0.5
   const verdict = (video) => {
     const length = lengthOf(video)
-    if (seconds && length) return Math.abs(length - seconds) <= seconds * 0.15 && sameShow(video)
+    if (seconds && length) return sameLength(video, seconds) && sameShow(video)
     // No length to compare: a near-identical title from the show itself.
     if (channelOf(video)) return overlap(title, video.title) >= 0.7 && sameShow(video)
     return null
   }
-  const urlOf = (video) => video.url || `https://www.youtube.com/watch?v=${video.video_id}`
-  const candidates = (found?.data?.videos || found?.output?.videos || [])
+  const candidates = videos
     .filter((video) => overlap(title, video.title) >= 0.5)
     .sort((a, b) => overlap(title, b.title) - overlap(title, a.title))
   let lookups = 0

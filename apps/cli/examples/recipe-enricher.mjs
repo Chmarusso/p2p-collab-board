@@ -53,7 +53,7 @@ const COMMENT_MAX = 4900 // the board allows 5 000 characters per comment
 
 const treg = makeTreg()
 const cli = makeCli({ bin, storage: process.env.ENRICH_STORAGE, board })
-const fetchPost = (url) => fetchSource(treg, url)
+const fetchPost = (url) => fetchSource(treg, url, { ask })
 const ask = (prompt) => askModel(modelCommand, prompt)
 
 // Members' comments: tips, substitutions and corrections worth folding in. The
