@@ -3,8 +3,9 @@
 // that isn't labelled `slides` yet, it
 //
 //   1. reads the post through treg: the caption or article, the transcript of
-//      a video (TikTok, Instagram, YouTube, X) or the page's text, plus the
-//      card's own description and its comments,
+//      a video (TikTok, Instagram, YouTube, X; a long X video through a copy of
+//      it on YouTube) or the page's text, plus the card's own description and
+//      its comments,
 //   2. has a model command (`claude -p` by default) pull out what's worth
 //      knowing, story style: a hook, then 5–8 slides with one idea each,
 //   3. writes the deck into the card's description (slides separated by
@@ -49,6 +50,7 @@ if (!board || !process.env.OPENCOLLAB_PASSWORD) {
 const bin = process.env.OPENCOLLAB_BIN || path.join(import.meta.dirname, '..', 'bin.js')
 const storage = process.env.SLIDES_STORAGE
 const modelCommand = process.env.SLIDES_COMMAND || 'claude -p'
+const ask = (prompt) => askModel(modelCommand, prompt)
 const language = process.env.SLIDES_LANGUAGE || 'the same language as the post'
 const label = process.env.SLIDES_LABEL || 'slides'
 const maxUsd = Number(process.env.SLIDES_MAX_USD || 0.25)
@@ -124,7 +126,7 @@ const cleanTitle = (title) =>
 async function makeDeck(card, profiles) {
   const url = linkOf(card)
   console.log(`\n▸ ${card.title}\n  ${url}`)
-  const post = await fetchPost(treg, url)
+  const post = await fetchPost(treg, url, { ask })
   if (!post.caption && !post.transcript) {
     console.warn('  ! nothing to read from the post; skipped (try again later)')
     return false
@@ -133,7 +135,7 @@ async function makeDeck(card, profiles) {
   const comments = (card.comments || [])
     .map((comment) => `${profiles[comment.author] || 'A member'}: ${comment.text}`)
     .join('\n')
-  const deck = parseDeck(await askModel(modelCommand, promptFor(card, post, comments)))
+  const deck = parseDeck(await ask(promptFor(card, post, comments)))
   if (deck.slides.length < 2) throw new Error('the model returned no slides')
   const clean = deck.title ? cleanTitle(deck.title) : ''
   const title = clean && clean !== card.title ? clean : null

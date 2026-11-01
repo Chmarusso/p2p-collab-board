@@ -93,7 +93,7 @@ const OWN_COMMENTS = /^\*\*(Original caption|Transcript)\*\*/
 
 async function gather(card, profiles) {
   const link = card.source?.url || card.body?.match(/https?:\/\/\S+/)?.[0]
-  const post = link ? await fetchPost(treg, link) : { caption: '', transcript: '' }
+  const post = link ? await fetchPost(treg, link, { ask }) : { caption: '', transcript: '' }
   const comments = (card.comments || [])
     .filter((comment) => !OWN_COMMENTS.test(comment.text))
     .map((comment) => `${profiles[comment.author] || 'A member'}: ${comment.text}`)
