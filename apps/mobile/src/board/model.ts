@@ -469,6 +469,35 @@ export const newLabelId = () =>
 // its cards neither age nor count as open.
 export const doneColumnOf = (data: BoardData) => data.columns[data.columns.length - 1]?.id || null
 
+// Why moving `card` into another column deserves a second look: a blocked card
+// going to Done, or a column already at its WIP limit. The move still goes
+// ahead once confirmed.
+export function moveWarnings(data: BoardData, card: Card, columnId: string) {
+  const target = data.columns.find((entry) => entry.id === columnId)
+  const warnings: string[] = []
+  if (columnId === doneColumnOf(data) && card.blockedBy?.length) {
+    const names = card.blockedBy
+      .map((id) => data.objects.find((entry) => entry.id === id)?.title)
+      .filter(Boolean)
+    warnings.push(
+      t('It is still blocked by {cards}.', {
+        cards: names.map((name) => `“${name}”`).join(', ')
+      })
+    )
+  }
+  const count = target ? columnCards(data, target.id).length : 0
+  if (target && wipState(count + 1, target.wipLimit) === 'over') {
+    warnings.push(
+      t('{column} already holds {count} of its limit of {limit}.', {
+        column: target.name,
+        count,
+        limit: target.wipLimit ?? ''
+      })
+    )
+  }
+  return warnings
+}
+
 // Cards shown in columns, counts and pickers; templates live in their own list.
 export const isTemplate = (card: Card) => !!card.template
 export const templatesOf = (data: BoardData) =>
