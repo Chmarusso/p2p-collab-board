@@ -14,6 +14,11 @@ const SITE = process.env.LANDING_URL || 'https://chmarusso.github.io/p2p-collab-
 const REPO = 'https://github.com/Chmarusso/p2p-collab-board'
 const DESKTOP_LINK = 'pear://nzi3suuxyzwj6oosortonj5pxd9s7ckgd8cr87szddaamxi77kny'
 const CLI_LINK = 'pear://q1huw5ozxk8j36pcb8sicfr4dtgf9154r5aj3yzqa14ngxxq1kmy'
+// Google Play closed test. Play Console lists BETA_GROUP as the test's
+// testers; joining it lets an account opt in on PLAY_TESTING.
+const BETA_GROUP = process.env.BETA_GROUP || 'https://groups.google.com/g/opencollab-testers'
+const PLAY_TESTING = 'https://play.google.com/apps/testing/com.opencollab.mobile'
+const PLAY_LISTING = 'https://play.google.com/store/apps/details?id=com.opencollab.mobile'
 const sprite = fs.readFileSync(path.join(here, 'src/icons.svg'), 'utf8')
 
 const copy = {
@@ -177,7 +182,7 @@ const copy = {
     get: [
       [
         'Phone',
-        `<p>In English and Polish.</p><ul class="plain"><li><strong>Android:</strong> <a href="${REPO}/releases?q=android-v&amp;expanded=true">download the APK</a> (Android 10 or newer)</li><li><strong>iPhone:</strong> not in the App Store yet. <a href="${REPO}">Follow progress</a></li><li>Both update themselves</li></ul>`
+        `<p>In English and Polish.</p><ul class="plain"><li><strong>Android:</strong> <a href="beta/">join the beta on Google Play</a>, or <a href="${REPO}/releases?q=android-v&amp;expanded=true">download the APK</a> (Android 10 or newer)</li><li><strong>iPhone:</strong> not in the App Store yet. <a href="${REPO}">Follow progress</a></li><li>Both update themselves</li></ul>`
       ],
       [
         'Desktop',
@@ -392,7 +397,7 @@ const copy = {
     get: [
       [
         'Telefon',
-        `<p>Po polsku i angielsku.</p><ul class="plain"><li><strong>Android:</strong> <a href="${REPO}/releases?q=android-v&amp;expanded=true">pobierz APK</a> (Android 10 lub nowszy)</li><li><strong>iPhone:</strong> jeszcze nie w App Store. <a href="${REPO}">Śledź postępy</a></li><li>Oba same się aktualizują</li></ul>`
+        `<p>Po polsku i angielsku.</p><ul class="plain"><li><strong>Android:</strong> <a href="beta/">dołącz do testów w Google Play</a> albo <a href="${REPO}/releases?q=android-v&amp;expanded=true">pobierz APK</a> (Android 10 lub nowszy)</li><li><strong>iPhone:</strong> jeszcze nie w App Store. <a href="${REPO}">Śledź postępy</a></li><li>Oba same się aktualizują</li></ul>`
       ],
       [
         'Komputer',
@@ -1107,13 +1112,187 @@ ${body.replace('WHO_TABLE', whoTable(d))}
 `
 }
 
+// The Android beta page (beta/, pl/beta/): how to join the closed test on
+// Google Play. Testers join the Google Group that Play Console lists as the
+// test's testers, then opt in. scripts/invite-testers.mjs sends people here.
+const beta = {
+  en: {
+    title: 'Test OpenCollab for Android',
+    description:
+      'OpenCollab for Android is in closed testing on Google Play. Join the testers in two minutes and get the app from the Play Store before anyone else.',
+    h1: 'Test OpenCollab for Android',
+    lead: 'OpenCollab is in closed testing on Google Play. Join the testers and you get the app from the Play Store, with updates, before anyone else. It takes two minutes.',
+    steps: [
+      [
+        'Join the testers group',
+        'Sign in with the Google account you use on your phone, then press <strong>Join group</strong>.',
+        ['Open the group', BETA_GROUP]
+      ],
+      [
+        'Become a tester',
+        'Open the testing page with the same account and press <strong>Become a tester</strong>.',
+        ['Open the testing page', PLAY_TESTING]
+      ],
+      [
+        'Install from Google Play',
+        'Install OpenCollab from the Play Store. It can take a few minutes to show up after step&nbsp;2.',
+        ['Open Google Play', PLAY_LISTING]
+      ],
+      [
+        'Keep it for two weeks',
+        'Google lets the app go public once 12 testers have kept it for 14 days. Use it with friends and tell us what breaks.',
+        ['Report a problem', `${REPO}/issues/new`]
+      ]
+    ],
+    privacy:
+      '<strong>What we see:</strong> the Google account email you join the group with, as Google shows it to group owners. We use it only for this test and you can leave the group any time.',
+    other: 'No Android phone? <a href="../#get">See the other ways to get OpenCollab</a>.'
+  },
+  pl: {
+    title: 'Testuj OpenCollab na Androida',
+    description:
+      'OpenCollab na Androida jest w zamkniętych testach w Google Play. Dołącz do testerów w dwie minuty i dostań aplikację ze Sklepu Play przed innymi.',
+    h1: 'Testuj OpenCollab na Androida',
+    lead: 'OpenCollab jest w zamkniętych testach w Google Play. Dołącz do testerów, a dostaniesz aplikację ze Sklepu Play razem z aktualizacjami, przed wszystkimi. Zajmie ci to dwie minuty.',
+    steps: [
+      [
+        'Dołącz do grupy testerów',
+        'Zaloguj się kontem Google, którego używasz na telefonie, i naciśnij <strong>Dołącz do grupy</strong>.',
+        ['Otwórz grupę', BETA_GROUP]
+      ],
+      [
+        'Zostań testerem',
+        'Otwórz stronę testów tym samym kontem i naciśnij <strong>Zostań testerem</strong>.',
+        ['Otwórz stronę testów', PLAY_TESTING]
+      ],
+      [
+        'Zainstaluj z Google Play',
+        'Zainstaluj OpenCollab ze Sklepu Play. Po kroku&nbsp;2 może się pojawić dopiero po kilku minutach.',
+        ['Otwórz Google Play', PLAY_LISTING]
+      ],
+      [
+        'Zostań na dwa tygodnie',
+        'Google wypuści aplikację publicznie, gdy 12 testerów będzie ją mieć przez 14 dni. Używaj jej ze znajomymi i daj znać, co nie działa.',
+        ['Zgłoś problem', `${REPO}/issues/new`]
+      ]
+    ],
+    privacy:
+      '<strong>Co widzimy:</strong> adres e-mail konta Google, którym dołączysz do grupy, tak jak Google pokazuje go właścicielom grupy. Używamy go tylko do tych testów, a z grupy możesz wyjść w każdej chwili.',
+    other: 'Nie masz Androida? <a href="../#get">Zobacz inne sposoby na OpenCollab</a>.'
+  }
+}
+
+function betaPage(lang) {
+  const t = copy[lang]
+  const b = beta[lang]
+  const other = lang === 'en' ? 'pl' : 'en'
+  const root = lang === 'en' ? '../' : '../../'
+  const url = lang === 'en' ? `${SITE}beta/` : `${SITE}pl/beta/`
+  const otherHref = lang === 'en' ? '../pl/beta/' : '../../beta/'
+  return `<!doctype html>
+<html lang="${lang}">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>${b.title}</title>
+    <meta name="description" content="${b.description}" />
+    <link rel="canonical" href="${url}" />
+    <link rel="alternate" hreflang="en" href="${SITE}beta/" />
+    <link rel="alternate" hreflang="pl" href="${SITE}pl/beta/" />
+    <link rel="alternate" hreflang="x-default" href="${SITE}beta/" />
+    <meta name="theme-color" content="#0a0e14" />
+    <meta name="color-scheme" content="dark" />
+    <script>
+      // Same language rules as the home page: a remembered choice wins, and a
+      // Polish browser on the English page goes to /pl/beta/ once.
+      ;(function () {
+        try {
+          var chosen = localStorage.getItem('opencollab.lang')
+          var go = chosen ? chosen === '${other}' : '${lang}' === 'en' &&
+              ((navigator.languages || [navigator.language])[0] || '').slice(0, 2).toLowerCase() === 'pl'
+          if (go) location.replace('${otherHref}' + location.hash)
+        } catch (e) {}
+      })()
+    </script>
+    <link rel="icon" href="${root}assets/icon.svg" type="image/svg+xml" />
+    <link rel="icon" href="${root}icon.png" sizes="64x64" />
+    <link rel="apple-touch-icon" href="${root}assets/apple-touch-icon.png" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="OpenCollab" />
+    <meta property="og:url" content="${url}" />
+    <meta property="og:title" content="${b.title}" />
+    <meta property="og:description" content="${b.description}" />
+    <meta property="og:image" content="${SITE}assets/og-${lang}.jpg" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="preload" as="font" type="font/woff2" crossorigin href="${root}assets/fonts/plex-latin.woff2" />
+    <link rel="stylesheet" href="${root}styles.css" />
+  </head>
+  <body class="docs beta">
+    ${sprite}
+    <header class="nav">
+      <a class="logo" href="../" aria-label="OpenCollab"><span class="prompt">&gt;</span> opencollab</a>
+      <div class="nav-end">
+        <a class="lang" href="${otherHref}" hreflang="${other}" lang="${other}" aria-label="${t.switchLabel}">
+          ${icon('i-languages')}<span>${other.toUpperCase()}</span>
+        </a>
+      </div>
+    </header>
+
+    <main id="top">
+      <section class="doc-intro">
+        <h1>${b.h1}</h1>
+        <p class="lead">${b.lead}</p>
+      </section>
+      <section class="section doc">
+        <ol class="steps">
+          ${b.steps
+            .map(
+              ([title, text, [label, href]], i) => `<li>
+            <h3><span class="step-n">${i + 1}</span>${title}</h3>
+            <p>${text}</p>
+            <a class="button${i < 3 ? ' primary' : ''}" href="${href}">${label}</a>
+          </li>`
+            )
+            .join('\n          ')}
+        </ol>
+        <p class="note">${b.privacy}</p>
+        <p class="note">${b.other}</p>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <span class="logo"><span class="prompt">&gt;</span> opencollab</span>
+      <nav aria-label="Footer">
+        <a class="lang" href="${otherHref}" hreflang="${other}" lang="${other}">${t.switchLabel}</a>
+        <a href="../">${lang === 'en' ? 'Home' : 'Strona główna'}</a>
+        <a href="${REPO}/blob/main/PRIVACY.md">${t.footer[2]}</a>
+      </nav>
+    </footer>
+    <script>
+      document.querySelectorAll('a.lang').forEach((link) => {
+        link.addEventListener('click', () => {
+          try {
+            localStorage.setItem('opencollab.lang', link.getAttribute('hreflang'))
+          } catch (e) {}
+        })
+      })
+    </script>
+  </body>
+</html>
+`
+}
+
 fs.writeFileSync(path.join(here, 'index.html'), page('en'))
 fs.mkdirSync(path.join(here, 'docs'), { recursive: true })
 fs.writeFileSync(path.join(here, 'docs/index.html'), docsPage('en'))
+fs.mkdirSync(path.join(here, 'beta'), { recursive: true })
+fs.writeFileSync(path.join(here, 'beta/index.html'), betaPage('en'))
 fs.mkdirSync(path.join(here, 'pl'), { recursive: true })
 fs.writeFileSync(path.join(here, 'pl/index.html'), page('pl'))
 fs.mkdirSync(path.join(here, 'pl/docs'), { recursive: true })
 fs.writeFileSync(path.join(here, 'pl/docs/index.html'), docsPage('pl'))
+fs.mkdirSync(path.join(here, 'pl/beta'), { recursive: true })
+fs.writeFileSync(path.join(here, 'pl/beta/index.html'), betaPage('pl'))
 fs.writeFileSync(
   path.join(here, 'robots.txt'),
   `User-agent: *\nAllow: /\n\nSitemap: ${SITE}sitemap.xml\n`
@@ -1122,7 +1301,7 @@ fs.writeFileSync(
   path.join(here, 'sitemap.xml'),
   `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
-${['', 'docs/']
+${['', 'docs/', 'beta/']
   .flatMap((page) => [
     [`${SITE}${page}`, page],
     [`${SITE}pl/${page}`, page]
@@ -1138,6 +1317,4 @@ ${['', 'docs/']
 </urlset>
 `
 )
-console.log(
-  'wrote index.html, pl/index.html, docs/index.html, pl/docs/index.html, robots.txt, sitemap.xml'
-)
+console.log('wrote the home, docs and beta pages (en, pl), robots.txt, sitemap.xml')

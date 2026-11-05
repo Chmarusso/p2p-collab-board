@@ -34,6 +34,7 @@
     "test:board-spaces": "node scripts/test-board-spaces.mjs",
     "dev:worst-case": "node scripts/worst-case-board.mjs",
     "relay": "node scripts/board-relay.mjs",
+    "invite-testers": "node scripts/invite-testers.mjs",
     "start": "electron-forge start -- --no-updates",
     "package": "electron-forge package",
     "make": "electron-forge make",

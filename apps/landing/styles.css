@@ -766,6 +766,45 @@ pre {
   margin-top: 96px;
 }
 
+/* Beta: four numbered steps, two by two, each with its button. */
+.beta .steps {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  max-width: 880px;
+}
+
+.beta .steps li {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 24px;
+  border-radius: 20px;
+  background: var(--surface);
+}
+
+.beta .steps h3 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+}
+
+.step-n {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.beta .steps .button {
+  margin-top: auto;
+}
+
 /* The close: the name returns, large. */
 .footer {
   display: flex;
@@ -879,6 +918,9 @@ pre {
 @media (max-width: 640px) {
   .nav nav {
     display: none;
+  }
+  .beta .steps {
+    grid-template-columns: minmax(0, 1fr);
   }
   /* The sticky Get button takes over on the landing page. */
   body:not(.docs) .nav .nav-get {
