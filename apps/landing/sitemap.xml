@@ -10,4 +10,24 @@
     <xhtml:link rel="alternate" hreflang="en" href="https://chmarusso.github.io/p2p-collab-board/" />
     <xhtml:link rel="alternate" hreflang="pl" href="https://chmarusso.github.io/p2p-collab-board/pl/" />
   </url>
+  <url>
+    <loc>https://chmarusso.github.io/p2p-collab-board/docs/</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://chmarusso.github.io/p2p-collab-board/docs/" />
+    <xhtml:link rel="alternate" hreflang="pl" href="https://chmarusso.github.io/p2p-collab-board/pl/docs/" />
+  </url>
+  <url>
+    <loc>https://chmarusso.github.io/p2p-collab-board/pl/docs/</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://chmarusso.github.io/p2p-collab-board/docs/" />
+    <xhtml:link rel="alternate" hreflang="pl" href="https://chmarusso.github.io/p2p-collab-board/pl/docs/" />
+  </url>
+  <url>
+    <loc>https://chmarusso.github.io/p2p-collab-board/beta/</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://chmarusso.github.io/p2p-collab-board/beta/" />
+    <xhtml:link rel="alternate" hreflang="pl" href="https://chmarusso.github.io/p2p-collab-board/pl/beta/" />
+  </url>
+  <url>
+    <loc>https://chmarusso.github.io/p2p-collab-board/pl/beta/</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://chmarusso.github.io/p2p-collab-board/beta/" />
+    <xhtml:link rel="alternate" hreflang="pl" href="https://chmarusso.github.io/p2p-collab-board/pl/beta/" />
+  </url>
 </urlset>

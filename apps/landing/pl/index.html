@@ -13,7 +13,6 @@
     <meta name="color-scheme" content="dark" />
     <script>
       document.documentElement.classList.add('js')
-      if (matchMedia('(max-width: 640px)').matches) document.documentElement.classList.add('phone')
       // Language: a remembered choice (the switch sets it) wins; otherwise a Polish
       // browser arriving at the English page is sent to /pl/ once. A direct link
       // to /pl/ is respected. Without script, hreflang alone does the work.
@@ -86,13 +85,15 @@
         <a href="#privacy">Prywatność</a>
         <a href="#groups">Dla grup</a>
         <a href="#agents">Agenci</a>
-        <a href="#how">Jak to działa</a>
-        <a href="#get" class="nav-get">Pobierz</a>
         <a href="#faq">FAQ</a>
+        <a href="docs/">Dokumentacja</a>
       </nav>
-      <a class="lang" href="../" hreflang="en" lang="en">
-        <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-languages"></use></svg><span>English</span>
-      </a>
+      <div class="nav-end">
+        <a class="lang" href="../" hreflang="en" lang="en" aria-label="English">
+          <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-languages"></use></svg><span>EN</span>
+        </a>
+        <a class="nav-get" href="#get">Pobierz</a>
+      </div>
     </header>
 
     <main id="top">
@@ -151,32 +152,15 @@
           <h2 class="reveal">Jak chronimy twoje tablice</h2>
           <p class="reveal">OpenCollab nie ma serwera ani bazy danych. Twoje urządzenie szyfruje każdą tablicę kluczem, który masz tylko ty i osoby, które zaprosisz.</p>
         </div>
-        <div class="fold reveal">
-          <button type="button" class="fold-toggle" aria-expanded="true">Kto co widzi? Tylko te osoby, które zaprosisz.</button>
-        <div class="who" role="region" aria-label="Kto co widzi" tabindex="0">
-          <table>
-            <caption>Kto co widzi</caption>
-            <thead>
-              <tr><td></td><th scope="col">Czyta twoje tablice</th><th scope="col">Widzi twój adres IP</th></tr>
-            </thead>
-            <tbody>
-              <tr><th scope="row">Osoby, które zaprosisz</th><td class="" data-label="Czyta twoje tablice">Tak</td><td class="" data-label="Widzi twój adres IP">Gdy łączą się z tobą</td></tr>
-              <tr><th scope="row">Agenci, których zaprosisz</th><td class="" data-label="Czyta twoje tablice">Tak, jak każdy członek</td><td class="" data-label="Widzi twój adres IP">Gdy łączą się z tobą</td></tr>
-              <tr><th scope="row">Twój przekaźnik (opcjonalny)</th><td class="no" data-label="Czyta twoje tablice">Nie, trzyma zaszyfrowaną kopię</td><td class="" data-label="Widzi twój adres IP">Tak</td></tr>
-              <tr><th scope="row">Sieć, która łączy urządzenia</th><td class="no" data-label="Czyta twoje tablice">Nie</td><td class="" data-label="Widzi twój adres IP">Tak</td></tr>
-              <tr><th scope="row">Twórcy OpenCollab</th><td class="no" data-label="Czyta twoje tablice">Nie</td><td class="no" data-label="Widzi twój adres IP">Nie</td></tr>
-            </tbody>
-          </table>
-        </div>
-        </div>
         <ul class="points">
-          <li class="reveal"><h3>Szyfrowane na twoim urządzeniu</h3><p>Karty, komentarze, czat i zdjęcia są szyfrowane na telefonie, zanim go opuszczą. Bez klucza nie da się odczytać ani tego, co wędruje, ani tego, co jest zapisane.</p></li>
-          <li class="reveal more"><h3>Klucz jest w zaproszeniu</h3><p>Klucz wędruje w linku z zaproszeniem. Kto ma zaproszenie, ten przeczyta tablicę. Sieć, która łączy urządzenia, nigdy nie widzi klucza.</p></li>
-          <li class="reveal"><h3>Nie ma serwera do włamania</h3><p>Tablice są na urządzeniach członków. Możesz uruchomić przekaźnik, który trzyma zaszyfrowaną kopię online, gdy wszyscy są offline. Nie umie jej otworzyć.</p></li>
-          <li class="reveal"><h3>Bez konta</h3><p>Twoje urządzenie tworzy twoją tożsamość: parę kluczy, którą zapisujesz jako 24 słowa. Nigdy nie prosimy o e-mail ani numer telefonu.</p></li>
-          <li class="reveal more"><h3>Podpisane zmiany</h3><p>Urządzenie podpisuje każdą zmianę twoim kluczem. Nikt nie podrobi ani nie przepisze twoich zmian. Nowe zmiany usuniętej osoby są pomijane.</p></li>
-          <li class="reveal"><h3>Open source</h3><p>Kod jest <a href="https://github.com/Chmarusso/p2p-collab-board">na GitHubie</a>. Sprawdź, jak działa szyfrowanie, albo zbuduj aplikacje sam.</p></li>
+          <li class="reveal"><h3>Szyfrowane na twoim urządzeniu</h3><p>Karty, komentarze, czat i zdjęcia są szyfrowane na telefonie, zanim go opuszczą. Kto je przechwyci, zobaczy szum.</p></li>
+          <li class="reveal"><h3>Tylko osoby, które zaprosisz</h3><p>Link z zaproszeniem to jedyne wejście. Kto go dostanie, przeczyta tablicę. Nikt inny, my też nie.</p></li>
+          <li class="reveal more"><h3>Bez firmowej chmury</h3><p>Tablice są na urządzeniach twojej grupy, nie na naszych serwerach. Nie ma centralnej kopii, która mogłaby wyciec albo zostać sprzedana.</p></li>
+          <li class="reveal"><h3>Bez konta</h3><p>Bez e-maila, numeru telefonu i hasła. Tożsamość zapisujesz jako 24 słowa.</p></li>
+          <li class="reveal more"><h3>Nikt nie podrobi twoich zmian</h3><p>Każda zmiana ma twój podpis. Nikt jej nie podrobi ani nie przepisze, a usunięta osoba nie doda nowych.</p></li>
+          <li class="reveal"><h3>Darmowe i open source</h3><p>Bez reklam i płatnych planów. Kod jest <a href="https://github.com/Chmarusso/p2p-collab-board">na GitHubie</a>, każdy może go sprawdzić.</p></li>
         </ul>
+        <p class="note reveal">Chcesz szczegółów? Przeczytaj, <a href="docs/#privacy">jak działa szyfrowanie i kto co widzi</a>.</p>
       </section>
 
       <section id="groups" class="section">
@@ -243,23 +227,9 @@
             <figcaption><h3>Sprawdza fakty i pomaga</h3><p>Odpowiada na pytania w komentarzach i sprawdza twierdzenia u źródła.</p></figcaption>
           </figure>
         </div>
-        <div class="fold dev reveal">
-          <button type="button" class="fold-toggle" aria-expanded="true">Zbuduj własnego agenta</button>
-          <div class="build">
-            <div>
-              <h3>Albo zbuduj własnego</h3>
-              <p>To tylko punkty wyjścia. Może twoja grupa chce śledzić ceny. Podłącz dowolnego klienta MCP, na przykład Claude’a albo Cursora, albo uruchom na komputerze mały worker z wierszem poleceń <code>opencollab</code>. <a href="https://github.com/Chmarusso/p2p-collab-board/tree/main/apps/cli/examples">Przykładowi agenci</a> mają po kilkadziesiąt linijek.</p>
-            </div>
-            <div class="fold">
-              <button type="button" class="fold-toggle" aria-expanded="true">Pokaż polecenia</button>
-              <pre><code># podłącz klienta AI
-claude mcp add opencollab -e OPENCOLLAB_PASSWORD=… -- opencollab mcp -s ~/.opencollab-ai
-
-# albo uruchom workera: ten zamienia udostępnione linki w najważniejsze punkty
-SLIDES_BOARD="Weekend reading" node apps/cli/examples/feed-slides.mjs</code></pre>
-            </div>
-          </div>
-          <p class="note"><strong>Co widzi agent:</strong> tylko tablice, na które go zaprosisz. To, co przeczyta, wysyła do modelu AI, który wybierzesz. Asystenta, który ma tylko odpowiadać, uruchom z <code>--read-only</code>.</p>
+        <div class="dev reveal">
+          <p class="note"><strong>Co widzi agent:</strong> tylko tablice, na które go zaprosisz. To, co przeczyta, wysyła do modelu AI, który wybierzesz.</p>
+          <p class="note"><strong>Chcesz własnego?</strong> Może twoja grupa chce śledzić ceny. Podłącz do tablic Claude’a, Cursora albo inną aplikację AI, albo poproś znajomego programistę o małego agenta. <a href="docs/#agents">Przeczytaj przewodnik po agentach</a>.</p>
         </div>
       </section>
 
@@ -271,82 +241,74 @@ SLIDES_BOARD="Weekend reading" node apps/cli/examples/feed-slides.mjs</code></pr
         <ol class="steps">
           <li class="reveal"><h3>Utwórz swój klucz</h3><p>Aplikacja tworzy twoją tożsamość na urządzeniu i pokazuje 24 słowa odzyskiwania. Zapisz je.</p></li>
           <li class="reveal"><h3>Załóż tablicę i wyślij zaproszenie</h3><p>Wyślij link albo pokaż kod QR. Każdy, kto ma zaproszenie, otworzy&nbsp;tablicę.</p></li>
-          <li class="reveal"><h3>Urządzenia łączą się bezpośrednio</h3><p>Członkowie znajdują się przez wspólną sieć i łączą szyfrowanymi połączeniami. Nikt nie pośredniczy w ruchu.</p></li>
+          <li class="reveal"><h3>Urządzenia synchronizują się bezpośrednio</h3><p>Zmiany wędrują prosto między telefonami i komputerami twojej grupy, zaszyfrowane przez całą drogę. Żadna firma nie stoi pośrodku.</p></li>
         </ol>
-        <p class="note reveal"><strong>Cena za brak serwera:</strong> żeby się zsynchronizować, dwie osoby muszą być online w tym samym czasie. Żeby wypełnić luki, trzymaj jedno urządzenie zawsze włączone: stary laptop z <code>opencollab watch</code> albo przekaźnik, który trzyma tylko zaszyfrowaną kopię.</p>
+        <p class="note reveal"><strong>Cena za brak serwera:</strong> zmiany docierają, gdy ktoś z grupy jest online. Zostaw włączony stary laptop albo małe urządzenie, które działa cały czas, a tablica będzie dostępna zawsze, gdy ktoś ją otworzy. <a href="docs/#online">Jak trzymać tablicę online</a>.</p>
       </section>
 
       <section id="get" class="section field">
         <div class="head">
           <h2 class="reveal">Pobierz OpenCollab</h2>
-          <p class="reveal small">Instalacja przez Pear wymaga <a href="https://nodejs.org">Node.js</a> i co najmniej jednego urządzenia online z tym wydaniem.</p>
+          <p class="reveal small">Darmowe na każdej platformie. Bez konta i bez rejestracji.</p>
         </div>
         <div class="rows">
           <div class="row reveal">
             <h3>Telefon</h3>
-            <div><p>Po polsku i angielsku.</p><ul class="plain"><li><strong>Android:</strong> <a href="https://github.com/Chmarusso/p2p-collab-board/releases?q=android-v&amp;expanded=true">pobierz APK</a> (Android 10 lub nowszy)</li><li><strong>iPhone:</strong> jeszcze nie w App Store. <a href="https://github.com/Chmarusso/p2p-collab-board/tree/main/apps/mobile">Zbuduj ze źródeł</a> albo <a href="https://github.com/Chmarusso/p2p-collab-board">śledź postępy</a></li><li>Potem oba aktualizują się przez Pear</li></ul></div>
+            <div><p>Po polsku i angielsku.</p><ul class="plain"><li><strong>Android:</strong> <a href="beta/">dołącz do testów w Google Play</a> albo <a href="https://github.com/Chmarusso/p2p-collab-board/releases?q=android-v&amp;expanded=true">pobierz APK</a> (Android 10 lub nowszy)</li><li><strong>iPhone:</strong> jeszcze nie w App Store. <a href="https://github.com/Chmarusso/p2p-collab-board">Śledź postępy</a></li><li>Oba same się aktualizują</li></ul></div>
           </div>
           <div class="row reveal">
             <h3>Komputer</h3>
-            <div><p>macOS, Windows i Linux. Instaluje się od innych peerów przez Pear i sam się aktualizuje.</p>
-            <pre><code>npx pear install pear://nzi3suuxyzwj6oosortonj5pxd9s7ckgd8cr87szddaamxi77kny</code></pre>
-            <p class="on-computer">Zainstaluj z tej strony na komputerze; tam widać polecenie.</p></div>
+            <div><p>macOS, Windows i Linux. Instaluje się jednym poleceniem i sam się aktualizuje.</p>
+            <a class="button" href="docs/#install">Instrukcja instalacji</a></div>
           </div>
           <div class="row reveal">
-            <h3>Wiersz poleceń i agenci</h3>
-            <div><p>Czytaj i zmieniaj tablice z terminala, trzymaj urządzenie online albo podłącz klienta AI przez <code>opencollab mcp</code>.</p>
-            <pre><code>npx pear install --to ~/.local/share pear://q1huw5ozxk8j36pcb8sicfr4dtgf9154r5aj3yzqa14ngxxq1kmy</code></pre>
-            <p class="on-computer">Zainstaluj z tej strony na komputerze; tam widać polecenie.</p></div>
+            <h3>Dla programistów</h3>
+            <div><p>Czytaj i zmieniaj tablice z terminala, trzymaj tablicę online albo podłącz aplikację AI.</p>
+            <a class="button" href="docs/#agents">Dokumentacja dla programistów</a></div>
           </div>
         </div>
       </section>
 
-      <section class="section stack" id="stack">
-        <div class="head">
-          <h2 class="reveal">Zbudowane na Holepunch</h2>
-          <p class="reveal">OpenCollab działa na peer-to-peer klockach <a href="https://holepunch.to">Holepunch</a>: <a href="https://docs.pears.com">Pear</a> do dystrybucji i aktualizacji, <a href="https://github.com/holepunchto/bare">Bare</a> jako wspólny backend, <a href="https://github.com/holepunchto/hyperswarm">Hyperswarm</a> do znajdowania peerów, <a href="https://github.com/holepunchto/hypercore">Hypercore</a> i <a href="https://github.com/holepunchto/autobee">Autobee</a> dla podpisanej tablicy z wieloma autorami oraz <a href="https://github.com/holepunchto/hyperblobs">Hyperblobs</a> dla szyfrowanych zdjęć. Każda aplikacja działa na tym samym backendzie.</p>
-        </div>
-      </section>
       <section id="faq" class="section">
         <div class="head">
           <h2 class="reveal">FAQ</h2>
-          <p class="reveal">Pytania, które padają, zanim ktoś zaufa tablicy bez serwera.</p>
+          <p class="reveal">O to pytają ludzie, zanim przeniosą swoją grupę na tablicę.</p>
         </div>
         <div class="faq">
           <details class="reveal">
-            <summary>Gdzie jest moja tablica, skoro nie ma serwera?</summary>
-            <p>Na urządzeniu każdego członka. Każde trzyma pełną kopię jako podpisany dziennik na osobę, scalane w jedną tablicę. Urządzenie otwiera własną kopię, więc tablica działa offline. Synchronizacja wysyła tylko to, czego brakuje drugiej stronie.</p>
-          </details>
-          <details class="reveal">
-            <summary>Jak urządzenia się znajdują?</summary>
-            <p>Przez wspólną sieć wyszukiwania (DHT), którą współtworzy każda działająca aplikacja Holepunch. Członkowie ogłaszają się pod kodem wyliczonym z klucza tablicy. Sieć widzi ten kod, nigdy klucz.</p>
-          </details>
-          <details class="reveal">
-            <summary>A jeśli oboje jesteśmy za domowymi routerami?</summary>
-            <p>Oba urządzenia poznają swój publiczny adres i wysyłają do siebie pakiety w tej samej chwili, więc oba routery otwierają drogę (hole punching). Niektóre restrykcyjne sieci to blokują. Wtedy pomaga przekaźnik z publicznym adresem.</p>
+            <summary>Czy znajomi potrzebują konta?</summary>
+            <p>Nie. Instalują aplikację, klikają zaproszenie i wybierają imię. Nikt nigdzie się nie rejestruje.</p>
           </details>
           <details class="reveal">
             <summary>Kto może czytać moją tablicę?</summary>
-            <p>Osoby i agenci, którzy mają zaproszenie. Zaproszenie zawiera klucz tablicy. Wszystko na tablicy jest szyfrowane kluczami z niego wyprowadzonymi (XSalsa20-Poly1305, przez libsodium).</p>
+            <p>Tylko osoby i agenci, których zaprosisz. Nie my, nie twój dostawca internetu i nie ktoś, kto przechwyci ruch.</p>
           </details>
           <details class="reveal">
             <summary>Czy agent AI może czytać moje tablice?</summary>
-            <p>Tylko te, na które go zaprosisz, dokładnie jak człowieka. Widać go w Członkach i traci dostęp, gdy go usuniesz. Każdy na tablicy może napisać tekst, który agent przeczyta, dlatego OpenCollab każe modelowi traktować karty i komentarze jako treść, nigdy jako polecenia.</p>
+            <p>Tylko te, na które go zaprosisz, dokładnie jak człowieka. Widać go w Członkach i traci dostęp, gdy go usuniesz.</p>
           </details>
           <details class="reveal">
             <summary>Co Enricher, agent od najważniejszych punktów, wysyła na zewnątrz?</summary>
-            <p>Działa na twoim komputerze. Żeby przeczytać post, wysyła link do usługi transkrypcji, a potem tekst i komentarze karty do modelu AI, który ustawisz. Pozostałe tablice nie opuszczają twoich urządzeń. Nie zapraszaj go na tablice, które wolicie zachować dla siebie.</p>
+            <p>Działa na twoim komputerze. Żeby przeczytać post, wysyła link do usługi transkrypcji, a tekst do modelu AI, który wybierzesz. Pozostałe tablice zostają na twoich urządzeniach. Nie zapraszaj go na tablice, które wolicie zachować dla siebie.</p>
           </details>
           <details class="reveal">
-            <summary>Dwie osoby zmieniły tę samą kartę offline. Kto wygrywa?</summary>
-            <p>W każdym polu wygrywa najnowsza zmiana, a remisy są rozstrzygane tak samo na każdym urządzeniu. Komentarze, głosy i zdjęcia tylko się dodają, więc nic nie ginie.</p>
+            <summary>Czy działa offline?</summary>
+            <p>Tak. Dodawaj i zmieniaj w pociągu. Zmiany zsynchronizują się, gdy ty i ktoś z tablicy będziecie online.</p>
+          </details>
+          <details class="reveal">
+            <summary>Dwie osoby zmieniły tę samą kartę. Co wtedy?</summary>
+            <p>W każdym polu wygrywa najnowsza zmiana, tak samo na każdym urządzeniu. Komentarze, głosy i zdjęcia tylko się dodają, więc nic nie ginie.</p>
           </details>
           <details class="reveal">
             <summary>Co, jeśli zgubię telefon?</summary>
             <p>Wpisz 24 słowa odzyskiwania na nowym urządzeniu i wracasz jako ten sam członek. Bez nich nikt nie odtworzy twojej tożsamości.</p>
           </details>
+          <details class="reveal">
+            <summary>Czy to naprawdę darmowe?</summary>
+            <p>Tak. Nie mamy serwera, za który trzeba płacić, więc nie ma abonamentu ani reklam.</p>
+          </details>
         </div>
-        <p class="note reveal">Więcej w <a href="https://github.com/Chmarusso/p2p-collab-board/blob/main/docs/faq.md">pełnym FAQ</a> (po angielsku).</p>
+        <p class="note reveal">Pytania techniczne, na przykład jak urządzenia się znajdują? <a href="docs/">Przeczytaj dokumentację</a>.</p>
       
       </section>
 
@@ -358,22 +320,12 @@ SLIDES_BOARD="Weekend reading" node apps/cli/examples/feed-slides.mjs</code></pr
       <nav aria-label="Footer">
         <a class="lang" href="../" hreflang="en" lang="en">English</a>
         <a class="desk" href="../design-system.html">System projektowy</a>
-        <a class="phone" href="https://holepunch.to">Zbudowane na Holepunch</a>
+        <a href="docs/">Dokumentacja</a>
         <a href="https://github.com/Chmarusso/p2p-collab-board/blob/main/PRIVACY.md">Polityka prywatności</a>
         <a href="https://github.com/Chmarusso/p2p-collab-board">GitHub</a>
       </nav>
     </footer>
     <script>
-      // On phones the folds start closed (html.phone, set before paint); a tap opens one.
-      document.querySelectorAll('.fold-toggle').forEach((button) => {
-        const fold = button.parentElement
-        const sync = () => button.setAttribute('aria-expanded', String(!document.documentElement.classList.contains('phone') || fold.classList.contains('open')))
-        sync()
-        button.addEventListener('click', () => {
-          fold.classList.toggle('open')
-          sync()
-        })
-      })
       // Clips load and play only while on screen; with reduced motion they stay still.
       const still = matchMedia('(prefers-reduced-motion: reduce)').matches
       const watch = new IntersectionObserver(

@@ -13,7 +13,6 @@
     <meta name="color-scheme" content="dark" />
     <script>
       document.documentElement.classList.add('js')
-      if (matchMedia('(max-width: 640px)').matches) document.documentElement.classList.add('phone')
       // Language: a remembered choice (the switch sets it) wins; otherwise a Polish
       // browser arriving at the English page is sent to /pl/ once. A direct link
       // to /pl/ is respected. Without script, hreflang alone does the work.
@@ -86,13 +85,15 @@
         <a href="#privacy">Privacy</a>
         <a href="#groups">For groups</a>
         <a href="#agents">Agents</a>
-        <a href="#how">How it works</a>
-        <a href="#get" class="nav-get">Get it</a>
         <a href="#faq">FAQ</a>
+        <a href="docs/">Docs</a>
       </nav>
-      <a class="lang" href="pl/" hreflang="pl" lang="pl">
-        <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-languages"></use></svg><span>Polski</span>
-      </a>
+      <div class="nav-end">
+        <a class="lang" href="pl/" hreflang="pl" lang="pl" aria-label="Polski">
+          <svg class="icon" aria-hidden="true" focusable="false"><use href="#i-languages"></use></svg><span>PL</span>
+        </a>
+        <a class="nav-get" href="#get">Get it</a>
+      </div>
     </header>
 
     <main id="top">
@@ -151,32 +152,15 @@
           <h2 class="reveal">How your boards stay private</h2>
           <p class="reveal">OpenCollab has no server and no database. Your device encrypts each board with a key that only you and the people you invite hold.</p>
         </div>
-        <div class="fold reveal">
-          <button type="button" class="fold-toggle" aria-expanded="true">Who can see what? Only the people you invite.</button>
-        <div class="who" role="region" aria-label="Who can see what" tabindex="0">
-          <table>
-            <caption>Who can see what</caption>
-            <thead>
-              <tr><td></td><th scope="col">Can read your boards</th><th scope="col">Sees your IP address</th></tr>
-            </thead>
-            <tbody>
-              <tr><th scope="row">People you invite</th><td class="" data-label="Can read your boards">Yes</td><td class="" data-label="Sees your IP address">When connected to you</td></tr>
-              <tr><th scope="row">Agents you invite</th><td class="" data-label="Can read your boards">Yes, like any member</td><td class="" data-label="Sees your IP address">When connected to you</td></tr>
-              <tr><th scope="row">A relay you run (optional)</th><td class="no" data-label="Can read your boards">No, it holds an encrypted copy</td><td class="" data-label="Sees your IP address">Yes</td></tr>
-              <tr><th scope="row">The network that introduces devices</th><td class="no" data-label="Can read your boards">No</td><td class="" data-label="Sees your IP address">Yes</td></tr>
-              <tr><th scope="row">OpenCollab developers</th><td class="no" data-label="Can read your boards">No</td><td class="no" data-label="Sees your IP address">No</td></tr>
-            </tbody>
-          </table>
-        </div>
-        </div>
         <ul class="points">
-          <li class="reveal"><h3>Encrypted on your device</h3><p>Cards, comments, chat and photos are encrypted on your phone before they leave it. What travels and what gets stored is unreadable without the key.</p></li>
-          <li class="reveal more"><h3>The invite holds the key</h3><p>The key travels inside the invite link. Whoever has the invite can read the board. The network that connects devices never sees the key.</p></li>
-          <li class="reveal"><h3>No server to hack</h3><p>Boards live on members’ devices. You can run a relay that keeps an encrypted copy online for when everyone is away. It can’t open it.</p></li>
-          <li class="reveal"><h3>No account</h3><p>Your device makes your identity, a key pair you back up as 24 words. We never ask for your email or phone number.</p></li>
-          <li class="reveal more"><h3>Signed edits</h3><p>Your device signs each change with your key. Nobody can forge or rewrite your edits. A removed member’s new ones are ignored.</p></li>
-          <li class="reveal"><h3>Open source</h3><p>The code is <a href="https://github.com/Chmarusso/p2p-collab-board">on GitHub</a>. Read how the encryption works, or build the apps yourself.</p></li>
+          <li class="reveal"><h3>Encrypted on your device</h3><p>Cards, comments, chat and photos are encrypted on your phone before they leave it. Anyone who intercepts them sees noise.</p></li>
+          <li class="reveal"><h3>Only the people you invite</h3><p>Your invite link is the only way in. Whoever you send it to can read the board. Nobody else can, us included.</p></li>
+          <li class="reveal more"><h3>No company cloud</h3><p>Boards live on your group’s devices, not on our servers. There’s no central copy to leak or sell.</p></li>
+          <li class="reveal"><h3>No account</h3><p>No email, no phone number, no password. You back up your identity as 24 words.</p></li>
+          <li class="reveal more"><h3>Nobody can fake your edits</h3><p>Every change carries your signature. Nobody can forge or rewrite it, and a removed member can’t add new ones.</p></li>
+          <li class="reveal"><h3>Free and open source</h3><p>No ads and no paid plan. The code is <a href="https://github.com/Chmarusso/p2p-collab-board">on GitHub</a> for anyone to check.</p></li>
         </ul>
+        <p class="note reveal">Want the details? Read <a href="docs/#privacy">how the encryption works and who can see what</a>.</p>
       </section>
 
       <section id="groups" class="section">
@@ -243,23 +227,9 @@
             <figcaption><h3>Check facts and help out</h3><p>It answers questions in the comments and checks claims against their sources.</p></figcaption>
           </figure>
         </div>
-        <div class="fold dev reveal">
-          <button type="button" class="fold-toggle" aria-expanded="true">Build your own agent</button>
-          <div class="build">
-            <div>
-              <h3>Or build your own</h3>
-              <p>Those are starting points. Maybe your group wants a price tracker. Connect any MCP client, like Claude or Cursor, or run a small worker on your machine with the <code>opencollab</code> command line. <a href="https://github.com/Chmarusso/p2p-collab-board/tree/main/apps/cli/examples">The example agents</a> are a few dozen lines each.</p>
-            </div>
-            <div class="fold">
-              <button type="button" class="fold-toggle" aria-expanded="true">Show the commands</button>
-              <pre><code># connect an AI client
-claude mcp add opencollab -e OPENCOLLAB_PASSWORD=… -- opencollab mcp -s ~/.opencollab-ai
-
-# or run a worker: this one turns shared links into key points
-SLIDES_BOARD="Weekend reading" node apps/cli/examples/feed-slides.mjs</code></pre>
-            </div>
-          </div>
-          <p class="note"><strong>What an agent can see:</strong> only the boards you invite it to. It sends what it reads to the AI model you chose. For an assistant that should only answer, run it with <code>--read-only</code>.</p>
+        <div class="dev reveal">
+          <p class="note"><strong>What an agent can see:</strong> only the boards you invite it to. It sends what it reads to the AI model you chose.</p>
+          <p class="note"><strong>Want your own?</strong> Maybe your group wants a price tracker. Connect Claude, Cursor or another AI app to your boards, or have a developer friend write a small agent. <a href="docs/#agents">Read the agent guide</a>.</p>
         </div>
       </section>
 
@@ -271,82 +241,74 @@ SLIDES_BOARD="Weekend reading" node apps/cli/examples/feed-slides.mjs</code></pr
         <ol class="steps">
           <li class="reveal"><h3>Create your key</h3><p>The app makes your identity on your device and shows 24 recovery words. Write them down.</p></li>
           <li class="reveal"><h3>Start a board and share the invite</h3><p>Send the link or show the QR code. Anyone with the invite can open the&nbsp;board.</p></li>
-          <li class="reveal"><h3>Devices connect directly</h3><p>Members find each other through a shared network and connect over encrypted links. Nobody relays the traffic.</p></li>
+          <li class="reveal"><h3>Your devices sync directly</h3><p>Changes travel straight between your group’s phones and computers, encrypted the whole way. No company sits in the middle.</p></li>
         </ol>
-        <p class="note reveal"><strong>The trade-off:</strong> with no server, two members need to be online at the same time to sync. To fill the gaps, keep one device always on: an old laptop running <code>opencollab watch</code>, or a relay that holds only an encrypted copy.</p>
+        <p class="note reveal"><strong>The trade-off:</strong> with no server, changes arrive when someone from the group is online. Leave an old laptop on, or set up a small always-on device, and the board is there whenever anyone opens it. <a href="docs/#online">How to keep a board online</a>.</p>
       </section>
 
       <section id="get" class="section field">
         <div class="head">
           <h2 class="reveal">Get OpenCollab</h2>
-          <p class="reveal small">Installing from Pear needs <a href="https://nodejs.org">Node.js</a>, and at least one device online that has the release.</p>
+          <p class="reveal small">Free on every platform. No account, no sign-up.</p>
         </div>
         <div class="rows">
           <div class="row reveal">
             <h3>Phone</h3>
-            <div><p>In English and Polish.</p><ul class="plain"><li><strong>Android:</strong> <a href="https://github.com/Chmarusso/p2p-collab-board/releases?q=android-v&amp;expanded=true">download the APK</a> (Android 10 or newer)</li><li><strong>iPhone:</strong> not in the App Store yet. <a href="https://github.com/Chmarusso/p2p-collab-board/tree/main/apps/mobile">Build it from source</a> or <a href="https://github.com/Chmarusso/p2p-collab-board">follow progress</a></li><li>Both update over Pear afterwards</li></ul></div>
+            <div><p>In English and Polish.</p><ul class="plain"><li><strong>Android:</strong> <a href="beta/">join the beta on Google Play</a>, or <a href="https://github.com/Chmarusso/p2p-collab-board/releases?q=android-v&amp;expanded=true">download the APK</a> (Android 10 or newer)</li><li><strong>iPhone:</strong> not in the App Store yet. <a href="https://github.com/Chmarusso/p2p-collab-board">Follow progress</a></li><li>Both update themselves</li></ul></div>
           </div>
           <div class="row reveal">
             <h3>Desktop</h3>
-            <div><p>macOS, Windows and Linux. Installs from peers through Pear and updates itself.</p>
-            <pre><code>npx pear install pear://nzi3suuxyzwj6oosortonj5pxd9s7ckgd8cr87szddaamxi77kny</code></pre>
-            <p class="on-computer">Install from this page on your computer; the command is shown there.</p></div>
+            <div><p>macOS, Windows and Linux. One command installs it, and it updates itself.</p>
+            <a class="button" href="docs/#install">Install guide</a></div>
           </div>
           <div class="row reveal">
-            <h3>Command line and agents</h3>
-            <div><p>Read and edit boards from a terminal, keep a device online, or connect an AI client with <code>opencollab mcp</code>.</p>
-            <pre><code>npx pear install --to ~/.local/share pear://q1huw5ozxk8j36pcb8sicfr4dtgf9154r5aj3yzqa14ngxxq1kmy</code></pre>
-            <p class="on-computer">Install from this page on your computer; the command is shown there.</p></div>
+            <h3>For developers</h3>
+            <div><p>Read and edit boards from a terminal, keep a board online, or connect an AI app.</p>
+            <a class="button" href="docs/#agents">Developer docs</a></div>
           </div>
         </div>
       </section>
 
-      <section class="section stack" id="stack">
-        <div class="head">
-          <h2 class="reveal">Built on Holepunch</h2>
-          <p class="reveal">OpenCollab runs on <a href="https://holepunch.to">Holepunch</a>’s peer-to-peer building blocks: <a href="https://docs.pears.com">Pear</a> for delivery and updates, <a href="https://github.com/holepunchto/bare">Bare</a> for the shared backend, <a href="https://github.com/holepunchto/hyperswarm">Hyperswarm</a> for finding peers, <a href="https://github.com/holepunchto/hypercore">Hypercore</a> and <a href="https://github.com/holepunchto/autobee">Autobee</a> for the signed, multi-writer board, and <a href="https://github.com/holepunchto/hyperblobs">Hyperblobs</a> for encrypted photos. Every app runs the same backend.</p>
-        </div>
-      </section>
       <section id="faq" class="section">
         <div class="head">
           <h2 class="reveal">FAQ</h2>
-          <p class="reveal">The questions people ask before they trust a board with no server.</p>
+          <p class="reveal">What people ask before they move their group onto a board.</p>
         </div>
         <div class="faq">
           <details class="reveal">
-            <summary>Where is my board stored if there’s no server?</summary>
-            <p>On every member’s device. Each keeps a full copy as a signed log per member, merged into one board. Your device opens its own copy, so the board works offline. Syncing sends only what the other side is missing.</p>
-          </details>
-          <details class="reveal">
-            <summary>How do devices find each other?</summary>
-            <p>Through a shared lookup network (a DHT) that every running Holepunch app helps run. Members announce themselves under a code derived from the board’s key. The network sees that code, never the key.</p>
-          </details>
-          <details class="reveal">
-            <summary>What if both of us are behind home routers?</summary>
-            <p>Both devices learn their public address and send packets to each other at the same moment, so both routers open a path (hole punching). A few strict networks block this. A relay with a public address bridges the gap.</p>
+            <summary>Do my friends need an account?</summary>
+            <p>No. They install the app, tap your invite and pick a name. Nobody signs up anywhere.</p>
           </details>
           <details class="reveal">
             <summary>Who can read my board?</summary>
-            <p>People and agents who hold the invite. The invite carries the board’s key. Everything on the board is encrypted with keys derived from it (XSalsa20-Poly1305, via libsodium).</p>
+            <p>Only the people and agents you invite. Not us, not your internet provider, not anyone who intercepts the traffic.</p>
           </details>
           <details class="reveal">
             <summary>Can an AI agent read my boards?</summary>
-            <p>Only the boards you invite it to, exactly like a person. It appears in Members and loses access when you remove it. Anyone on a board can write text the agent reads, so OpenCollab tells the model to treat cards and comments as content, never as instructions.</p>
+            <p>Only the boards you invite it to, exactly like a person. It shows up in Members and loses access when you remove it.</p>
           </details>
           <details class="reveal">
             <summary>What does Enricher, the key points agent, send outside?</summary>
-            <p>It runs on your machine. To read a post, it sends the link to a transcript service, then the text and the card’s comments to the AI model you configure. Your other boards never leave your devices. Leave it off any board you’d rather keep to yourselves.</p>
+            <p>It runs on your computer. To read a post, it sends the link to a transcript service and the text to the AI model you chose. Your other boards stay on your devices. Leave it off boards you’d rather keep to yourselves.</p>
           </details>
           <details class="reveal">
-            <summary>Two people edited the same card offline. Who wins?</summary>
-            <p>For each field the newest change wins, with ties broken the same way on every device. Comments, votes and photos only add, so nothing gets lost.</p>
+            <summary>Does it work offline?</summary>
+            <p>Yes. Add and edit on the train. Your changes sync the next time you and someone from the board are online.</p>
+          </details>
+          <details class="reveal">
+            <summary>Two people edited the same card. What happens?</summary>
+            <p>The newest change to each field wins, the same way on every device. Comments, votes and photos only add up, so nothing gets lost.</p>
           </details>
           <details class="reveal">
             <summary>What if I lose my phone?</summary>
             <p>Enter your 24 recovery words on a new device and you’re back as the same member. Without them nobody can restore your identity.</p>
           </details>
+          <details class="reveal">
+            <summary>Is it really free?</summary>
+            <p>Yes. There’s no server for us to pay for, so there’s no subscription and no ads.</p>
+          </details>
         </div>
-        <p class="note reveal">More detail in the <a href="https://github.com/Chmarusso/p2p-collab-board/blob/main/docs/faq.md">full FAQ</a>.</p>
+        <p class="note reveal">Technical questions, like how devices find each other? <a href="docs/">Read the docs</a>.</p>
       
       </section>
 
@@ -358,22 +320,12 @@ SLIDES_BOARD="Weekend reading" node apps/cli/examples/feed-slides.mjs</code></pr
       <nav aria-label="Footer">
         <a class="lang" href="pl/" hreflang="pl" lang="pl">Polski</a>
         <a class="desk" href="design-system.html">Design system</a>
-        <a class="phone" href="https://holepunch.to">Built on Holepunch</a>
+        <a href="docs/">Docs</a>
         <a href="https://github.com/Chmarusso/p2p-collab-board/blob/main/PRIVACY.md">Privacy policy</a>
         <a href="https://github.com/Chmarusso/p2p-collab-board">GitHub</a>
       </nav>
     </footer>
     <script>
-      // On phones the folds start closed (html.phone, set before paint); a tap opens one.
-      document.querySelectorAll('.fold-toggle').forEach((button) => {
-        const fold = button.parentElement
-        const sync = () => button.setAttribute('aria-expanded', String(!document.documentElement.classList.contains('phone') || fold.classList.contains('open')))
-        sync()
-        button.addEventListener('click', () => {
-          fold.classList.toggle('open')
-          sync()
-        })
-      })
       // Clips load and play only while on screen; with reduced motion they stay still.
       const still = matchMedia('(prefers-reduced-motion: reduce)').matches
       const watch = new IntersectionObserver(
