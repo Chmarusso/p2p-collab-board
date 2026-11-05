@@ -449,6 +449,8 @@ const copy = {
 }
 
 const sections = ['privacy', 'groups', 'agents', 'how', 'get', 'faq']
+// The header links to four sections and the docs; Get it is the button at the end.
+const NAV = ['privacy', 'groups', 'agents', 'faq']
 const PLATFORMS = [
   ['b-android', 'Android'],
   ['b-apple', 'iPhone · Mac'],
@@ -569,12 +571,15 @@ function page(lang) {
     <header class="nav">
       <a class="logo" href="${root || './'}" aria-label="OpenCollab"><span class="prompt">&gt;</span> opencollab</a>
       <nav aria-label="${lang === 'en' ? 'Sections' : 'Sekcje'}">
-        ${sections.map((id, i) => `<a href="#${id}"${id === 'get' ? ' class="nav-get"' : ''}>${t.nav[i]}</a>`).join('\n        ')}
+        ${NAV.map((id) => `<a href="#${id}">${t.nav[sections.indexOf(id)]}</a>`).join('\n        ')}
         <a href="docs/">${t.docsNav}</a>
       </nav>
-      <a class="lang" href="${otherHref}" hreflang="${other}" lang="${other}">
-        ${icon('i-languages')}<span>${t.switchLabel}</span>
-      </a>
+      <div class="nav-end">
+        <a class="lang" href="${otherHref}" hreflang="${other}" lang="${other}" aria-label="${t.switchLabel}">
+          ${icon('i-languages')}<span>${other.toUpperCase()}</span>
+        </a>
+        <a class="nav-get" href="#get">${t.nav[4]}</a>
+      </div>
     </header>
 
     <main id="top">
@@ -1047,12 +1052,12 @@ function docsPage(lang) {
     <a class="skip" href="#top">${lang === 'en' ? 'Skip to content' : 'Przejdź do treści'}</a>
     <header class="nav">
       <a class="logo" href="../" aria-label="OpenCollab"><span class="prompt">&gt;</span> opencollab</a>
-      <nav aria-label="${lang === 'en' ? 'Site' : 'Strona'}">
-        <a href="../#get" class="nav-get">${t.nav[4]}</a>
-      </nav>
-      <a class="lang" href="${otherHref}" hreflang="${other}" lang="${other}">
-        ${icon('i-languages')}<span>${t.switchLabel}</span>
-      </a>
+      <div class="nav-end">
+        <a class="lang" href="${otherHref}" hreflang="${other}" lang="${other}" aria-label="${t.switchLabel}">
+          ${icon('i-languages')}<span>${other.toUpperCase()}</span>
+        </a>
+        <a class="nav-get" href="../#get">${t.nav[4]}</a>
+      </div>
     </header>
 
     <main id="top">

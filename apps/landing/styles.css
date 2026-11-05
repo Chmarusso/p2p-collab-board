@@ -143,13 +143,22 @@ h3 {
 
 .nav nav {
   display: flex;
-  gap: 24px;
+  align-items: center;
+  gap: 28px;
   margin-left: auto;
+}
+
+/* Language and Get it, kept together at the end of the bar. */
+.nav-end {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
 .nav nav a,
 .footer nav a,
-.nav .lang {
+.nav .lang,
+.nav .nav-get {
   text-decoration: none;
   font-size: 14px;
 }
@@ -159,7 +168,7 @@ h3 {
   text-decoration: underline;
 }
 
-.nav nav a.nav-get {
+.nav .nav-get {
   padding: 6px 14px;
   border-radius: 999px;
   background: var(--accent);
@@ -167,7 +176,7 @@ h3 {
   font-weight: 600;
 }
 
-.nav nav a.nav-get:hover {
+.nav .nav-get:hover {
   text-decoration: none;
 }
 
@@ -869,6 +878,10 @@ pre {
 
 @media (max-width: 640px) {
   .nav nav {
+    display: none;
+  }
+  /* The sticky Get button takes over on the landing page. */
+  body:not(.docs) .nav .nav-get {
     display: none;
   }
   h2 {
