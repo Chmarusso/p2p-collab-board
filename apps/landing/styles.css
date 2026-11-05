@@ -440,12 +440,6 @@ main {
   font-weight: 600;
 }
 
-/* Folds: on desktop the table and the commands are simply there; on phones they
-   open on tap (the script closes them), so the page stays short. */
-.fold-toggle {
-  display: none;
-}
-
 /* Groups: the list beside a two-by-two of the phones. */
 .split {
   display: grid;
@@ -505,26 +499,6 @@ main {
   margin: 0;
 }
 
-/* "Or build your own": the words and the commands side by side on one surface. */
-.build {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
-  gap: 24px 40px;
-  align-items: center;
-  margin-top: 56px;
-  padding: 32px;
-  border-radius: 20px;
-  background: var(--surface);
-}
-
-.build h3 {
-  margin-bottom: 8px;
-}
-
-.build p {
-  margin: 0;
-}
-
 pre {
   margin: 0;
   padding: 16px 18px;
@@ -539,10 +513,6 @@ pre {
 .note {
   max-width: var(--measure);
   margin: 40px 0 0;
-}
-
-.dev .build {
-  margin-top: 56px;
 }
 
 .dev .note {
@@ -641,15 +611,15 @@ pre {
   margin: 0;
 }
 
+.row .button {
+  margin-top: 14px;
+}
+
 .row .plain {
   padding: 0;
   list-style: none;
   display: grid;
   gap: 6px;
-}
-
-.row pre {
-  margin-top: 14px;
 }
 
 .field .note {
@@ -718,8 +688,73 @@ pre {
   max-width: 68ch;
 }
 
-.stack .head p {
-  font-size: 16px;
+/* Docs: one column of prose, a contents list up top, sections 72px apart. */
+.doc-intro {
+  padding-top: 72px;
+  max-width: 46em;
+}
+
+.doc-intro .lead {
+  margin-top: 16px;
+}
+
+.toc ul {
+  list-style: none;
+  padding: 0;
+  margin: 32px 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.toc a {
+  display: inline-block;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  text-decoration: none;
+  font-size: 15px;
+}
+
+.toc a:hover {
+  color: var(--ink);
+  background: var(--raised);
+}
+
+.section.doc {
+  padding-top: 72px;
+  scroll-margin-top: 16px;
+}
+
+.doc h2 {
+  margin-bottom: 20px;
+}
+
+.doc-body {
+  max-width: 46em;
+}
+
+.doc-body p,
+.doc-body ul {
+  margin: 0 0 16px;
+}
+
+.doc-body p code {
+  white-space: nowrap;
+}
+
+.doc-body pre {
+  margin: 0 0 20px;
+  background: var(--surface);
+}
+
+.doc-body .who {
+  margin: 24px 0 0;
+}
+
+.docs .footer {
+  margin-top: 96px;
 }
 
 /* The close: the name returns, large. */
@@ -745,8 +780,6 @@ pre {
 
 /* Phone-only furniture, hidden elsewhere. */
 .platforms-line,
-.on-computer,
-.footer .phone,
 .sticky-get {
   display: none;
 }
@@ -814,7 +847,6 @@ pre {
 @media (max-width: 900px) {
   .hero-row,
   .split,
-  .build,
   .head {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -849,57 +881,6 @@ pre {
     overflow: hidden;
     border-radius: 20px;
   }
-  /* Privacy: the table folds into one line under the intro; the points follow. */
-  #privacy .fold {
-    margin-bottom: 36px;
-  }
-  .fold {
-    border-radius: 16px;
-    background: var(--surface);
-  }
-  .phone .fold-toggle {
-    display: flex;
-    width: 100%;
-    justify-content: space-between;
-    align-items: center;
-    gap: 16px;
-    padding: 18px 22px;
-    border: 0;
-    background: none;
-    text-align: left;
-    cursor: pointer;
-    font: inherit;
-    font-weight: 600;
-    color: var(--ink);
-  }
-  .phone .fold-toggle::after {
-    content: '+';
-    flex: none;
-    font-size: 22px;
-    line-height: 1;
-    color: var(--muted);
-  }
-  .phone .fold.open > .fold-toggle::after {
-    content: '−';
-  }
-  /* Closed: only the button shows. Open, or no script: everything shows. */
-  .phone .fold:not(.open) > :not(.fold-toggle) {
-    display: none;
-  }
-  .fold.dev {
-    margin-bottom: 24px;
-  }
-  .fold .who {
-    margin: 0;
-    padding: 0 12px 12px;
-    border-radius: 0 0 16px 16px;
-  }
-  .fold .who caption {
-    display: none;
-  }
-  .fold pre {
-    margin: 0 12px 12px;
-  }
   /* The first screen: one line of platforms, not seven targets. */
   .platforms {
     display: none;
@@ -918,33 +899,11 @@ pre {
   .media figure:nth-child(n + 3) {
     display: none;
   }
-  /* Developer detail and the stack step aside. */
-  .dev .build {
-    margin: 0;
-    background: none;
-    padding: 0 22px 8px;
-  }
   .dev .note {
-    margin: 0 12px 12px;
-    background: var(--raised);
-  }
-  .stack {
-    display: none;
+    margin-top: 24px;
   }
   .footer .desk {
     display: none;
-  }
-  .footer .phone {
-    display: inline;
-  }
-  /* Install commands are for a computer. */
-  .row pre {
-    display: none;
-  }
-  .on-computer {
-    display: block;
-    color: var(--muted);
-    font-size: 14px;
   }
   /* One Get button within reach of the thumb. */
   .js .sticky-get {
@@ -1023,9 +982,6 @@ pre {
   }
   .media {
     gap: 12px;
-  }
-  .build {
-    padding: 22px;
   }
   .platforms {
     justify-content: space-between;
