@@ -63,18 +63,17 @@ import {
   PresencePeer,
   avatarOf,
   checklistProgress,
-  columnCards as shownIn,
   dayString,
   doneColumnOf,
   dueInfo,
   findMentions,
   imagesOf,
+  moveWarnings,
   newLabelId,
   pad,
   scoreOf,
   sourceSite,
   videosOf,
-  wipState,
   workerIndex
 } from './model'
 
@@ -276,27 +275,7 @@ export function CardSheet(props: Props) {
     if (columnId === card.columnId) return place(columnId, visibleIndex)
     const target = data.columns.find((entry) => entry.id === columnId)
     const toDone = columnId === doneId
-    const warnings: string[] = []
-    if (toDone && card.blockedBy?.length) {
-      const names = card.blockedBy
-        .map((id) => data.objects.find((entry) => entry.id === id)?.title)
-        .filter(Boolean)
-      warnings.push(
-        t('It is still blocked by {cards}.', {
-          cards: names.map((name) => `“${name}”`).join(', ')
-        })
-      )
-    }
-    const count = target ? shownIn(data, target.id).length : 0
-    if (target && wipState(count + 1, target.wipLimit) === 'over') {
-      warnings.push(
-        t('{column} already holds {count} of its limit of {limit}.', {
-          column: target.name,
-          count,
-          limit: target.wipLimit ?? ''
-        })
-      )
-    }
+    const warnings = moveWarnings(data, card, columnId)
     const go = () => {
       place(columnId, visibleIndex)
       if (toDone) celebrate()

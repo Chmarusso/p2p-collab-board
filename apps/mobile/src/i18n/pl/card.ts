@@ -29,6 +29,8 @@ const pl: Record<string, string> = {
   '{index} of {count} in {column}': '{index} z {count} · {column}',
   'Move to {column}?': 'Przenieść do: {column}?',
   'Move anyway': 'Przenieś mimo to',
+  'Move to {column}': 'Przenieś do: {column}',
+  'Move to another column': 'Przenieś do innej kolumny',
   'It is still blocked by {cards}.': 'Nadal blokuje ją {cards}.',
   '{column} already holds {count} of its limit of {limit}.':
     'Kolumna {column} ma już {count} kart przy limicie {limit}.',
