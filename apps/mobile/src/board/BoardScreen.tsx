@@ -3,6 +3,7 @@
 // reached from the toolbar.
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
+  AccessibilityInfo,
   ActionSheetIOS,
   Alert,
   Dimensions,
@@ -34,7 +35,7 @@ import {
   tint
 } from '../ui'
 import { plural, t } from '../i18n'
-import { SoundName } from '../sounds'
+import { SoundName, playSound } from '../sounds'
 import type { SharePref } from '../share'
 import { ActivitySheet } from './Activity'
 import { ChatSheet } from './Chat'
@@ -77,10 +78,12 @@ import {
   inkOn,
   matchesFilters,
   memberPowers,
+  moveWarnings,
   pointsOf,
   requestId,
   templatesOf,
-  wipState
+  wipState,
+  workerIndex
 } from './model'
 
 type WorkerMessage = { type: string; [key: string]: any }
@@ -153,6 +156,8 @@ export function BoardScreen(props: Props) {
   const can = (feature: BoardFeature) => hasFeature(kind.id, feature)
   const [openCardId, setOpenCardId] = useState<string | null>(null)
   const [sheet, setSheet] = useState<SheetName>(null)
+  // The card whose long-press menu is open (Android; iOS uses an action sheet).
+  const [menuCard, setMenuCard] = useState<Card | null>(null)
   // Chat unread: messages from others since the chat was last open (or since
   // this board screen opened).
   const [chatReadAt, setChatReadAt] = useState(() => Date.now())
@@ -363,6 +368,52 @@ export function BoardScreen(props: Props) {
       (index) => moreActions[index]?.[1]()
     )
   }
+  // Holding a card offers the other columns, so a card moves without opening
+  // it. Same confirmations as the card sheet; the card goes to the bottom.
+  const moveCard = (card: Card, columnId: string) => {
+    const go = () => {
+      const all = data.objects.filter((entry) => entry.columnId === columnId)
+      const shown = all.filter((entry) => !entry.archived)
+      props.onLocalMove()
+      send({
+        type: messageTypes.cardMove,
+        objectId: card.id,
+        columnId,
+        index: workerIndex(all, shown, card.id, Infinity)
+      })
+      if (columnId === doneId) {
+        playSound(props.sound)
+        AccessibilityInfo.announceForAccessibility(t('Card moved to Done'))
+      }
+    }
+    const warnings = moveWarnings(data, card, columnId)
+    if (!warnings.length) return go()
+    const target = data.columns.find((column) => column.id === columnId)
+    Alert.alert(
+      t('Move to {column}?', { column: target?.name || t('column') }),
+      warnings.join('\n\n'),
+      [
+        { text: t('Cancel'), style: 'cancel' },
+        { text: t('Move anyway'), onPress: go }
+      ]
+    )
+  }
+  const moveTargets = (card: Card) => data.columns.filter((column) => column.id !== card.columnId)
+  const openCardMenu = (card: Card) => {
+    const targets = moveTargets(card)
+    if (Platform.OS !== 'ios') return setMenuCard(card)
+    ActionSheetIOS.showActionSheetWithOptions(
+      {
+        title: card.title,
+        options: [
+          ...targets.map((column) => t('Move to {column}', { column: column.name })),
+          t('Cancel')
+        ],
+        cancelButtonIndex: targets.length
+      },
+      (index) => targets[index] && moveCard(card, targets[index].id)
+    )
+  }
   const fromTemplate = (templateId: string, columnId: string) => {
     templateRequest.current = requestId()
     send({
@@ -385,6 +436,11 @@ export function BoardScreen(props: Props) {
       done={card.columnId === doneId}
       context={context}
       onPress={() => setOpenCardId(card.id)}
+      onLongPress={
+        !powers.banned && !card.template && moveTargets(card).length
+          ? () => openCardMenu(card)
+          : undefined
+      }
     />
   )
   const addColumn = () => {
@@ -861,6 +917,21 @@ export function BoardScreen(props: Props) {
               </View>
             </>
           )}
+        </Sheet>
+      ) : null}
+      {menuCard ? (
+        <Sheet title={menuCard.title} onClose={() => setMenuCard(null)}>
+          {moveTargets(menuCard).map((column) => (
+            <MenuRow
+              key={column.id}
+              icon='arrow-right'
+              label={t('Move to {column}', { column: column.name })}
+              onPress={() => {
+                setMenuCard(null)
+                moveCard(menuCard, column.id)
+              }}
+            />
+          ))}
         </Sheet>
       ) : null}
       {sheet === 'more' ? (

@@ -41,7 +41,8 @@ export function CardFace({
   viewers,
   done,
   context,
-  onPress
+  onPress,
+  onLongPress
 }: {
   card: Card
   data: BoardData
@@ -55,6 +56,8 @@ export function CardFace({
   // A line above the title, e.g. the column in the agenda.
   context?: string
   onPress: () => void
+  // Holding the card: the board offers to move it to another column.
+  onLongPress?: () => void
 }) {
   const images = imagesOf(card)
   const videos = videosOf(card)
@@ -81,6 +84,13 @@ export function CardFace({
   return (
     <PressableScale
       onPress={onPress}
+      onLongPress={onLongPress}
+      accessibilityActions={
+        onLongPress ? [{ name: 'longpress', label: t('Move to another column') }] : undefined
+      }
+      onAccessibilityAction={(event) =>
+        event.nativeEvent.actionName === 'longpress' && onLongPress?.()
+      }
       style={[
         styles.card,
         card.archived && styles.archived,
