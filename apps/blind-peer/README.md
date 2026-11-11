@@ -84,6 +84,26 @@ journalctl -u opencollab-blind-peer -f      # find the publicKey here
 A VPS with a public IP works best. Behind a strict NAT it still works, but some members
 may fail to hole-punch to it.
 
+## Abuse reports and removing a board
+
+Running a blind peer for other people's boards makes you the one who stores their encrypted
+data, so be ready to stop serving a board when you get a credible report (see
+[TERMS.md](../../TERMS.md#reporting-abuse)). You can't read or edit the board, but you can
+delete what your peer stores:
+
+- **Start it with your own key as a trusted peer**, e.g. `npm start -- --trusted-peer
+<your public key>`. Only trusted peers may ask it to delete data; requests from anyone
+  else are refused and logged as `Blocked delete-core request from untrusted peer`.
+- **A board is several cores** (each member's log and attachment store). A trusted peer
+  removes them one by one with a `delete-core` request, logged as `Received delete-core
+request from trusted peer`. The keys come from the report or from a member of the board.
+  There is no ready-made command for this yet.
+- **As a last resort,** stop the service and delete `storage/`. Every board then has to be
+  mirrored again, and the peer gets a new key that the apps have to be given.
+
+Keep a short record of each report: when it came in, what you did and when. Don't keep
+copies of reported material.
+
 ## Point the apps at it
 
 Put the key in `BLIND_PEERS` in

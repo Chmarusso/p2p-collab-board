@@ -159,3 +159,8 @@ npm start             # desktop app in dev mode
   component on one page. After changing desktop styles, run
   `node scripts/sync-design-system.mjs` to refresh the app components' CSS
 - [Pear documentation](https://docs.pears.com)
+
+## License
+
+[MIT](LICENSE). See also the [terms of use](TERMS.md), the [privacy policy](PRIVACY.md) and
+the [security policy](SECURITY.md).

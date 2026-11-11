@@ -4,7 +4,7 @@
   "version": "1.0.5",
   "upgrade": "pear://nzi3suuxyzwj6oosortonj5pxd9s7ckgd8cr87szddaamxi77kny",
   "description": "Private peer-to-peer collaboration boards",
-  "license": "",
+  "license": "MIT",
   "author": "",
   "type": "commonjs",
   "main": "electron/main.js",

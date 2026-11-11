@@ -215,6 +215,11 @@ video post; `--dry-run` shows the result without writing.
 OPENCOLLAB_PASSWORD=… ENRICH_BOARD="Family recipes" node apps/cli/examples/recipe-enricher.mjs --dry-run
 ```
 
+**Running a bot on a board.** Run it only on boards you belong to, with the members' agreement.
+A bot reads the board like any member and sends card titles, descriptions, links and comments
+to the services it uses (the model command, treg's providers), so tell the members what it
+does. Whoever runs a bot is responsible for it; see the [privacy policy](../../PRIVACY.md).
+
 [`examples/feed-slides.mjs`](examples/feed-slides.mjs) turns shared posts into short stories
 of key points that members watch in the app like Instagram stories (slides advance on
 their own; tap, hold to pause, swipe for the next post). Per post it reads the caption or
