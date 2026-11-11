@@ -103,6 +103,7 @@ summary:focus-visible {
 }
 
 .logo.small {
+  white-space: nowrap;
   font-size: 15px;
 }
 
@@ -548,7 +549,9 @@ h2 {
 
 .footer nav {
   display: flex;
-  gap: 20px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px 20px;
 }
 
 /* Narrow screens */
@@ -619,6 +622,13 @@ h2 {
   }
   .section {
     padding: 44px 0;
+  }
+  .footer-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .footer nav {
+    justify-content: flex-start;
   }
 }
 

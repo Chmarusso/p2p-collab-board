@@ -475,11 +475,14 @@ export function ThemeSheet({
 
 const ROLE_ORDER = { owner: 0, admin: 1, member: 2 }
 
-// encodeURIComponent, not URLSearchParams: React Native's is incomplete.
+// Abuse reports go to the maintainer privately (see TERMS.md), never to a
+// public issue tracker. encodeURIComponent, not URLSearchParams: React
+// Native's is incomplete.
+const ABUSE_EMAIL = 'CONTACT_EMAIL'
 const reportUrl = (member: Member) =>
-  'https://github.com/Chmarusso/p2p-collab-board/issues/new?title=Abuse%20report&body=' +
+  `mailto:${ABUSE_EMAIL}?subject=${encodeURIComponent('OpenCollab abuse report')}&body=` +
   encodeURIComponent(
-    `Member key: ${member.identity}\n\nWhat happened:\n\n(Don't paste private board content or invite links.)`
+    `Member key: ${member.identity}\n\nWhat happened:\n\n(Don't send illegal material, private board content or invite links.)`
   )
 
 export function MembersSheet({
@@ -543,19 +546,26 @@ export function MembersSheet({
       ]
     )
   // No server to report to: the board's owner and admins can remove the
-  // member, and abuse of the app itself goes to the maintainers on GitHub.
+  // member, and abuse goes to the maintainer by email.
   const report = (member: Member) =>
     Alert.alert(
       t('Report {name}?', { name: nameOf(member) }),
       t(
-        "The board's owner and admins can remove them. To report abuse to the OpenCollab team, open a report on GitHub. Don't include private board content."
+        "The board's owner and admins can remove them. To report abuse to the OpenCollab team, email us. Don't include private board content."
       ),
       [
         { text: t('Cancel'), style: 'cancel' },
         ...(blocked.includes(member.identity)
           ? []
           : [{ text: t('Block'), onPress: () => toggleBlocked(member.identity) }]),
-        { text: t('Report on GitHub'), onPress: () => void Linking.openURL(reportUrl(member)) }
+        {
+          text: t('Report by email'),
+          // No mail app: show the address so it can be copied.
+          onPress: () =>
+            void Linking.openURL(reportUrl(member)).catch(() =>
+              Alert.alert(t('Report by email'), ABUSE_EMAIL)
+            )
+        }
       ]
     )
   return (

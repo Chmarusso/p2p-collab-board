@@ -36,9 +36,9 @@ const pl: Record<string, string> = {
     'Na tym urządzeniu nie zobaczysz komentarzy tej osoby ani powiadomień od niej. Nie dowie się o tym, a tablica nie zmieni się dla nikogo innego.',
   Block: 'Zablokuj',
   'Report {name}?': 'Zgłosić użytkownika {name}?',
-  "The board's owner and admins can remove them. To report abuse to the OpenCollab team, open a report on GitHub. Don't include private board content.":
-    'Właściciel tablicy i administratorzy mogą usunąć tę osobę. Aby zgłosić nadużycie zespołowi OpenCollab, utwórz zgłoszenie na GitHubie. Nie dołączaj prywatnej zawartości tablicy.',
-  'Report on GitHub': 'Zgłoś na GitHubie',
+  "The board's owner and admins can remove them. To report abuse to the OpenCollab team, email us. Don't include private board content.":
+    'Właściciel tablicy i administratorzy mogą usunąć tę osobę. Aby zgłosić nadużycie zespołowi OpenCollab, napisz do nas e-mail. Nie dołączaj prywatnej zawartości tablicy.',
+  'Report by email': 'Zgłoś e-mailem',
   'The owner and admins can remove members. A removed member can still see the board, but their changes are ignored. Anyone can block or report a member.':
     'Właściciel i administratorzy mogą usuwać członków. Usunięty członek nadal widzi tablicę, ale jego zmiany są ignorowane. Każdy może zablokować lub zgłosić członka.',
   'Nobody has written to this board yet.': 'Nikt jeszcze nic nie zapisał na tej tablicy.',
