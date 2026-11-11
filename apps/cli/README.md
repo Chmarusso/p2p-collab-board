@@ -218,9 +218,18 @@ OPENCOLLAB_PASSWORD=… ENRICH_BOARD="Family recipes" node apps/cli/examples/rec
 [`examples/feed-slides.mjs`](examples/feed-slides.mjs) turns shared posts into short stories
 of key points that members watch in the app like Instagram stories (slides advance on
 their own; tap, hold to pause, swipe for the next post). Per post it reads the caption or
-article, the video's transcript and the card's comments, has a model write a hook and one
-idea per slide, writes the deck into the description (slides
-separated by `---`) and labels the card `slides`. About $0.002 of treg calls per post.
+article, the video's transcript and the card's comments, has a model write a hook and 6 to
+8 slides that each teach one thing (a case, steps, old against new, a number, a quote),
+writes the deck into the description (slides separated by `---`) and labels the card
+`slides`. About $0.002 of treg calls per post, plus the drawings.
+
+Each slide can carry one visual, written as its last line (`▸ kind: …`) so the deck still
+reads as a note anywhere: a diagram the app draws itself (`stat`, `versus`, `flow`,
+`layers`), a `quote` (kept only when the source says it in those words; for a YouTube
+video with the time it is said, and "View original" then opens the video there), or a
+`picture`: a hand-drawn scene made through treg's image generation and attached to the
+card (`SLIDES_PICTURES`, 3 per deck by default at about $0.008 each; 0 turns them off).
+App versions from before this show the `▸` line as text.
 
 Spotify sells no transcripts, so a Spotify episode is read cheapest source first: the
 title, show and length from Spotify's embed page, the show notes from Apple Podcasts, and
