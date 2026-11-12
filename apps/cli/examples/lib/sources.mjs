@@ -86,6 +86,28 @@ export function transcriptOf(result) {
     .trim()
 }
 
+// Timed segments as lines of about 20 seconds, each starting with its time
+// (`[12:34] …`), so a model can say where in a video something is said.
+export function timedTranscriptOf(result) {
+  const segments = result?.output?.data?.segments
+  if (!Array.isArray(segments) || !segments.some((s) => Number.isFinite(s.startSeconds))) return ''
+  const clock = (seconds) =>
+    `${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')}`
+  const lines = []
+  let start = 0
+  let texts = []
+  for (const segment of segments) {
+    if (!texts.length) start = segment.startSeconds || 0
+    texts.push(segment.text)
+    if ((segment.startSeconds || 0) - start >= 20) {
+      lines.push(`[${clock(start)}] ${texts.join(' ')}`)
+      texts = []
+    }
+  }
+  if (texts.length) lines.push(`[${clock(start)}] ${texts.join(' ')}`)
+  return lines.join('\n')
+}
+
 export function platformOf(url) {
   const host = url.replace(/^https?:\/\//, '')
   if (/(^|\.)tiktok\.com\//i.test(host)) return 'tiktok'
@@ -122,9 +144,11 @@ export async function fetchPost(treg, url, { ask } = {}) {
       const detail = await treg.call('treg.youtube.video.detail', { body: { url } })
       const title = longestAt(detail, ['title'])
       const description = longestAt(detail, ['description'])
+      const spoken = await treg.call('anyapi.youtube.video_transcript', { body: { url } })
       return {
         caption: [title, description].filter(Boolean).join('\n\n'),
-        transcript: await youtubeTranscript(treg, url)
+        transcript: transcriptOf(spoken),
+        timed: timedTranscriptOf(spoken)
       }
     }
     case 'x': {

@@ -1,9 +1,12 @@
 // Slide decks: a post's key points as a short story to watch (see
 // apps/cli/examples/feed-slides.mjs, which labels them `slides`). The deck is
 // the card's description: a one-line hook, then `## emoji heading` + lines per
-// slide, separated by `---`. Read decks are remembered on this device.
+// slide, separated by `---`. A slide may end with one `▸ kind: …` line, its
+// visual (see ./slideVisual): a diagram drawn here, a quote, or one of the
+// card's pictures. Read decks are remembered on this device.
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
+  ActivityIndicator,
   Animated,
   Easing,
   Image,
@@ -23,10 +26,11 @@ import { plural, t } from '../i18n'
 import { CachedImage, ImageRef, themed } from '../ui'
 import { useImageUri } from './Panels'
 import { BoardData, Card, imagesOf, sourceSite } from './model'
+import { VersusSide, Visual, linkAt, splitVisual, visualWords } from './slideVisual'
 
 export const SLIDES_LABEL = 'slides'
 
-export type Slide = { heading: string; lines: string[] }
+export type Slide = { heading: string; lines: string[]; visual: Visual | null }
 
 // The deck in a card labelled `slides`; null for any other card.
 export function deckOf(data: BoardData, card: Card) {
@@ -37,9 +41,41 @@ export function deckOf(data: BoardData, card: Card) {
     .filter((section) => section.startsWith('## '))
     .map((section) => {
       const [heading, ...lines] = section.split('\n')
-      return { heading: heading.replace(/^##\s*/, ''), lines: lines.filter((line) => line.trim()) }
+      return {
+        heading: heading.replace(/^##\s*/, ''),
+        ...splitVisual(lines.filter((line) => line.trim()))
+      }
     })
+    .flatMap(paced)
   return slides.length ? { summary: intro.replace(/^##.*$/m, '').trim(), slides } : null
+}
+
+// One thing on screen at a time. A visual keeps at most one short line beside
+// it; longer captions follow on a slide of their own. Text alone splits in two
+// past MAX_LINES lines or MAX_WORDS words. Follow-up slides have no heading,
+// so they read as the same idea continued rather than the title repeated.
+const MAX_LINES = 3
+const MAX_WORDS = 36
+const CAPTION_WORDS = 14
+const wordCount = (lines: string[]) => lines.join(' ').split(/\s+/).filter(Boolean).length
+
+function paced(slide: Slide): Slide[] {
+  const more = (lines: string[]): Slide => ({ heading: '', lines, visual: null })
+  const { lines, visual } = slide
+  const crowded = lines.length > 1 || wordCount(lines) > CAPTION_WORDS
+  if (visual && crowded) return [{ ...slide, lines: [] }, ...splitText(more(lines))]
+  return splitText(slide)
+}
+
+function splitText(slide: Slide): Slide[] {
+  const { lines } = slide
+  if (slide.visual || lines.length < 2) return [slide]
+  if (lines.length <= MAX_LINES && wordCount(lines) <= MAX_WORDS) return [slide]
+  const half = Math.ceil(lines.length / 2)
+  return [
+    { ...slide, lines: lines.slice(0, half) },
+    { heading: '', lines: lines.slice(half), visual: null }
+  ]
 }
 
 // Cards with a deck, newest first.
@@ -121,6 +157,15 @@ export function SlidesPlayer({
   const photo = useImageUri(card ? imagesOf(card)[0] : null, cache, requestImage)
   const cover = card ? feedCover(card.id) : null
   const accent = card ? accentOf(card.id) : ACCENTS[0]
+  // A picture slide whose image isn't on the card shows as a plain slide.
+  const drawingRef =
+    card && slide?.visual?.type === 'picture' ? imagesOf(card)[slide.visual.index - 1] : null
+  const drawing = useImageUri(drawingRef, cache, requestImage)
+  const visual = slide?.visual?.type === 'picture' && !drawingRef ? null : slide?.visual || null
+  // "View original" on a quote opens the video where the line is said.
+  const sourceUrl = card?.source
+    ? linkAt(card.source.url, visual?.type === 'quote' ? visual.at : '')
+    : ''
 
   const move = (step: 1 | -1) =>
     setPosition((current) => {
@@ -147,7 +192,10 @@ export function SlidesPlayer({
 
   // The timer: the current bar fills, then the next slide starts.
   const progress = useRef(new Animated.Value(0)).current
-  const duration = durationOf(slide ? [slide.heading, ...slide.lines] : [deck?.summary || ''])
+  const duration =
+    durationOf(
+      slide ? [slide.heading, ...slide.lines, ...visualWords(visual)] : [deck?.summary || '']
+    ) + (visual?.type === 'picture' ? 2000 : 0)
   useEffect(() => progress.setValue(0), [position.deck, position.slide])
   useEffect(() => {
     if (!deck || paused) return
@@ -166,7 +214,7 @@ export function SlidesPlayer({
   // The text comes in line by line on every slide. Each slide gets new values
   // and new views: reusing natively driven values across slides left the first
   // slide after the cover blank until it was shown a second time.
-  const lineCount = slide ? slide.lines.length + 2 : 4
+  const lineCount = slide ? slide.lines.length + 3 : 4
   const enter = useMemo(
     () => Array.from({ length: 12 }, () => new Animated.Value(0)),
     [position.deck, position.slide]
@@ -257,21 +305,45 @@ export function SlidesPlayer({
               accessibilityLabel={t('Next')}
             >
               {slide ? (
-                <View key={`${position.deck}.${position.slide}`} style={styles.slide}>
-                  {emojiOf(slide.heading) ? (
-                    <Animated.Text style={[styles.emoji, rise(0)]}>
+                <View
+                  key={`${position.deck}.${position.slide}`}
+                  style={[styles.slide, visual && styles.slideWithVisual]}
+                >
+                  {visual?.type === 'picture' ? (
+                    <Animated.View style={[styles.photoFrame, rise(0)]}>
+                      {drawing ? (
+                        <Image
+                          source={{ uri: drawing }}
+                          style={styles.drawing}
+                          accessibilityIgnoresInvertColors
+                        />
+                      ) : (
+                        <View style={[styles.drawing, styles.drawingWait]}>
+                          <ActivityIndicator color='#0f766e' />
+                        </View>
+                      )}
+                    </Animated.View>
+                  ) : emojiOf(slide.heading) ? (
+                    <Animated.Text style={[visual ? styles.emojiSmall : styles.emoji, rise(0)]}>
                       {emojiOf(slide.heading)}
                     </Animated.Text>
                   ) : null}
-                  <Animated.Text style={[styles.heading, rise(1)]}>
-                    {withoutEmoji(slide.heading)}
-                  </Animated.Text>
+                  {slide.heading ? (
+                    <Animated.Text style={[visual ? styles.headingSmall : styles.heading, rise(1)]}>
+                      {withoutEmoji(slide.heading)}
+                    </Animated.Text>
+                  ) : null}
+                  {visual && visual.type !== 'picture' ? (
+                    <Animated.View style={rise(2)}>
+                      <VisualCard visual={visual} accent={accent} />
+                    </Animated.View>
+                  ) : null}
                   {slide.lines.map((line, index) => (
-                    <Animated.View key={index} style={rise(index + 2)}>
+                    <Animated.View key={index} style={rise(index + (visual ? 3 : 2))}>
                       <Rich
                         text={line.replace(/^\s*(?:[-*•]|\d+\.)\s+/, '')}
                         accent={accent}
-                        style={styles.line}
+                        style={visual ? styles.lineSmall : styles.line}
                       />
                     </Animated.View>
                   ))}
@@ -358,7 +430,7 @@ export function SlidesPlayer({
             <View style={styles.bottom} pointerEvents='box-none'>
               {card.source ? (
                 <Pressable
-                  onPress={() => void Linking.openURL(card.source!.url)}
+                  onPress={() => void Linking.openURL(sourceUrl)}
                   style={({ pressed }) => [styles.pill, pressed && styles.pressed]}
                   accessibilityRole='link'
                 >
@@ -423,6 +495,124 @@ function Rich({ text, accent, style }: { text: string; accent: string; style: ob
   )
 }
 
+// A slide's diagram or quote, drawn from its `▸` line.
+function VisualCard({
+  visual,
+  accent
+}: {
+  visual: Exclude<Visual, { type: 'picture' }>
+  accent: string
+}) {
+  const note = (text: string) => (text ? <Text style={styles.note}>{text}</Text> : null)
+  switch (visual.type) {
+    case 'stat':
+      return (
+        <View style={styles.panel}>
+          <Text
+            style={[styles.statValue, { color: accent }]}
+            numberOfLines={1}
+            adjustsFontSizeToFit
+          >
+            {visual.value}
+          </Text>
+          {visual.label ? <Text style={styles.statLabel}>{visual.label}</Text> : null}
+          {visual.compare ? <Text style={styles.statCompare}>{visual.compare}</Text> : null}
+        </View>
+      )
+    case 'versus':
+      return (
+        <View style={styles.versus}>
+          <Side side={visual.left} />
+          <Side side={visual.right} accent={accent} />
+        </View>
+      )
+    case 'flow':
+      // A rail of steps; the last one, where it all leads, is filled in.
+      return (
+        <View style={styles.panel}>
+          {visual.nodes.map((node, index) => {
+            const last = index === visual.nodes.length - 1
+            return (
+              <View key={index} style={styles.step}>
+                <View style={styles.rail}>
+                  <View
+                    style={[styles.dot, last && { backgroundColor: accent, borderColor: accent }]}
+                  />
+                  {last ? null : <View style={styles.link} />}
+                </View>
+                <Text style={[styles.stepText, last && { color: accent }]}>{node}</Text>
+              </View>
+            )
+          })}
+          {note(visual.note)}
+        </View>
+      )
+    case 'layers':
+      return (
+        <View style={styles.layers}>
+          {visual.layers.map((layer, index) => (
+            <View
+              key={index}
+              style={[
+                styles.layer,
+                { backgroundColor: `rgba(255, 255, 255, ${Math.max(0.1, 0.28 - index * 0.07)})` },
+                index === 0 && { borderLeftColor: accent, borderLeftWidth: 4 }
+              ]}
+            >
+              <Text style={styles.layerText}>{layer}</Text>
+            </View>
+          ))}
+          {note(visual.note)}
+        </View>
+      )
+    case 'quote':
+      // The source's own words, like a passage marked on paper.
+      return (
+        <View style={styles.receipt}>
+          <Text style={styles.receiptText} numberOfLines={8}>
+            <Text style={styles.receiptMarked}>{`“${visual.text}”`}</Text>
+          </Text>
+          {visual.who || visual.at ? (
+            <View style={styles.receiptFoot}>
+              <Text style={styles.receiptWho} numberOfLines={1}>
+                {visual.who ? `— ${visual.who}` : ''}
+              </Text>
+              {visual.at ? (
+                <View style={styles.receiptTime}>
+                  <Feather name='play' size={11} color='#44403c' />
+                  <Text style={styles.receiptTimeText}>{visual.at}</Text>
+                </View>
+              ) : null}
+            </View>
+          ) : null}
+        </View>
+      )
+  }
+}
+
+function Side({ side, accent }: { side: VersusSide; accent?: string }) {
+  return (
+    <View style={[styles.side, accent ? { borderColor: accent } : null]}>
+      {side.label ? (
+        <Text style={[styles.sideLabel, accent ? { color: accent } : null]} numberOfLines={2}>
+          {side.label}
+        </Text>
+      ) : null}
+      {side.points.map((point, index) => (
+        <View key={index} style={styles.point}>
+          <Feather
+            name={accent ? 'check' : 'x'}
+            size={15}
+            color={accent || 'rgba(255, 255, 255, 0.6)'}
+            style={styles.pointIcon}
+          />
+          <Text style={[styles.pointText, !accent && styles.pointTextOld]}>{point}</Text>
+        </View>
+      ))}
+    </View>
+  )
+}
+
 const shadow = {
   textShadowColor: 'rgba(0, 0, 0, 0.45)',
   textShadowOffset: { width: 0, height: 2 },
@@ -464,6 +654,86 @@ const styles = themed(() => ({
   heading: { color: '#ffffff', fontSize: 36, fontWeight: '900', lineHeight: 42, ...shadow },
   line: { color: '#ffffff', fontSize: 22, fontWeight: '500', lineHeight: 31, ...shadow },
   bold: { fontWeight: '800' },
+  // A slide with a visual has less room for its text.
+  slideWithVisual: { gap: 14 },
+  emojiSmall: { fontSize: 38, lineHeight: 46 },
+  headingSmall: { color: '#ffffff', fontSize: 28, fontWeight: '900', lineHeight: 34, ...shadow },
+  lineSmall: { color: '#ffffff', fontSize: 19, fontWeight: '500', lineHeight: 27, ...shadow },
+  drawing: { aspectRatio: 3 / 2, backgroundColor: '#FBF7EE', width: '100%' },
+  drawingWait: { alignItems: 'center', justifyContent: 'center' },
+  panel: {
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    borderColor: 'rgba(255, 255, 255, 0.22)',
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 16
+  },
+  note: { color: 'rgba(255, 255, 255, 0.75)', fontSize: 14, lineHeight: 19, marginTop: 10 },
+  statValue: { fontSize: 68, fontWeight: '900', lineHeight: 76 },
+  statLabel: { color: '#ffffff', fontSize: 18, fontWeight: '700', lineHeight: 24 },
+  statCompare: { color: 'rgba(255, 255, 255, 0.7)', fontSize: 15, lineHeight: 21, marginTop: 4 },
+  versus: { flexDirection: 'row', gap: 10 },
+  side: {
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    borderColor: 'rgba(255, 255, 255, 0.22)',
+    borderRadius: 16,
+    borderWidth: 1.5,
+    flex: 1,
+    gap: 8,
+    padding: 12
+  },
+  sideLabel: {
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase'
+  },
+  point: { flexDirection: 'row', gap: 6 },
+  pointIcon: { marginTop: 3 },
+  pointText: { color: '#ffffff', flex: 1, fontSize: 15, fontWeight: '600', lineHeight: 21 },
+  pointTextOld: { color: 'rgba(255, 255, 255, 0.75)', fontWeight: '500' },
+  step: { flexDirection: 'row', gap: 12, minHeight: 36 },
+  rail: { alignItems: 'center', paddingTop: 5, width: 14 },
+  dot: { borderColor: '#ffffff', borderRadius: 7, borderWidth: 2.5, height: 14, width: 14 },
+  link: { backgroundColor: 'rgba(255, 255, 255, 0.4)', flex: 1, marginVertical: 2, width: 2 },
+  stepText: {
+    color: '#ffffff',
+    flex: 1,
+    fontSize: 18,
+    fontWeight: '700',
+    lineHeight: 24,
+    paddingBottom: 10
+  },
+  layers: { gap: 4 },
+  layer: { borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11 },
+  layerText: { color: '#ffffff', fontSize: 17, fontWeight: '700', lineHeight: 22 },
+  receipt: {
+    backgroundColor: '#FFFBEB',
+    borderRadius: 6,
+    elevation: 10,
+    gap: 12,
+    padding: 18,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
+    transform: [{ rotate: '-1.2deg' }]
+  },
+  receiptText: { fontSize: 19, lineHeight: 29 },
+  receiptMarked: { backgroundColor: '#FDE047', color: '#1c1917', fontWeight: '600' },
+  receiptFoot: { alignItems: 'center', flexDirection: 'row', gap: 10 },
+  receiptWho: { color: '#57534e', flex: 1, fontSize: 14, fontWeight: '600' },
+  receiptTime: {
+    alignItems: 'center',
+    backgroundColor: '#E7E5E4',
+    borderRadius: 999,
+    flexDirection: 'row',
+    gap: 4,
+    paddingHorizontal: 9,
+    paddingVertical: 4
+  },
+  receiptTimeText: { color: '#44403c', fontSize: 12, fontWeight: '700' },
   photoFrame: {
     borderRadius: 18,
     elevation: 12,
