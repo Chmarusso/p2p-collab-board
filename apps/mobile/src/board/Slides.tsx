@@ -46,7 +46,36 @@ export function deckOf(data: BoardData, card: Card) {
         ...splitVisual(lines.filter((line) => line.trim()))
       }
     })
+    .flatMap(paced)
   return slides.length ? { summary: intro.replace(/^##.*$/m, '').trim(), slides } : null
+}
+
+// One thing on screen at a time. A visual keeps at most one short line beside
+// it; longer captions follow on a slide of their own. Text alone splits in two
+// past MAX_LINES lines or MAX_WORDS words. Follow-up slides have no heading,
+// so they read as the same idea continued rather than the title repeated.
+const MAX_LINES = 3
+const MAX_WORDS = 36
+const CAPTION_WORDS = 14
+const wordCount = (lines: string[]) => lines.join(' ').split(/\s+/).filter(Boolean).length
+
+function paced(slide: Slide): Slide[] {
+  const more = (lines: string[]): Slide => ({ heading: '', lines, visual: null })
+  const { lines, visual } = slide
+  const crowded = lines.length > 1 || wordCount(lines) > CAPTION_WORDS
+  if (visual && crowded) return [{ ...slide, lines: [] }, ...splitText(more(lines))]
+  return splitText(slide)
+}
+
+function splitText(slide: Slide): Slide[] {
+  const { lines } = slide
+  if (slide.visual || lines.length < 2) return [slide]
+  if (lines.length <= MAX_LINES && wordCount(lines) <= MAX_WORDS) return [slide]
+  const half = Math.ceil(lines.length / 2)
+  return [
+    { ...slide, lines: lines.slice(0, half) },
+    { heading: '', lines: lines.slice(half), visual: null }
+  ]
 }
 
 // Cards with a deck, newest first.
@@ -299,9 +328,11 @@ export function SlidesPlayer({
                       {emojiOf(slide.heading)}
                     </Animated.Text>
                   ) : null}
-                  <Animated.Text style={[visual ? styles.headingSmall : styles.heading, rise(1)]}>
-                    {withoutEmoji(slide.heading)}
-                  </Animated.Text>
+                  {slide.heading ? (
+                    <Animated.Text style={[visual ? styles.headingSmall : styles.heading, rise(1)]}>
+                      {withoutEmoji(slide.heading)}
+                    </Animated.Text>
+                  ) : null}
                   {visual && visual.type !== 'picture' ? (
                     <Animated.View style={rise(2)}>
                       <VisualCard visual={visual} accent={accent} />
